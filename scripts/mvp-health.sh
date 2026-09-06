@@ -4,7 +4,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="${ROOT_DIR}/.env"
-PINNED_COMMIT="3ea890884d674e2f31257a2da421601f2d75b5e9"
+DATA_PIPES_IMAGE_DIGEST="sha256:000074117c2de36935d52ec6aee165262f9b5724eb7d26c5d3ccff86fa6ea4d8"
 PINNED_OPENELIS_DOCKER_COMMIT="f118d0ae778a30028c16be2af549843ec166f655"
 CURL_CONNECT_TIMEOUT_SECONDS="${MVP_CURL_CONNECT_TIMEOUT_SECONDS:-5}"
 CURL_MAX_TIME_SECONDS="${MVP_CURL_MAX_TIME_SECONDS:-15}"
@@ -190,10 +190,7 @@ EOF
 }
 
 check_data_pipes() {
-  test "$(
-    git -C "${ROOT_DIR}/.fhir-data-pipes" rev-parse HEAD
-  )" = "${PINNED_COMMIT}" &&
-    curl -fsS \
+  curl -fsS \
       --connect-timeout "${CURL_CONNECT_TIMEOUT_SECONDS}" \
       --max-time "${CURL_MAX_TIME_SECONDS}" \
       "http://localhost:${DATA_PIPES_PORT:-8090}/actuator/health" >/dev/null &&
@@ -376,7 +373,7 @@ PIPELINE_JSON="${pipeline_json}" \
 PROVENANCE_PATH="${ROOT_DIR}/logs/mvp-provenance.json" \
 OPENELIS_VERSION="${OPENELIS_VERSION:-unknown}" \
 OPENELIS_DOCKER_COMMIT="${OPENELIS_DOCKER_REF:-${PINNED_OPENELIS_DOCKER_COMMIT}}" \
-DATA_PIPES_COMMIT="${PINNED_COMMIT}" \
+DATA_PIPES_COMMIT="${DATA_PIPES_IMAGE_DIGEST}" \
 HUB_COMMIT="${hub_commit}" \
 HUB_SOURCE="${hub_source}" \
 HUB_DIRTY="${hub_dirty}" \

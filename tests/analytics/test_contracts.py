@@ -8,7 +8,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 ANALYTICS = ROOT / "analytics"
-PINNED_DATA_PIPES_COMMIT = "3ea890884d674e2f31257a2da421601f2d75b5e9"
+PINNED_DATA_PIPES_IMAGE = (
+    "us-docker.pkg.dev/cloud-build-fhir/fhir-analytics/main:0.6.0"
+    "@sha256:000074117c2de36935d52ec6aee165262f9b5724eb7d26c5d3ccff86fa6ea4d8"
+)
 PINNED_OPENELIS_DOCKER_COMMIT = "f118d0ae778a30028c16be2af549843ec166f655"
 
 
@@ -42,12 +45,16 @@ def load_simple_yaml_section(text, section):
 
 
 class BootstrapContractTests(unittest.TestCase):
-    def test_data_pipes_bootstrap_is_pinned_and_checkout_is_ignored(self):
-        script = (ROOT / "scripts/bootstrap-fhir-data-pipes.sh").read_text()
-        self.assertIn(PINNED_DATA_PIPES_COMMIT, script)
-        self.assertRegex(script, r"git (?:-C .* )?checkout --detach")
-        self.assertRegex(script, r"rev-parse HEAD")
-        self.assertIn(".fhir-data-pipes/", (ROOT / ".gitignore").read_text().splitlines())
+    def test_data_pipes_runs_a_digest_pinned_upstream_release_image(self):
+        """The pipeline is consumed as a published release, never built from a
+        cloned upstream revision: a bare branch SHA is collectable (GitHub
+        answered `upload-pack: not our ref` once the pinned commit was gone,
+        which blocked every local bring-up), whereas a digest-pinned release
+        tag is immutable and needs no third-party Git remote at all."""
+        compose = (ROOT / "docker-compose.mvp.yml").read_text()
+        self.assertIn(f"image: {PINNED_DATA_PIPES_IMAGE}", compose)
+        self.assertNotIn("context: ./.fhir-data-pipes", compose)
+        self.assertFalse((ROOT / "scripts/bootstrap-fhir-data-pipes.sh").exists())
 
     def test_openelis_bootstrap_is_pinned_and_detached(self):
         script = (ROOT / "scripts/bootstrap-openelis.sh").read_text()
@@ -267,7 +274,6 @@ class SeedContractTests(unittest.TestCase):
 class ShellContractTests(unittest.TestCase):
     def test_new_shell_scripts_parse_and_are_executable(self):
         scripts = [
-            ROOT / "scripts/bootstrap-fhir-data-pipes.sh",
             ROOT / "scripts/mvp-seed.sh",
             ROOT / "scripts/mvp-analytics-health.sh",
             ANALYTICS / "openelis/backfill-hapi.sh",

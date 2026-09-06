@@ -172,11 +172,13 @@ services:
       start_period: 10m
 
   fhir-data-pipes:
-    image: catalyst/fhir-data-pipes:3ea890884d674e2f31257a2da421601f2d75b5e9
+    # Upstream's published release, pinned by digest like every other image
+    # here. This used to clone google/fhir-data-pipes at a bare branch SHA and
+    # build it locally; GitHub garbage-collected that commit and answered
+    # `upload-pack: not our ref`, which blocked every local bring-up. A release
+    # digest is immutable and needs no third-party Git remote.
+    image: us-docker.pkg.dev/cloud-build-fhir/fhir-analytics/main:0.6.0@sha256:000074117c2de36935d52ec6aee165262f9b5724eb7d26c5d3ccff86fa6ea4d8
     restart: "on-failure:10"
-    build:
-      context: ./.fhir-data-pipes
-      dockerfile: Dockerfile
     environment:
       JAVA_OPTS: >-
         -Xms512m
@@ -222,8 +224,8 @@ services:
       start_period: 30s
 
   # Upstream's single-process Spark SQL environment, copied from
-  # .fhir-data-pipes/docker/compose-controller-spark-sql-single.yaml at the
-  # pinned revision. It reads the Parquet the controller writes and serves it
+  # docker/compose-controller-spark-sql-single.yaml in google/fhir-data-pipes
+  # at the pinned release. It reads the Parquet the controller writes and serves it
   # over Hive Thrift; Catalyst and Superset are ordinary SQL clients of it.
   spark-thriftserver:
     image: docker.io/bitnamilegacy/spark:4.0.0

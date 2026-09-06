@@ -103,7 +103,6 @@ if [ -n "${compose_override_file}" ]; then
 fi
 
 "${ROOT_DIR}/scripts/bootstrap-openelis.sh"
-"${ROOT_DIR}/scripts/bootstrap-fhir-data-pipes.sh"
 if [ -n "${MED_AGENT_HUB_CONTEXT:-}" ]; then
   if [ ! -f "${MED_AGENT_HUB_CONTEXT}/Dockerfile" ]; then
     echo "ERROR: MED_AGENT_HUB_CONTEXT does not contain a Hub Dockerfile: ${MED_AGENT_HUB_CONTEXT}" >&2

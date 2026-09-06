@@ -28,9 +28,6 @@ class MvpComposeContractTests(unittest.TestCase):
         cls.superset_script = (ROOT / "scripts/mvp-superset.sh").read_text()
         cls.model_config_script = (ROOT / "scripts/mvp-model-config.sh").read_text()
         cls.hub_bootstrap = (ROOT / "scripts/bootstrap-med-agent-hub.sh").read_text()
-        cls.fhir_data_pipes_bootstrap = (
-            ROOT / "scripts/bootstrap-fhir-data-pipes.sh"
-        ).read_text()
         cls.openelis_bootstrap = (ROOT / "scripts/bootstrap-openelis.sh").read_text()
 
     def test_compose_assembles_only_the_required_mvp_services(self):
@@ -164,8 +161,13 @@ class MvpComposeContractTests(unittest.TestCase):
                 with self.subTest(script=script_name, variable=variable):
                     self.assertIn(f"export {variable}=", script)
 
-    def test_data_pipes_is_built_from_the_pinned_checkout_with_its_warehouse(self):
-        self.assertIn("context: ./.fhir-data-pipes", self.compose)
+    def test_data_pipes_runs_the_pinned_release_image_with_its_warehouse(self):
+        self.assertIn(
+            "image: us-docker.pkg.dev/cloud-build-fhir/fhir-analytics/main:0.6.0"
+            "@sha256:000074117c2de36935d52ec6aee165262f9b5724eb7d26c5d3ccff86fa6ea4d8",
+            self.compose,
+        )
+        self.assertNotIn("context: ./.fhir-data-pipes", self.compose)
         self.assertIn("./analytics/config:/app/config:ro", self.compose)
         self.assertTrue((ROOT / "analytics/config/flink-conf.yaml").is_file())
         self.assertIn('FHIRDATA_GENERATEPARQUETFILES: "true"', self.compose)
@@ -191,7 +193,6 @@ class MvpComposeContractTests(unittest.TestCase):
 
     def test_pinned_runtime_dependency_checkouts_are_reused_until_refresh_requested(self):
         for script, pinned_reference in (
-            (self.fhir_data_pipes_bootstrap, "FHIR_DATA_PIPES_COMMIT"),
             (self.openelis_bootstrap, "OPENELIS_DOCKER_REF"),
         ):
             with self.subTest(reference=pinned_reference):
