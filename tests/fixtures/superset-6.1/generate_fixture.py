@@ -23,7 +23,7 @@ from src.catalyst.digest import canonical_sha256  # noqa: E402
 
 
 FIXED_TIME = "2026-08-06T00:00:00.000Z"
-ANALYTICS_URI = "hive://catalyst@spark-thriftserver:10000/default"
+ANALYTICS_URI = "hive://catalyst@spark-thriftserver:10000/openelis"
 ENTITY_IDS = (
     "edb62a6a-cb99-497c-8e58-b4dd2bd7d7ef",
     "89ec9f1b-bfb7-4540-8752-e1aa472ee5c8",

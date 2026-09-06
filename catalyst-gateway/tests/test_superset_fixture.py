@@ -51,7 +51,7 @@ def test_canonical_superset_fixture_covers_every_supported_family() -> None:
     assert len(dashboards) == 1
     database = databases[0]
     assert database["sqlalchemy_uri"] == (
-        "hive://catalyst@spark-thriftserver:10000/default"
+        "hive://catalyst@spark-thriftserver:10000/openelis"
     )
     assert database["allow_dml"] is False
     assert database["allow_ctas"] is False

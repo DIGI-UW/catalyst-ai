@@ -120,16 +120,19 @@ def _sql_literal(parameter: dict[str, Any]) -> str:
         )
     if not isinstance(value, str):
         raise DashboardBuilderError(f"Invalid text value for :{parameter['name']}.")
-    escaped = value.replace("'", "''")
+    # Spark unescapes backslash sequences in regular string literals. Double the
+    # slash before applying the SQL quote escape so a saved parameter value is
+    # reproduced byte-for-byte in the Superset virtual dataset.
+    escaped = value.replace("\\", "\\\\").replace("'", "''")
     if kind == "date":
         return f"DATE '{escaped}'"
     if kind == "date-time":
-        return f"TIMESTAMPTZ '{escaped}'"
+        return f"TIMESTAMP '{escaped}'"
     return f"'{escaped}'"
 
 
 def compile_parameterized_sql(sql: str, parameters: list[dict[str, Any]]) -> str:
-    """Compile the accepted workbench parameter values into PostgreSQL literals.
+    """Compile accepted workbench parameter values into Spark SQL literals.
 
     The source Query version and its typed parameters remain the authority;
     compilation creates the Superset virtual-dataset SQL only.  Unbound names
@@ -607,7 +610,7 @@ class DashboardBuilder:
                 # Superset renders against the same Spark source Catalyst
                 # queried, so a displayed value can be inspected against the
                 # originating result without a second database.
-                "hive://catalyst@spark-thriftserver:10000/default",
+                "hive://catalyst@spark-thriftserver:10000/openelis",
             ),
             "password": None,
             # Superset's native importer rejects an empty encrypted-extra map;

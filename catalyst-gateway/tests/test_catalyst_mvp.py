@@ -934,7 +934,7 @@ def test_gateway_defaults_match_the_local_mvp(monkeypatch: pytest.MonkeyPatch):
     assert config.hub_base_url == "http://localhost:8082"
     default = config.data_sources[0]
     assert default.connection_uri == (
-        "hive2://catalyst@spark-thriftserver:10000/default"
+        "hive2://catalyst@spark-thriftserver:10000/openelis"
     )
     assert default.dialect == "spark"
     assert config.hub_timeout_seconds == 360

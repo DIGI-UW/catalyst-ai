@@ -122,6 +122,23 @@ def test_compile_parameterized_sql_preserves_typed_literals() -> None:
     )
 
 
+def test_compile_parameterized_sql_uses_spark_timestamp_and_preserves_backslashes() -> None:
+    assert (
+        compile_parameterized_sql(
+            "SELECT :at AS at, :label AS label",
+            [
+                {
+                    "name": "at",
+                    "type": "date-time",
+                    "value": "2026-09-06T12:00:00Z",
+                },
+                {"name": "label", "type": "string", "value": r"group\new"},
+            ],
+        )
+        == r"SELECT TIMESTAMP '2026-09-06T12:00:00Z' AS at, 'group\\new' AS label"
+    )
+
+
 def test_empty_numeric_dataset_does_not_suggest_an_invalid_big_number() -> None:
     columns = [{"ordinal": 0, "name": "count", "logicalType": "integer"}]
 

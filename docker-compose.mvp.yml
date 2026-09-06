@@ -109,7 +109,7 @@ services:
     command: ["status"]
     environment:
       <<: *superset-environment
-      CATALYST_ANALYTICS_DATABASE_URI: "hive://catalyst@spark-thriftserver:10000/default"
+      CATALYST_ANALYTICS_DATABASE_URI: "hive://catalyst@spark-thriftserver:10000/openelis"
       CATALYST_SUPERSET_OUTBOX: /opt/catalyst/outbox
       CATALYST_SUPERSET_RECEIPTS: /opt/catalyst/receipts
       CATALYST_SUPERSET_PUBLIC_URL: "http://localhost:${SUPERSET_PORT:-8088}"
@@ -307,12 +307,12 @@ services:
     environment:
       MED_AGENT_HUB_BASE_URL: "http://med-agent-hub:8080"
       CATALYST_QUERY_PROFILE_ID: "${MVP_RESOLVED_PROFILE_ID:-catalyst-query-e4b-qwen14b}"
-      CATALYST_CONNECTION_URI: "hive2://catalyst@spark-thriftserver:10000/default"
+      CATALYST_CONNECTION_URI: "hive2://catalyst@spark-thriftserver:10000/openelis"
       CATALYST_DIALECT: "spark"
       CATALYST_PREVIEW_STORE_PATH: "/app/state/previews.sqlite3"
       CATALYST_SUPERSET_OUTBOX: "/app/superset-outbox"
       CATALYST_SUPERSET_RECEIPTS: "/app/superset-receipts"
-      CATALYST_SUPERSET_ANALYTICS_URI: "hive://catalyst@spark-thriftserver:10000/default"
+      CATALYST_SUPERSET_ANALYTICS_URI: "hive://catalyst@spark-thriftserver:10000/openelis"
       CATALYST_QUERY_MAX_ROWS: "${CATALYST_QUERY_MAX_ROWS:-100}"
       CATALYST_STATEMENT_TIMEOUT_MS: "${CATALYST_STATEMENT_TIMEOUT_MS:-10000}"
       CATALYST_EXECUTION_LEASE_SECONDS: "${CATALYST_EXECUTION_LEASE_SECONDS:-60}"

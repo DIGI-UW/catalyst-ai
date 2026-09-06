@@ -77,7 +77,7 @@ def load_config() -> GatewayConfig:
         label=os.getenv("CATALYST_DATA_SOURCE_LABEL", "OpenELIS Laboratory"),
         connection_uri=os.getenv(
             "CATALYST_CONNECTION_URI",
-            "hive2://catalyst@spark-thriftserver:10000/default",
+            "hive2://catalyst@spark-thriftserver:10000/openelis",
         ),
         dialect=os.getenv("CATALYST_DIALECT", "spark"),
         dialect_adapter=os.getenv(

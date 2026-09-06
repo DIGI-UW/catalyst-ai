@@ -1,14 +1,14 @@
 {
-  "bundleDigest": "fb82ad7d0d3a6543a94323c7353609b2cb5e04c5a4a9ff60985dc9b785f5d1ae",
+  "bundleDigest": "3533c353cfed665e55e53a5e59dad30bd59e55699f27ad52171e0bd7eb6899fa",
   "bundleRoot": "catalyst_dashboard_f71bb6a3-2ee2-5e17-994d-31366916391e",
-  "bytes": 23210,
+  "bytes": 23211,
   "canonicalInputDigest": "26652d9dd55bddab0b5b7cf1886ce1e839171e18d01e8ef92c8cbfd9bcd8e258",
   "generatorRevision": "catalyst-dashboard-builder-mvp.v1",
   "members": [
     {
       "bytes": 10314,
       "path": "catalyst/manifest.json",
-      "sha256": "680480caa12e403095c21a15efe4c8f3409accbbaace045e5dcb3ff5f0c35520"
+      "sha256": "54e78391829748358494619b82babd9ddb6d903abb2f12ab252c0185e0e9dcf5"
     },
     {
       "bytes": 680,
@@ -51,9 +51,9 @@
       "sha256": "b600be84503e13c665d1ee2a2a99561af7e3a350304fb7b6b05233a6833c3418"
     },
     {
-      "bytes": 382,
+      "bytes": 383,
       "path": "databases/09daed55-c9d2-58ac-8b74-960e7e69729b.yaml",
-      "sha256": "ce90d2cc1f9887dde14c70d85a03ff7d993f2dc6358f4a78a2d7707625bcc0ed"
+      "sha256": "d2d99620808ee16c66babb0565d0411701a47c98a037f33094f17fe07c2a0362"
     },
     {
       "bytes": 1034,

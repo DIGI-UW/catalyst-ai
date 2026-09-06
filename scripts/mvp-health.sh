@@ -129,7 +129,7 @@ wait_for() {
 
 spark_sql() {
   "${compose[@]}" exec -T spark-thriftserver \
-    beeline -u 'jdbc:hive2://localhost:10000' \
+    beeline -u 'jdbc:hive2://localhost:10000/openelis' \
     --silent=true --outputformat=tsv2 -e "$1" 2>/dev/null | tail -n +2
 }
 

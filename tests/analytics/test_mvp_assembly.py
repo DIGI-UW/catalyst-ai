@@ -482,7 +482,7 @@ class MvpComposeContractTests(unittest.TestCase):
         )
         # Superset renders against the same Spark source Catalyst queried.
         self.assertIn(
-            "hive://catalyst@spark-thriftserver:10000/default",
+            "hive://catalyst@spark-thriftserver:10000/openelis",
             self.compose,
         )
         self.assertNotIn("set-database-uri", self.compose)
@@ -596,6 +596,15 @@ class MvpScriptContractTests(unittest.TestCase):
         script = (ROOT / "scripts/mvp-seed.sh").read_text()
         self.assertIn("SHOW VIEWS;", script)
         self.assertIn("registered no views into the Spark thriftserver", script)
+
+    def test_openelis_uses_an_isolated_spark_database(self):
+        sink = json.loads(
+            (ROOT / "analytics/config/thriftserver-hive-config.json").read_text()
+        )
+        seed = (ROOT / "scripts/mvp-seed.sh").read_text()
+        self.assertEqual("openelis", sink["databaseName"])
+        self.assertIn("CREATE DATABASE IF NOT EXISTS openelis", seed)
+        self.assertIn("jdbc:hive2://localhost:10000/openelis", seed)
 
     def test_http_readiness_and_backfill_calls_are_bounded(self):
         for relative_path in (
