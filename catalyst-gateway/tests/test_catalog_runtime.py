@@ -1,16 +1,11 @@
 import asyncio
 import json
-from datetime import datetime, timezone
 from copy import deepcopy
 from pathlib import Path
-from types import SimpleNamespace
 
-import pytest
-
-from src.catalyst.analytics import AnalyticsError, SqlAnalyticsAdapter
+from src.catalyst.analytics import SqlAnalyticsAdapter
 from tests.fixture_dialect import FIXTURE
 from src.catalyst.catalog import Catalog
-from src.catalyst.policy import QueryInvariantError, validate_query_invariants
 from src.catalyst.query_lint import lint_candidate
 from src.catalyst.request import build_query_request
 
@@ -19,109 +14,144 @@ ROOT = Path(__file__).resolve().parents[2]
 # The relation live discovery reports for this source. It is written out
 # here rather than loaded from a generated catalog file, because the
 # generated catalog is exactly what the connection now replaces.
-DISCOVERED_RELATION = {'name': 'analytics.lab_result_fact_v1',
- 'relationType': 'view',
- 'unqualifiedVisible': False,
- 'grain': 'Exactly one row per FHIR Observation, with at most one Specimen '
-          'matched by resource key. Built over the lossless default '
-          'projections: the per-coding cross product is collapsed per '
-          'observation and the LOINC coding pivoted into the test_* '
-          'columns.',
- 'fields': [{'name': 'observation_id',
-             'type': 'string',
-             'databaseType': 'string',
-             'description': 'FHIR Observation resource identifier and '
-                            'stable row identity for the laboratory '
-                            'result.',
-             'nullable': True},
-            {'name': 'patient_id',
-             'type': 'string',
-             'databaseType': 'string',
-             'description': 'FHIR Patient resource identifier referenced '
-                            'by the observation.',
-             'nullable': True},
-            {'name': 'service_request_id',
-             'type': 'string',
-             'databaseType': 'string',
-             'description': 'FHIR ServiceRequest resource identifier '
-                            'referenced by the observation.',
-             'nullable': True},
-            {'name': 'specimen_id',
-             'type': 'string',
-             'databaseType': 'string',
-             'description': 'FHIR Specimen resource identifier referenced '
-                            'by the observation.',
-             'nullable': True},
-            {'name': 'result_status',
-             'type': 'string',
-             'databaseType': 'string',
-             'description': 'FHIR Observation status for the laboratory '
-                            'result.',
-             'nullable': True},
-            {'name': 'observed_at',
-             'type': 'date-time',
-             'databaseType': 'timestamp',
-             'description': 'FHIR Observation effective date and time used '
-                            'to place the result clinically.',
-             'nullable': True},
-            {'name': 'issued_at',
-             'type': 'date-time',
-             'databaseType': 'timestamp',
-             'description': 'FHIR Observation issued instant.',
-             'nullable': True},
-            {'name': 'test_code_system',
-             'type': 'string',
-             'databaseType': 'string',
-             'description': 'Coding-system URI associated with the '
-                            'observation test code.',
-             'nullable': True},
-            {'name': 'test_code',
-             'type': 'string',
-             'databaseType': 'string',
-             'description': 'OpenELIS/FHIR test code for the observation.',
-             'nullable': True},
-            {'name': 'test_name',
-             'type': 'string',
-             'databaseType': 'string',
-             'description': 'OpenELIS test display name. A question naming '
-                            'an analyte must constrain this field rather '
-                            'than assume the view contains only that '
-                            'analyte.',
-             'nullable': True},
-            {'name': 'result_value',
-             'type': 'decimal',
-             'databaseType': 'decimal',
-             'description': 'Numeric FHIR Quantity value; do not aggregate '
-                            'across unlike units.',
-             'nullable': True},
-            {'name': 'result_unit',
-             'type': 'string',
-             'databaseType': 'string',
-             'description': 'FHIR Quantity display unit.',
-             'nullable': True},
-            {'name': 'result_unit_system',
-             'type': 'string',
-             'databaseType': 'string',
-             'description': 'Coding-system URI associated with the FHIR '
-                            'Quantity unit.',
-             'nullable': True},
-            {'name': 'result_unit_code',
-             'type': 'string',
-             'databaseType': 'string',
-             'description': 'Machine-readable FHIR Quantity unit code.',
-             'nullable': True},
-            {'name': 'specimen_received_at',
-             'type': 'date-time',
-             'databaseType': 'timestamp',
-             'description': 'FHIR Specimen received date and time when a '
-                            'matching specimen is available.',
-             'nullable': True},
-            {'name': 'receipt_to_release_minutes',
-             'type': 'decimal',
-             'databaseType': 'decimal',
-             'description': 'Elapsed minutes from Specimen.receivedTime to '
-                            'Observation.issued.',
-             'nullable': True}]}
+DISCOVERED_RELATION = {
+    "name": "analytics.lab_result_fact_v1",
+    "relationType": "view",
+    "unqualifiedVisible": False,
+    "grain": "Exactly one row per FHIR Observation, with at most one Specimen "
+    "matched by resource key. Built over the lossless default "
+    "projections: the per-coding cross product is collapsed per "
+    "observation and the LOINC coding pivoted into the test_* "
+    "columns.",
+    "fields": [
+        {
+            "name": "observation_id",
+            "type": "string",
+            "databaseType": "string",
+            "description": "FHIR Observation resource identifier and "
+            "stable row identity for the laboratory "
+            "result.",
+            "nullable": True,
+        },
+        {
+            "name": "patient_id",
+            "type": "string",
+            "databaseType": "string",
+            "description": "FHIR Patient resource identifier referenced "
+            "by the observation.",
+            "nullable": True,
+        },
+        {
+            "name": "service_request_id",
+            "type": "string",
+            "databaseType": "string",
+            "description": "FHIR ServiceRequest resource identifier "
+            "referenced by the observation.",
+            "nullable": True,
+        },
+        {
+            "name": "specimen_id",
+            "type": "string",
+            "databaseType": "string",
+            "description": "FHIR Specimen resource identifier referenced "
+            "by the observation.",
+            "nullable": True,
+        },
+        {
+            "name": "result_status",
+            "type": "string",
+            "databaseType": "string",
+            "description": "FHIR Observation status for the laboratory " "result.",
+            "nullable": True,
+        },
+        {
+            "name": "observed_at",
+            "type": "date-time",
+            "databaseType": "timestamp",
+            "description": "FHIR Observation effective date and time used "
+            "to place the result clinically.",
+            "nullable": True,
+        },
+        {
+            "name": "issued_at",
+            "type": "date-time",
+            "databaseType": "timestamp",
+            "description": "FHIR Observation issued instant.",
+            "nullable": True,
+        },
+        {
+            "name": "test_code_system",
+            "type": "string",
+            "databaseType": "string",
+            "description": "Coding-system URI associated with the "
+            "observation test code.",
+            "nullable": True,
+        },
+        {
+            "name": "test_code",
+            "type": "string",
+            "databaseType": "string",
+            "description": "OpenELIS/FHIR test code for the observation.",
+            "nullable": True,
+        },
+        {
+            "name": "test_name",
+            "type": "string",
+            "databaseType": "string",
+            "description": "OpenELIS test display name. A question naming "
+            "an analyte must constrain this field rather "
+            "than assume the view contains only that "
+            "analyte.",
+            "nullable": True,
+        },
+        {
+            "name": "result_value",
+            "type": "decimal",
+            "databaseType": "decimal",
+            "description": "Numeric FHIR Quantity value; do not aggregate "
+            "across unlike units.",
+            "nullable": True,
+        },
+        {
+            "name": "result_unit",
+            "type": "string",
+            "databaseType": "string",
+            "description": "FHIR Quantity display unit.",
+            "nullable": True,
+        },
+        {
+            "name": "result_unit_system",
+            "type": "string",
+            "databaseType": "string",
+            "description": "Coding-system URI associated with the FHIR "
+            "Quantity unit.",
+            "nullable": True,
+        },
+        {
+            "name": "result_unit_code",
+            "type": "string",
+            "databaseType": "string",
+            "description": "Machine-readable FHIR Quantity unit code.",
+            "nullable": True,
+        },
+        {
+            "name": "specimen_received_at",
+            "type": "date-time",
+            "databaseType": "timestamp",
+            "description": "FHIR Specimen received date and time when a "
+            "matching specimen is available.",
+            "nullable": True,
+        },
+        {
+            "name": "receipt_to_release_minutes",
+            "type": "decimal",
+            "databaseType": "decimal",
+            "description": "Elapsed minutes from Specimen.receivedTime to "
+            "Observation.issued.",
+            "nullable": True,
+        },
+    ],
+}
 
 
 def _base_catalog() -> Catalog:
@@ -133,7 +163,6 @@ def _base_catalog() -> Catalog:
     return Catalog.for_source(
         data_source="openelis-analytics", dialect="fixture"
     ).with_discovered_relations([DISCOVERED_RELATION])
-
 
 
 def test_discovered_relations_expand_catalog_and_keep_curated_semantics():
@@ -437,5 +466,3 @@ SECOND_SOURCE_BROWSER = {
     "valueColumn": "measure_numeric",
     "valueFallbackColumns": ["measure_text"],
 }
-
-

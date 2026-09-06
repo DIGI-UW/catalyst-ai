@@ -1,29 +1,19 @@
 import asyncio
 from copy import deepcopy
-from datetime import date, datetime, timedelta, timezone
-from decimal import Decimal
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
 
 from src import gateway
-from src.catalyst.analytics import AnalyticsResult, SqlAnalyticsAdapter
-from tests.fixture_dialect import FIXTURE
+from src.catalyst.analytics import AnalyticsResult
 from src.catalyst.catalog import Catalog
 from src.catalyst.contracts import ContractError, ContractRegistry
-from src.catalyst.digest import canonical_sha256
 from src.catalyst.hub import HubError
-from src.catalyst.policy import (
-    QueryInvariantError,
-    SqlPolicy,
-    validate_query_invariants,
-)
-from src.catalyst.request import build_query_request
+from src.catalyst.policy import SqlPolicy
 from src.catalyst.service import CatalystService
 from src.catalyst.storage import PreviewStore
-from src.catalyst.table import TableError, build_table
 from src.config import load_config
 
 
@@ -32,6 +22,7 @@ CONTRACTS = Path(__file__).resolve().parents[2] / "docs" / "contracts"
 # The OpenELIS dataset-browser mapping, mirroring what its shipped catalog
 # declares. The adapter composes every dataset query from a profile like this
 # one, so a source's own column names never leak into another source's SQL.
+
 
 def catalog() -> Catalog:
     return Catalog(

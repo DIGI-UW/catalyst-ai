@@ -173,9 +173,7 @@ def _dbapi_connect(connection_uri: str, *, connect_timeout: int = 5) -> Any:
 
     parts = urlsplit(connection_uri)
     if not parts.hostname:
-        raise AnalyticsError(
-            f"Connection URI {connection_uri!r} names no host."
-        )
+        raise AnalyticsError(f"Connection URI {connection_uri!r} names no host.")
     database = parts.path.lstrip("/") or "default"
     return _hs2_connect(
         host=parts.hostname,
@@ -325,9 +323,7 @@ class SqlAnalyticsAdapter:
         except AnalyticsError:
             raise
         except Exception as error:
-            raise AnalyticsError(
-                f"Freshness lookup failed: {error}"
-            ) from error
+            raise AnalyticsError(f"Freshness lookup failed: {error}") from error
 
     async def discover_relations(self) -> list[dict[str, Any]]:
         """Describe every non-system relation the configured role can SELECT."""
@@ -337,9 +333,7 @@ class SqlAnalyticsAdapter:
         except AnalyticsError:
             raise
         except Exception as error:
-            raise AnalyticsError(
-                f"Relation discovery failed: {error}"
-            ) from error
+            raise AnalyticsError(f"Relation discovery failed: {error}") from error
 
     def _execute_sync(
         self,
@@ -370,9 +364,7 @@ class SqlAnalyticsAdapter:
                     # and looks like a Catalyst bug rather than the
                     # engine's own response.
                     description = cursor.description or ()
-                    rows = (
-                        list(cursor.fetchmany(max_rows + 1)) if description else []
-                    )
+                    rows = list(cursor.fetchmany(max_rows + 1)) if description else []
                 column_names = [str(column[0]) for column in description]
         truncated = len(rows) > max_rows
         truncation_reason = "configured_limit" if truncated else None
@@ -438,9 +430,7 @@ class SqlAnalyticsAdapter:
 
     def _literal_sql_limit(self, sql: str) -> int | None:
         try:
-            statement = sqlglot.parse_one(
-                sql, read=self.dialect.sqlglot_dialect
-            )
+            statement = sqlglot.parse_one(sql, read=self.dialect.sqlglot_dialect)
         except ParseError:
             return None
         limit = statement.args.get("limit")

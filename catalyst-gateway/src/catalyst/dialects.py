@@ -19,7 +19,7 @@ a second engine to maintain.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable, Sequence
+from typing import Any, Callable
 
 
 @dataclass(frozen=True)

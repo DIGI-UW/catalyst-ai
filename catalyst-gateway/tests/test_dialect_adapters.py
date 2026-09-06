@@ -34,10 +34,25 @@ def _editor_catalog_logical_types() -> set[str]:
 # Every Spark type a ViewDefinition export actually produces, plus the complex
 # ones the flat views are full of.
 SPARK_TYPES = [
-    "BOOLEAN", "TINYINT", "SMALLINT", "INT", "BIGINT",
-    "FLOAT", "DOUBLE", "DECIMAL(10,2)", "STRING", "VARCHAR(64)", "CHAR(3)",
-    "DATE", "TIMESTAMP", "TIMESTAMP_NTZ", "BINARY", "INTERVAL",
-    "ARRAY<STRING>", "STRUCT<code:STRING>", "MAP<STRING,STRING>",
+    "BOOLEAN",
+    "TINYINT",
+    "SMALLINT",
+    "INT",
+    "BIGINT",
+    "FLOAT",
+    "DOUBLE",
+    "DECIMAL(10,2)",
+    "STRING",
+    "VARCHAR(64)",
+    "CHAR(3)",
+    "DATE",
+    "TIMESTAMP",
+    "TIMESTAMP_NTZ",
+    "BINARY",
+    "INTERVAL",
+    "ARRAY<STRING>",
+    "STRUCT<code:STRING>",
+    "MAP<STRING,STRING>",
     "some_type_spark_adds_later",
 ]
 

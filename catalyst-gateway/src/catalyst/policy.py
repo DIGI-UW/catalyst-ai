@@ -224,9 +224,7 @@ class SqlPolicy:
                     Violation(
                         "relation_not_found",
                         "Query references relations not present in the current "
-                        "readable schema: "
-                        + ", ".join(missing_relations)
-                        + ".",
+                        "readable schema: " + ", ".join(missing_relations) + ".",
                     )
                 )
 

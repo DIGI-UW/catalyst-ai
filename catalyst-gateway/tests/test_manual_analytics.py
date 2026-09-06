@@ -71,8 +71,7 @@ def test_manual_result_does_not_describe_zero_rows_as_blank():
 
 def test_manual_result_bounds_blank_warning_and_marks_truncated_scope():
     columns = [
-        AnalyticsColumn(index, f"blank_{index}", "txt", "string")
-        for index in range(10)
+        AnalyticsColumn(index, f"blank_{index}", "txt", "string") for index in range(10)
     ]
     result = ManualAnalyticsResult(
         columns=columns,

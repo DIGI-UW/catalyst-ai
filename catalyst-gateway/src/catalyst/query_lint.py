@@ -30,9 +30,7 @@ class LintFinding:
         return {key: value for key, value in asdict(self).items() if value is not None}
 
 
-def _parse_finding(
-    sql: str, error: ParseError, dialect: DialectAdapter
-) -> LintFinding:
+def _parse_finding(sql: str, error: ParseError, dialect: DialectAdapter) -> LintFinding:
     detail = error.errors[0] if error.errors else {}
     line = detail.get("line") if isinstance(detail.get("line"), int) else None
     column = detail.get("col") if isinstance(detail.get("col"), int) else None
@@ -68,9 +66,7 @@ def _parse_finding(
         path="sql",
         line=line,
         column=column,
-        message=(
-            f"SQL could not be parsed as {dialect.statement_label}: {error}"
-        ),
+        message=(f"SQL could not be parsed as {dialect.statement_label}: {error}"),
         evidence=evidence or sql[:240],
         suggestedAction=(
             f"Return one syntactically valid {dialect.statement_label} "

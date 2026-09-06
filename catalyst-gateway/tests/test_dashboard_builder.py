@@ -122,7 +122,9 @@ def test_compile_parameterized_sql_preserves_typed_literals() -> None:
     )
 
 
-def test_compile_parameterized_sql_uses_spark_timestamp_and_preserves_backslashes() -> None:
+def test_compile_parameterized_sql_uses_spark_timestamp_and_preserves_backslashes() -> (
+    None
+):
     assert (
         compile_parameterized_sql(
             "SELECT :at AS at, :label AS label",

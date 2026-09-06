@@ -113,7 +113,6 @@ class AnalyticsProtocol(Protocol):
     async def readiness(self) -> dict[str, Any]: ...
 
 
-
 @dataclass(frozen=True)
 class ServiceResponse:
     status_code: int
