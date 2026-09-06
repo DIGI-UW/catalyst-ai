@@ -33,7 +33,12 @@ const EMPTY_CATALOG: readonly SqlCatalogRelation[] = [];
 // honest choice for a dialect CodeMirror does not model: the shared language,
 // without claiming to understand extensions it has no grammar for. The
 // declared dialect still drives formatting and the editor's language mode.
-const editorDialect = (_dialect: string) => StandardSQL;
+const EDITOR_DIALECTS: Record<string, typeof StandardSQL> = {
+  spark: StandardSQL,
+};
+
+const editorDialect = (dialect: string) =>
+  EDITOR_DIALECTS[dialect.toLowerCase()] ?? StandardSQL;
 
 export const SqlEditor = ({
   label,
@@ -57,6 +62,7 @@ export const SqlEditor = ({
   const readOnlyCompartmentRef = useRef(new Compartment());
   const initialConfigurationRef = useRef({
     labelId,
+    dialect,
     readOnly,
     value,
     wrapLines: controlledWrapLines ?? true,
@@ -89,7 +95,7 @@ export const SqlEditor = ({
           syntaxHighlighting(sqlHighlightStyle),
           languageCompartmentRef.current.of(
             sql({
-              dialect: editorDialect(dialect),
+              dialect: editorDialect(initial.dialect),
               schema: initial.schema,
               upperCaseKeywords: true,
             }),
@@ -151,7 +157,7 @@ export const SqlEditor = ({
         }),
       ),
     });
-  }, [completionSchema]);
+  }, [completionSchema, dialect]);
 
   useEffect(() => {
     viewRef.current?.dispatch({
