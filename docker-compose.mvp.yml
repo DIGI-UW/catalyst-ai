@@ -172,12 +172,14 @@ services:
       start_period: 10m
 
   fhir-data-pipes:
-    # Upstream's published release, pinned by digest like every other image
-    # here. This used to clone google/fhir-data-pipes at a bare branch SHA and
-    # build it locally; GitHub garbage-collected that commit and answered
-    # `upload-pack: not our ref`, which blocked every local bring-up. A release
-    # digest is immutable and needs no third-party Git remote.
-    image: us-docker.pkg.dev/cloud-build-fhir/fhir-analytics/main:0.6.0@sha256:000074117c2de36935d52ec6aee165262f9b5724eb7d26c5d3ccff86fa6ea4d8
+    # DIGI-UW's published controller build, pinned by digest like every other
+    # image here. It carries DIGI-UW/ohs-fhir-data-pipes#9, which stops
+    # HiveTableManager hardcoding `default.` in its DDL so the databaseName in
+    # analytics/config/thriftserver-hive-config.json is actually honored --
+    # without it every source's tables and views land in `default` and the
+    # second pipeline to run overwrites the first's canonical views.
+    # This replaced a clone-and-build of a bare upstream branch SHA.
+    image: itechuw/ohs-fhir-data-pipes-controller:sha-3d3656e@sha256:2f9caef7c3c940f8a0e1241551213954c1ea205371166eb8f1d40bd0311fda1a
     restart: "on-failure:10"
     environment:
       JAVA_OPTS: >-

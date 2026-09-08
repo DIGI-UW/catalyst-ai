@@ -163,8 +163,8 @@ class MvpComposeContractTests(unittest.TestCase):
 
     def test_data_pipes_runs_the_pinned_release_image_with_its_warehouse(self):
         self.assertIn(
-            "image: us-docker.pkg.dev/cloud-build-fhir/fhir-analytics/main:0.6.0"
-            "@sha256:000074117c2de36935d52ec6aee165262f9b5724eb7d26c5d3ccff86fa6ea4d8",
+            "image: itechuw/ohs-fhir-data-pipes-controller:sha-3d3656e"
+            "@sha256:2f9caef7c3c940f8a0e1241551213954c1ea205371166eb8f1d40bd0311fda1a",
             self.compose,
         )
         self.assertNotIn("context: ./.fhir-data-pipes", self.compose)

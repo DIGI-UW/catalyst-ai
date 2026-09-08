@@ -9,8 +9,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 ANALYTICS = ROOT / "analytics"
 PINNED_DATA_PIPES_IMAGE = (
-    "us-docker.pkg.dev/cloud-build-fhir/fhir-analytics/main:0.6.0"
-    "@sha256:000074117c2de36935d52ec6aee165262f9b5724eb7d26c5d3ccff86fa6ea4d8"
+    "itechuw/ohs-fhir-data-pipes-controller:sha-3d3656e"
+    "@sha256:2f9caef7c3c940f8a0e1241551213954c1ea205371166eb8f1d40bd0311fda1a"
 )
 PINNED_OPENELIS_DOCKER_COMMIT = "f118d0ae778a30028c16be2af549843ec166f655"
 
