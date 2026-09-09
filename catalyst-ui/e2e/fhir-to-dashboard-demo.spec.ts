@@ -3,6 +3,13 @@ import { expect, test } from "@playwright/test";
 import { DemoMilestones } from "./support/demo-milestones";
 import { openComposer } from "./support/open-composer";
 import { runSupersetImport } from "./support/superset-import";
+import {
+  capturePipelineBaseline,
+  expectDisplayedWarehouse,
+  observePipeline,
+  pipelineCompletion,
+  type PipelineCompletion,
+} from "./support/pipeline-proof";
 
 /*
  * The whole path, from a FHIR server to a published Superset dashboard.
@@ -19,8 +26,8 @@ import { runSupersetImport } from "./support/superset-import";
  *
  * Nothing here is a mock. The control panel is the pipeline's own UI, the
  * SQL is written by the configured model against the schema Spark reports,
- * and the number the dashboard shows in Superset is asserted to be the number
- * Catalyst returned -- read off the screen, not restated from a fixture.
+ * and screenshots retain the Catalyst result and the Superset dashboard for
+ * human comparison. Chart rendering is asserted; numeric equivalence is not.
  *
  * ONE spec, two modes -- the Playwright project picks it:
  *
@@ -37,7 +44,13 @@ import { runSupersetImport } from "./support/superset-import";
  *   it -- seconds, and the honest shape of a microbatch. FULL rebuilds the
  *   snapshot from every resource on the server, which is the same code path
  *   and takes as long as the source is large. Use FULL for a cut that has to
- *   show the warehouse being created from nothing.
+ *   show a fresh warehouse when no incremental changes exist. An incremental
+ *   no-op cannot prove new materialization and is reported as such.
+ *
+ * CATALYST_DATA_PIPES_CONTAINER (default hiv-data-pipes) must identify the
+ * container behind CATALYST_DATA_PIPES_URL. The pinned controller has no
+ * terminal-success HTTP API, so this proof reads its timestamped Docker logs
+ * for this run's successful registration and checks the exact new DWH root.
  */
 
 test.setTimeout(3_600_000);
@@ -50,7 +63,6 @@ const PIPELINE_MODE = (
 const PIPELINE_BUTTON: Record<string, string> = {
   INCREMENTAL: "Run Incremental",
   FULL: "Run Full",
-  VIEWS: "Recreate Views",
 };
 
 const COUNT_DATASET_BASE = "HIV patients in the warehouse";
@@ -71,7 +83,9 @@ const DASHBOARD_BASE = "OpenMRS HIV programme overview";
 const READS_A_DISCOVERED_RELATION =
   /\b(?:FROM|JOIN)\s+(?:\w+\.)?(?:patient_flat|observation_flat|encounter_flat|condition_flat|medication_flat|medication_request_flat|patient|observation|encounter|condition|medication|medicationrequest)\b/i;
 
-test("FHIR endpoint to a published Superset dashboard", async ({ page }, info) => {
+test("FHIR endpoint to a published Superset dashboard", async ({
+  page,
+}, info) => {
   test.skip(
     process.env.PLAYWRIGHT_LIVE !== "true",
     "Live-stack scenario; set PLAYWRIGHT_LIVE=true with PLAYWRIGHT_BASE_URL.",
@@ -79,7 +93,7 @@ test("FHIR endpoint to a published Superset dashboard", async ({ page }, info) =
   const runButton = PIPELINE_BUTTON[PIPELINE_MODE];
   if (!runButton) {
     throw new Error(
-      `CATALYST_DEMO_PIPELINE_MODE must be one of ${Object.keys(PIPELINE_BUTTON).join(", ")}`,
+      `CATALYST_DEMO_PIPELINE_MODE must be FULL or INCREMENTAL; VIEWS does not materialize a new warehouse`,
     );
   }
 
@@ -134,7 +148,10 @@ test("FHIR endpoint to a published Superset dashboard", async ({ page }, info) =
   };
 
   /** Type visibly on camera, instantly when testing. */
-  const type = async (locator: ReturnType<typeof page.getByLabel>, text: string) => {
+  const type = async (
+    locator: ReturnType<typeof page.getByLabel>,
+    text: string,
+  ) => {
     if (filming) await locator.pressSequentially(text, { delay: 28 });
     else await locator.fill(text);
   };
@@ -159,7 +176,10 @@ test("FHIR endpoint to a published Superset dashboard", async ({ page }, info) =
     .click();
   await expect(page.getByText("fhirdata.fhirServerUrl").first()).toBeVisible();
   await expect(page.getByText(/\/ws\/fhir2\/R4/).first()).toBeVisible();
-  await page.getByText(/\/ws\/fhir2\/R4/).first().scrollIntoViewIfNeeded();
+  await page
+    .getByText(/\/ws\/fhir2\/R4/)
+    .first()
+    .scrollIntoViewIfNeeded();
   timing.mark("fhir-endpoint-shown");
   await shot("01-fhir-endpoint");
   await dwell(4_000);
@@ -185,34 +205,72 @@ test("FHIR endpoint to a published Superset dashboard", async ({ page }, info) =
   // the microbatch -- and FULL rebuilds the snapshot from the whole server.
   await expect(page.getByRole("button", { name: runButton })).toBeVisible();
   await dwell(1_500);
+  const pipelineBaseline = await capturePipelineBaseline(
+    page.request,
+    DATA_PIPES_URL,
+    process.env.CATALYST_DATA_PIPES_CONTAINER ?? "hiv-data-pipes",
+    PIPELINE_MODE as "FULL" | "INCREMENTAL",
+  );
+  const startedResponse = page.waitForResponse(
+    (response) =>
+      response.url() === new URL("/run", DATA_PIPES_URL).toString() &&
+      response.request().method() === "POST",
+  );
   await page.getByRole("button", { name: runButton }).click();
+  const started = await startedResponse;
+  expect(started.status(), "pipeline start request failed").toBe(200);
+  expect((await started.text()).trim(), "pipeline start was not accepted").toBe(
+    "SUCCESS",
+  );
+  const startBody = started.request().postData() ?? "";
+  const contentType = started.request().headers()["content-type"] ?? "";
+  const requestedMode = contentType.includes("multipart/form-data")
+    ? startBody.match(/name="runMode"\r?\n\r?\n([^\r\n]+)/)?.[1]
+    : new URLSearchParams(startBody).get("runMode");
+  expect(requestedMode, "accepted request used a different pipeline mode").toBe(
+    PIPELINE_MODE,
+  );
   timing.mark("pipeline-started");
 
-  // Poll the controller's own status endpoint rather than the panel's banner:
-  // the panel reloads itself on completion, and a reload mid-assertion is a
-  // flake. This is the same status the panel reads.
+  // IDLE alone also follows a failed run. Require the accepted operation's
+  // successful registration and fresh root before claiming completion.
+  let pipelineProof: PipelineCompletion = {
+    complete: false,
+    failed: false,
+    reason: "not observed",
+  };
   await expect
     .poll(
       async () => {
-        const response = await page.request.get(`${DATA_PIPES_URL}/status`);
-        if (!response.ok()) return "UNAVAILABLE";
-        const body = (await response.json()) as { pipelineStatus?: string };
-        return body.pipelineStatus ?? "UNKNOWN";
+        pipelineProof = pipelineCompletion(
+          pipelineBaseline,
+          await observePipeline(page.request, DATA_PIPES_URL, pipelineBaseline),
+        );
+        return pipelineProof.complete || pipelineProof.failed
+          ? "finished"
+          : pipelineProof.reason;
       },
       {
-        message: `${PIPELINE_MODE} pipeline did not return to IDLE`,
+        message: `${PIPELINE_MODE} pipeline did not produce fresh completion evidence`,
         timeout: 3_000_000,
         intervals: [5_000],
       },
     )
-    .not.toBe("RUNNING");
+    .toBe("finished");
+  expect(pipelineProof.complete, pipelineProof.reason).toBe(true);
+  if (!pipelineProof.root)
+    throw new Error("Completed pipeline has no evidenced warehouse root");
+  await info.attach("pipeline-completion", {
+    body: JSON.stringify(pipelineProof),
+    contentType: "application/json",
+  });
   timing.mark("pipeline-finished");
   await shot("02-pipeline-finished");
 
   // The snapshot the run wrote, named on screen. This is the Parquet the
   // Spark thriftserver serves.
   await page.goto(`${DATA_PIPES_URL}/`);
-  await expect(page.getByText(/\/dwh\/.*_DWH_TIMESTAMP_/).first()).toBeVisible();
+  await expectDisplayedWarehouse(page, pipelineProof.root);
   timing.mark("snapshot-shown");
   await shot("03-warehouse-snapshot");
   await dwell(5_000);
@@ -239,7 +297,9 @@ test("FHIR endpoint to a published Superset dashboard", async ({ page }, info) =
   await page.getByRole("button", { name: "Generate query" }).click();
   timing.mark("generate-clicked");
 
-  await expect(page.getByRole("heading", { name: /^Refine \[1\]$/ })).toBeVisible({
+  await expect(
+    page.getByRole("heading", { name: /^Refine \[1\]$/ }),
+  ).toBeVisible({
     timeout: 600_000,
   });
   // The SQL names a relation Spark reported, which is the point: the schema
@@ -252,11 +312,14 @@ test("FHIR endpoint to a published Superset dashboard", async ({ page }, info) =
   await page.getByRole("button", { name: "Run query" }).click();
   const countResult = page.locator(".query-turn__dataset").first();
   await expect(countResult).toBeVisible({ timeout: 300_000 });
-  const countCell = countResult.locator("tbody tr").first().getByRole("cell").first();
+  const countCell = countResult
+    .locator("tbody tr")
+    .first()
+    .getByRole("cell")
+    .first();
   await expect(countCell).toBeVisible();
-  // Read the answer off the screen. Everything downstream is asserted against
-  // this, so the dashboard is checked against what Catalyst actually returned
-  // rather than against a number written into the test.
+  // Preserve the displayed result for human comparison with the dashboard;
+  // this demo does not extract or automatically compare Superset's value.
   const catalystCount = ((await countCell.textContent()) ?? "").trim();
   expect(catalystCount).toMatch(/^\d[\d,]*$/);
   // Recorded so the reviewer comparing 05-catalyst-result with
@@ -301,7 +364,9 @@ test("FHIR endpoint to a published Superset dashboard", async ({ page }, info) =
   await page.getByRole("button", { name: "Generate next query" }).click();
   timing.mark("generate-clicked-2");
 
-  await expect(page.getByRole("heading", { name: /^Refine \[2\]$/ })).toBeVisible({
+  await expect(
+    page.getByRole("heading", { name: /^Refine \[2\]$/ }),
+  ).toBeVisible({
     timeout: 600_000,
   });
   await expectSqlReadsTheWarehouse();
@@ -319,7 +384,11 @@ test("FHIR endpoint to a published Superset dashboard", async ({ page }, info) =
 
   // ---- Act 4: widgets over the saved datasets -----------------------------
   /** Build one widget over a saved dataset. */
-  const saveWidget = async (name: string, dataset: string, visualization: string) => {
+  const saveWidget = async (
+    name: string,
+    dataset: string,
+    visualization: string,
+  ) => {
     await page.getByRole("button", { name: "New Widget" }).click();
     await type(page.getByRole("textbox", { name: "Widget name" }), name);
     await page
@@ -376,8 +445,13 @@ test("FHIR endpoint to a published Superset dashboard", async ({ page }, info) =
     pointer?: { bundle?: { sha256?: unknown } };
   };
   const bundleDigest = publication.pointer?.bundle?.sha256;
-  if (typeof bundleDigest !== "string" || !/^[a-f0-9]{64}$/.test(bundleDigest)) {
-    throw new Error("published Dashboard response did not include a bundle digest");
+  if (
+    typeof bundleDigest !== "string" ||
+    !/^[a-f0-9]{64}$/.test(bundleDigest)
+  ) {
+    throw new Error(
+      "published Dashboard response did not include a bundle digest",
+    );
   }
   await expect(card.getByText("Superset bundle ready")).toBeVisible({
     timeout: 60_000,
@@ -409,28 +483,40 @@ test("FHIR endpoint to a published Superset dashboard", async ({ page }, info) =
   const dashboardUrl = new URL(new URL(href).pathname, supersetBase).toString();
 
   await page.goto(`${supersetBase}/login/`);
-  await page.locator("#username").fill(process.env.SUPERSET_ADMIN_USERNAME ?? "admin");
-  await page.locator("#password").fill(process.env.SUPERSET_ADMIN_PASSWORD ?? "admin");
+  await page
+    .locator("#username")
+    .fill(process.env.SUPERSET_ADMIN_USERNAME ?? "admin");
+  await page
+    .locator("#password")
+    .fill(process.env.SUPERSET_ADMIN_PASSWORD ?? "admin");
   await page.getByRole("button", { name: /sign in/i }).click();
   await page.waitForLoadState("networkidle");
   await page.goto(dashboardUrl);
   timing.mark("superset-open");
 
-  await expect(page.getByText(dashboard, { exact: false }).first()).toBeVisible({
-    timeout: 120_000,
-  });
+  await expect(page.getByText(dashboard, { exact: false }).first()).toBeVisible(
+    {
+      timeout: 120_000,
+    },
+  );
   // Both widgets are on the dashboard.
-  await expect(page.getByText(countWidget, { exact: false }).first()).toBeVisible({
+  await expect(
+    page.getByText(countWidget, { exact: false }).first(),
+  ).toBeVisible({
     timeout: 120_000,
   });
-  await expect(page.getByText(genderWidget, { exact: false }).first()).toBeVisible({
+  await expect(
+    page.getByText(genderWidget, { exact: false }).first(),
+  ).toBeVisible({
     timeout: 120_000,
   });
 
   // Charts finish loading asynchronously; wait for the rendered surfaces
   // rather than for text, because Superset abbreviates numbers its own way
   // and matching formatted text is a coin flip, not an assertion.
-  await expect(page.locator("canvas").first()).toBeVisible({ timeout: 180_000 });
+  await expect(page.locator("canvas").first()).toBeVisible({
+    timeout: 180_000,
+  });
   await expect(page.getByText("Loading...", { exact: false })).toHaveCount(0, {
     timeout: 180_000,
   });
