@@ -41,6 +41,7 @@ STATUS_FIELDS = {
     "unsupported": ("message",),
     "rejected": ("message",),
 }
+MODEL_READY_FIELDS = ("sql", "parameters", "expectedColumns")
 ALL_STATUS_FIELDS = {
     "target",
     "sql",
@@ -251,14 +252,10 @@ BACKEND_GENERATION_SCHEMA: Dict[str, Any] = {
             "additionalProperties": False,
             "required": [
                 "status",
-                "target",
-                "sql",
-                "parameters",
-                "expectedColumns",
+                *MODEL_READY_FIELDS,
             ],
             "properties": {
                 "status": {"const": "ready"},
-                "target": {"$ref": "#/$defs/target"},
                 "sql": deepcopy(CANDIDATE_SCHEMA["properties"]["sql"]),
                 "parameters": deepcopy(CANDIDATE_SCHEMA["properties"]["parameters"]),
                 "expectedColumns": deepcopy(
@@ -359,7 +356,7 @@ BACKEND_REVIEW_SCHEMA: Dict[str, Any] = {
                 "decision": {"const": "repair"},
                 "checks": deepcopy(_BACKEND_CHECKS),
                 "message": {"type": "string"},
-                "candidate": _closed_candidate_branch("ready", STATUS_FIELDS["ready"]),
+                "candidate": _closed_candidate_branch("ready", MODEL_READY_FIELDS),
             },
         },
     ],
@@ -372,10 +369,7 @@ BACKEND_REPAIR_SCHEMA: Dict[str, Any] = {
         "decision",
         "checks",
         "status",
-        "target",
-        "sql",
-        "parameters",
-        "expectedColumns",
+        *MODEL_READY_FIELDS,
     ],
     "properties": {
         "decision": {"const": "repair"},
@@ -385,7 +379,6 @@ BACKEND_REPAIR_SCHEMA: Dict[str, Any] = {
             "items": deepcopy(CHECK_SCHEMA),
         },
         "status": {"const": "ready"},
-        "target": {"$ref": "#/$defs/target"},
         "sql": deepcopy(CANDIDATE_SCHEMA["properties"]["sql"]),
         "parameters": deepcopy(CANDIDATE_SCHEMA["properties"]["parameters"]),
         "expectedColumns": deepcopy(CANDIDATE_SCHEMA["properties"]["expectedColumns"]),
