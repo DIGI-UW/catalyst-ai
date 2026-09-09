@@ -18,6 +18,7 @@ from .analytics import (
 )
 from .catalog import Catalog
 from .contracts import ContractError, ContractRegistry
+from .dialects import resolve_dialect_adapter
 from .digest import canonical_sha256, query_digest, utf8_sha256
 from .hub import HubError
 from .policy import (
@@ -110,17 +111,6 @@ class AnalyticsProtocol(Protocol):
     async def freshness(self) -> dict[str, Any]: ...
 
     async def readiness(self) -> dict[str, Any]: ...
-
-    async def dataset_overview(self) -> dict[str, Any]: ...
-
-    async def dataset_rows(
-        self,
-        *,
-        test_name: str | None,
-        patient_id: str | None,
-        limit: int,
-        offset: int,
-    ) -> dict[str, Any]: ...
 
 
 @dataclass(frozen=True)
@@ -307,7 +297,7 @@ class CatalystService:
             catalog = bundle.catalog.with_discovered_relations(relations)
         except (KeyError, TypeError, ValueError) as error:
             raise AnalyticsError(
-                f"PostgreSQL schema discovery returned an unusable catalog: {error}"
+                f"Schema discovery returned an unusable catalog: {error}"
             ) from error
         bundle.runtime_snapshot = catalog
         return catalog
@@ -403,12 +393,10 @@ class CatalystService:
                             "Catalog columns must declare logical types: "
                             f"{qualified_name}.{column_name}."
                         )
+                    # A description enriches a column; it is not something a
+                    # connection can always supply, and requiring one is what
+                    # made discovery synthesize the native type into it.
                     description = field.get("description")
-                    if not isinstance(description, str) or not description:
-                        raise ValueError(
-                            "Catalog columns must declare descriptions: "
-                            f"{qualified_name}.{column_name}."
-                        )
                     nullable = field.get("nullable", True)
                     if not isinstance(nullable, bool):
                         raise ValueError(
@@ -419,9 +407,10 @@ class CatalystService:
                     column = {
                         "name": column_name,
                         "logicalType": logical_type,
-                        "description": description,
                         "nullable": nullable,
                     }
+                    if isinstance(description, str) and description:
+                        column["description"] = description
                     database_type = field.get("databaseType")
                     if isinstance(database_type, str) and database_type:
                         column["databaseType"] = database_type
@@ -485,45 +474,9 @@ class CatalystService:
             return self._workbench_error(
                 503,
                 "editor_catalog_unavailable",
-                f"The readable PostgreSQL catalog is unavailable: {error}",
+                f"The readable catalog is unavailable: {error}",
             )
         return ServiceResponse(200, body)
-
-    async def dataset_overview(
-        self, data_source_id: str | None = None
-    ) -> ServiceResponse:
-        bundle = self._require_bundle(data_source_id, workbench=False)
-        if isinstance(bundle, ServiceResponse):
-            return bundle
-        assert bundle.analytics is not None  # _resolve_data_source guards this
-        try:
-            return ServiceResponse(200, await bundle.analytics.dataset_overview())
-        except Exception as error:
-            return self._error(502, "dataset_unavailable", str(error))
-
-    async def dataset_rows(
-        self,
-        *,
-        test_name: str | None,
-        patient_id: str | None,
-        limit: int,
-        offset: int,
-        data_source_id: str | None = None,
-    ) -> ServiceResponse:
-        bundle = self._require_bundle(data_source_id, workbench=False)
-        if isinstance(bundle, ServiceResponse):
-            return bundle
-        assert bundle.analytics is not None  # _resolve_data_source guards this
-        try:
-            body = await bundle.analytics.dataset_rows(
-                test_name=test_name,
-                patient_id=patient_id,
-                limit=limit,
-                offset=offset,
-            )
-            return ServiceResponse(200, body)
-        except Exception as error:
-            return self._error(502, "dataset_unavailable", str(error))
 
     async def submit_question(self, payload: dict[str, Any]) -> ServiceResponse:
         try:
@@ -566,6 +519,7 @@ class CatalystService:
 
         violations = self.sql_policy.evaluate(
             query,
+            dialect=resolve_dialect_adapter(generation.catalog.dialect),
             available_relations=generation.catalog.available_relation_names,
         )
         if violations:
@@ -722,10 +676,8 @@ class CatalystService:
             )
 
         assert bundle.analytics is not None  # _resolve_data_source guards this
-        try:
-            overview = await bundle.analytics.dataset_overview()
-        except Exception:
-            overview = {}
+        # The connection reports a schema, not a curated dataset identity.
+        overview: dict[str, Any] = {}
         provenance: dict[str, Any] = {
             "dataSourceId": bundle.source_id,
             "catalogContextSourceId": runtime_catalog.context_source_id,
@@ -2395,7 +2347,7 @@ class CatalystService:
         return self._workbench_error(
             409,
             "stale_catalog_version",
-            "The readable PostgreSQL catalog changed after this workbench session "
+            "The readable catalog changed after this workbench session "
             "was created. Start a new session before saving, validating, running, "
             "or refining this query.",
             details={
@@ -3485,6 +3437,7 @@ class CatalystService:
             }
             for violation in self.sql_policy.evaluate(
                 query,
+                dialect=resolve_dialect_adapter(catalog.dialect),
                 available_relations=catalog.available_relation_names,
             )
         )
@@ -3618,6 +3571,7 @@ class CatalystService:
         validate_query_invariants(query, request)
         violations = self.sql_policy.evaluate(
             query,
+            dialect=resolve_dialect_adapter(catalog.dialect),
             available_relations=catalog.available_relation_names,
         )
         if violations:

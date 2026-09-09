@@ -1007,7 +1007,7 @@ async def _review(
                 "Your repair JSON failed the strict output contract: "
                 f"{error}. Return one corrected JSON object only. The "
                 "top-level repair fields must be complete, including "
-                "status, exact target, full SQL, all parameters, and "
+                "status, full SQL, all parameters, and "
                 "expected columns."
             )
         else:

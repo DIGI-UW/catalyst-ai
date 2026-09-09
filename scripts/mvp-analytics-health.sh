@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Verify the pinned pipeline, HAPI seed, semantic fact, and freshness contract.
+# Verify the pinned pipeline release, HAPI seed, semantic fact, and freshness contract.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PINNED_COMMIT="3ea890884d674e2f31257a2da421601f2d75b5e9"
+DATA_PIPES_IMAGE_DIGEST="sha256:000074117c2de36935d52ec6aee165262f9b5724eb7d26c5d3ccff86fa6ea4d8"
 DATA_PIPES_CONTROLLER_URL="${DATA_PIPES_CONTROLLER_URL:-http://localhost:8090}"
 HAPI_FHIR_URL="${HAPI_FHIR_URL:-http://localhost:8081/fhir}"
 ANALYTICS_DATABASE_URL="${ANALYTICS_DATABASE_URL:-}"
@@ -13,17 +13,6 @@ if [ -z "${ANALYTICS_DATABASE_URL}" ]; then
   exit 2
 fi
 
-if [ ! -d "${ROOT_DIR}/.fhir-data-pipes/.git" ]; then
-  echo "ERROR: run scripts/bootstrap-fhir-data-pipes.sh first" >&2
-  exit 1
-fi
-
-actual_commit="$(git -C "${ROOT_DIR}/.fhir-data-pipes" rev-parse HEAD)"
-if [ "${actual_commit}" != "${PINNED_COMMIT}" ]; then
-  echo "ERROR: FHIR Data Pipes is ${actual_commit}, expected ${PINNED_COMMIT}" >&2
-  exit 1
-fi
-echo "OK: FHIR Data Pipes commit ${PINNED_COMMIT}"
 
 curl -fsS "${DATA_PIPES_CONTROLLER_URL}/actuator/health" >/dev/null
 echo "OK: FHIR Data Pipes controller health"
@@ -70,7 +59,7 @@ SELECT (
     completion_state = 'succeeded'
     AND source_watermark IS NOT NULL
     AND completed_at IS NOT NULL
-    AND data_pipes_commit = '${PINNED_COMMIT}'
+    AND data_pipes_commit = '${DATA_PIPES_IMAGE_DIGEST}'
 )::text
 FROM analytics.pipeline_run_v1
 ORDER BY completed_at DESC NULLS LAST

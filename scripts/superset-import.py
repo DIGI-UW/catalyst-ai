@@ -291,7 +291,7 @@ def _importer_metadata(
         ),
         "platform": os.environ.get("CATALYST_SUPERSET_PLATFORM", "linux/unknown"),
         "driverRevision": os.environ.get(
-            "CATALYST_SUPERSET_DRIVER_REVISION", "psycopg2-binary==2.9.9"
+            "CATALYST_SUPERSET_DRIVER_REVISION", "pyhive[hive_pure_sasl]==0.7.0"
         ),
         "commandDigest": hashlib.sha256(
             state.canonical_json_bytes(command)
@@ -428,6 +428,45 @@ def _failure_receipt(
         )
     receipt["receiptDigest"] = state.digest_document(receipt, "receiptDigest")
     return receipt
+
+
+def _reconcile_database(manifest: dict[str, Any], analytics_uri: str) -> dict[str, Any]:
+    """Point an already-imported database at the connection the bundle names.
+
+    Superset matches assets by UUID, and the bundle derives its database UUID
+    deterministically, so a database imported under an earlier connection keeps
+    that connection forever: the import reports success while the dashboard
+    resolves to whatever engine was configured the first time. Superset 6.1's
+    ``import-dashboards`` CLI has no overwrite flag, so reconciliation happens
+    here, before the import runs.
+
+    Returns what was found and what, if anything, was changed. A database that
+    does not exist yet needs nothing -- the import creates it from the bundle.
+    """
+    from superset.app import create_app
+
+    app = create_app()
+    with app.app_context():
+        from superset import db
+        from superset.models.core import Database
+
+        database_uuid = uuid.UUID(manifest["assetUuids"]["database"])
+        existing = db.session.query(Database).filter_by(uuid=database_uuid).one_or_none()
+        if existing is None:
+            return {"present": False, "reconnected": False}
+
+        previous = existing.sqlalchemy_uri_decrypted
+        if previous == analytics_uri:
+            return {"present": True, "reconnected": False}
+
+        existing.set_sqlalchemy_uri(analytics_uri)
+        db.session.commit()
+        return {
+            "present": True,
+            "reconnected": True,
+            "previousBackend": (previous or "").split("://", 1)[0] or None,
+            "backend": analytics_uri.split("://", 1)[0],
+        }
 
 
 def _verify_superset(manifest: dict[str, Any]) -> dict[str, Any]:
@@ -590,7 +629,7 @@ def _last_verified_payload(
             ),
             "platform": os.environ.get("CATALYST_SUPERSET_PLATFORM", "linux/unknown"),
             "driverRevision": os.environ.get(
-                "CATALYST_SUPERSET_DRIVER_REVISION", "psycopg2-binary==2.9.9"
+                "CATALYST_SUPERSET_DRIVER_REVISION", "pyhive[hive_pure_sasl]==0.7.0"
             ),
             "importerRevision": importer_revision,
         },
@@ -738,6 +777,9 @@ def run_import(*, bootstrap: bool = False) -> int:
                     "analytics_credential_missing",
                     "CATALYST_ANALYTICS_DATABASE_URI is required",
                 )
+            reconciliation = _reconcile_database(
+                manifest, os.environ["CATALYST_ANALYTICS_DATABASE_URI"]
+            )
             actual_command = [
                 "superset",
                 "import-dashboards",
@@ -762,6 +804,9 @@ def run_import(*, bootstrap: bool = False) -> int:
                     exit_code=completed.returncode,
                 )
             verification = _verify_superset(manifest)
+            # A reconnect changes which engine the dashboard resolves to, so it
+            # is reported rather than left to look like an ordinary import.
+            verification = {**verification, "databaseReconciliation": reconciliation}
             receipt = _successful_receipt(
                 receipt_id=receipt_id,
                 started_at=started_at,

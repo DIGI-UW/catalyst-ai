@@ -18,7 +18,7 @@ hub_context_override="${MED_AGENT_HUB_CONTEXT:-}"
 compose_override_override="${MVP_COMPOSE_OVERRIDE_FILE:-}"
 gateway_port_override="${GATEWAY_PORT:-}"
 ui_port_override="${CATALYST_UI_PORT:-}"
-analytics_port_override="${ANALYTICS_DB_PORT:-}"
+spark_thrift_port_override="${SPARK_THRIFT_PORT:-}"
 data_pipes_port_override="${DATA_PIPES_PORT:-}"
 hub_port_override="${MED_AGENT_HUB_PORT:-}"
 openelis_https_port_override="${OPENELIS_HTTPS_PORT:-}"
@@ -64,8 +64,8 @@ fi
 if [ -n "${ui_port_override}" ]; then
   export CATALYST_UI_PORT="${ui_port_override}"
 fi
-if [ -n "${analytics_port_override}" ]; then
-  export ANALYTICS_DB_PORT="${analytics_port_override}"
+if [ -n "${spark_thrift_port_override}" ]; then
+  export SPARK_THRIFT_PORT="${spark_thrift_port_override}"
 fi
 if [ -n "${data_pipes_port_override}" ]; then
   export DATA_PIPES_PORT="${data_pipes_port_override}"
@@ -102,8 +102,34 @@ if [ -n "${compose_override_file}" ]; then
   compose+=(-f "${compose_override_file}")
 fi
 
+adopt_running_database_bind_mount() {
+  local data_dir existing_container existing_source existing_real current_real backup_dir
+
+  data_dir="${ROOT_DIR}/.openelis-docker/configs/database/data"
+  existing_container="$("${compose[@]}" ps -q db.openelis.org 2>/dev/null || true)"
+  [ -n "${existing_container}" ] || return 0
+
+  existing_source="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/lib/postgresql/data"}}{{.Source}}{{end}}{{end}}' "${existing_container}")"
+  [ -n "${existing_source}" ] && [ -f "${existing_source}/PG_VERSION" ] || return 0
+
+  existing_real="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "${existing_source}")"
+  current_real="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "${data_dir}")"
+  [ "${existing_real}" = "${current_real}" ] && return 0
+
+  if [ -f "${data_dir}/PG_VERSION" ]; then
+    echo "ERROR: the running MVP database uses ${existing_real}, but this checkout has its own initialized database at ${current_real}." >&2
+    echo "Refusing to choose between populated data directories automatically." >&2
+    exit 1
+  fi
+
+  backup_dir="${data_dir}.uninitialized-$(date -u +%Y%m%dT%H%M%SZ)"
+  mv "${data_dir}" "${backup_dir}"
+  ln -s "${existing_real}" "${data_dir}"
+  echo "Reusing the running MVP database bind mount at ${existing_real}"
+}
+
 "${ROOT_DIR}/scripts/bootstrap-openelis.sh"
-"${ROOT_DIR}/scripts/bootstrap-fhir-data-pipes.sh"
+adopt_running_database_bind_mount
 if [ -n "${MED_AGENT_HUB_CONTEXT:-}" ]; then
   if [ ! -f "${MED_AGENT_HUB_CONTEXT}/Dockerfile" ]; then
     echo "ERROR: MED_AGENT_HUB_CONTEXT does not contain a Hub Dockerfile: ${MED_AGENT_HUB_CONTEXT}" >&2
@@ -134,7 +160,7 @@ mkdir -p \
   db.openelis.org \
   oe.openelis.org \
   fhir.openelis.org \
-  analytics-db \
+  spark-thriftserver \
   superset-metadata-db \
   superset-init \
   superset \

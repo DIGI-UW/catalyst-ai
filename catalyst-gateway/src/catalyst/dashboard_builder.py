@@ -120,16 +120,19 @@ def _sql_literal(parameter: dict[str, Any]) -> str:
         )
     if not isinstance(value, str):
         raise DashboardBuilderError(f"Invalid text value for :{parameter['name']}.")
-    escaped = value.replace("'", "''")
+    # Spark unescapes backslash sequences in regular string literals. Double the
+    # slash before applying the SQL quote escape so a saved parameter value is
+    # reproduced byte-for-byte in the Superset virtual dataset.
+    escaped = value.replace("\\", "\\\\").replace("'", "''")
     if kind == "date":
         return f"DATE '{escaped}'"
     if kind == "date-time":
-        return f"TIMESTAMPTZ '{escaped}'"
+        return f"TIMESTAMP '{escaped}'"
     return f"'{escaped}'"
 
 
 def compile_parameterized_sql(sql: str, parameters: list[dict[str, Any]]) -> str:
-    """Compile the accepted workbench parameter values into PostgreSQL literals.
+    """Compile accepted workbench parameter values into Spark SQL literals.
 
     The source Query version and its typed parameters remain the authority;
     compilation creates the Superset virtual-dataset SQL only.  Unbound names
@@ -604,7 +607,10 @@ class DashboardBuilder:
             "database_name": f"Catalyst {dashboard.configuration['dataSourceId']} analytics",
             "sqlalchemy_uri": os.environ.get(
                 "CATALYST_SUPERSET_ANALYTICS_URI",
-                "postgresql+psycopg2://catalyst_readonly:demo-readonly-change-me@analytics-db:5432/catalyst_analytics",
+                # Superset renders against the same Spark source Catalyst
+                # queried, so a displayed value can be inspected against the
+                # originating result without a second database.
+                "hive://catalyst@spark-thriftserver:10000/openelis",
             ),
             "password": None,
             # Superset's native importer rejects an empty encrypted-extra map;
@@ -654,7 +660,7 @@ class DashboardBuilder:
                 "description": dataset.configuration["title"],
                 "schema": None,
                 "sql": dataset.configuration["compiledSql"],
-                "source_db_engine": "postgresql",
+                "source_db_engine": "hive",
                 "params": {},
                 "template_params": None,
                 "filter_select_enabled": False,
@@ -798,7 +804,7 @@ class DashboardBuilder:
                     "typedParametersDigest": canonical_sha256(
                         item.configuration["parameters"]
                     ),
-                    "parameterCompilerRevision": "catalyst.postgresql-parameters.v1",
+                    "parameterCompilerRevision": "catalyst.named-parameters.v1",
                     "resultSchema": item.configuration["columns"],
                     "resultBounds": item.configuration["resultBounds"],
                     "author": {"actorKind": "human"},
@@ -818,7 +824,7 @@ class DashboardBuilder:
             "manifestContainsCredentials": False,
             "generator": {
                 "revision": "catalyst-dashboard-builder-mvp.v1",
-                "parameterCompilerRevisions": ["catalyst.postgresql-parameters.v1"],
+                "parameterCompilerRevisions": ["catalyst.named-parameters.v1"],
                 "vizMappingRevisions": ["catalyst.superset.viz.schema.v1"],
             },
             "assetMembers": assets,

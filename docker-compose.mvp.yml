@@ -18,34 +18,6 @@ services:
   fhir.openelis.org:
     image: itechuw/openelis-global-2-fhir@sha256:667680632b8fe491bb1955f3935751562e60933d3aea91d79256ccd4eac857c3
 
-  analytics-db:
-    # Survives a daemon restart or an OrbStack reboot: these four were the
-    # only long-lived services here without a policy, so a reboot left the
-    # stack half-up (the OpenELIS and Superset services inherit one from
-    # their own compose file). One-shot jobs keep restart: "no" on purpose.
-    restart: unless-stopped
-    image: postgres:16.9-alpine3.22@sha256:7c688148e5e156d0e86df7ba8ae5a05a2386aaec1e2ad8e6d11bdf10504b1fb7
-    environment:
-      POSTGRES_DB: catalyst_analytics
-      POSTGRES_USER: catalyst_analytics_writer
-      POSTGRES_PASSWORD: demo-only-change-me
-    ports:
-      - "127.0.0.1:${ANALYTICS_DB_PORT:-15433}:5432"
-    volumes:
-      - analytics-db-data:/var/lib/postgresql/data
-      - ./analytics/sql/000_analytics_roles.sql:/docker-entrypoint-initdb.d/000_analytics_roles.sql:ro
-    networks:
-      - openelis-network
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "pg_isready -q -d catalyst_analytics -U catalyst_analytics_writer",
-        ]
-      interval: 5s
-      timeout: 5s
-      retries: 30
-
   superset-metadata-db:
     image: postgres:16.9-alpine3.22@sha256:7c688148e5e156d0e86df7ba8ae5a05a2386aaec1e2ad8e6d11bdf10504b1fb7
     environment:
@@ -67,7 +39,13 @@ services:
       retries: 30
 
   superset-init:
-    image: apache/superset:6.1.0-dev@sha256:5822dff49c41fd745ce33e38af502f9c64df30d133aeba148c5d89b35a1004ef
+    image: catalyst/superset:hive
+    build:
+      context: ./superset
+      dockerfile: Dockerfile
+      args:
+        SUPERSET_IMAGE: "apache/superset:6.1.0-dev@sha256:5822dff49c41fd745ce33e38af502f9c64df30d133aeba148c5d89b35a1004ef"
+        SUPERSET_DRIVER_REVISION: "${SUPERSET_DRIVER_REVISION:-pyhive[hive_pure_sasl]==0.7.0}"
     platform: "${SUPERSET_PLATFORM:-linux/arm64}"
     command: ["/bin/bash", "/opt/catalyst/superset-init.sh"]
     environment: &superset-environment
@@ -89,7 +67,13 @@ services:
     restart: "no"
 
   superset:
-    image: apache/superset:6.1.0-dev@sha256:5822dff49c41fd745ce33e38af502f9c64df30d133aeba148c5d89b35a1004ef
+    image: catalyst/superset:hive
+    build:
+      context: ./superset
+      dockerfile: Dockerfile
+      args:
+        SUPERSET_IMAGE: "apache/superset:6.1.0-dev@sha256:5822dff49c41fd745ce33e38af502f9c64df30d133aeba148c5d89b35a1004ef"
+        SUPERSET_DRIVER_REVISION: "${SUPERSET_DRIVER_REVISION:-pyhive[hive_pure_sasl]==0.7.0}"
     platform: "${SUPERSET_PLATFORM:-linux/arm64}"
     command: ["/app/docker/entrypoints/run-server.sh"]
     environment: *superset-environment
@@ -113,13 +97,19 @@ services:
   superset-importer:
     profiles:
       - superset-import
-    image: apache/superset:6.1.0-dev@sha256:5822dff49c41fd745ce33e38af502f9c64df30d133aeba148c5d89b35a1004ef
+    image: catalyst/superset:hive
+    build:
+      context: ./superset
+      dockerfile: Dockerfile
+      args:
+        SUPERSET_IMAGE: "apache/superset:6.1.0-dev@sha256:5822dff49c41fd745ce33e38af502f9c64df30d133aeba148c5d89b35a1004ef"
+        SUPERSET_DRIVER_REVISION: "${SUPERSET_DRIVER_REVISION:-pyhive[hive_pure_sasl]==0.7.0}"
     platform: "${SUPERSET_PLATFORM:-linux/arm64}"
     entrypoint: ["/app/.venv/bin/python", "/opt/catalyst/superset-import.py"]
     command: ["status"]
     environment:
       <<: *superset-environment
-      CATALYST_ANALYTICS_DATABASE_URI: "postgresql://catalyst_readonly:demo-readonly-change-me@analytics-db:5432/catalyst_analytics"
+      CATALYST_ANALYTICS_DATABASE_URI: "hive://catalyst@spark-thriftserver:10000/openelis"
       CATALYST_SUPERSET_OUTBOX: /opt/catalyst/outbox
       CATALYST_SUPERSET_RECEIPTS: /opt/catalyst/receipts
       CATALYST_SUPERSET_PUBLIC_URL: "http://localhost:${SUPERSET_PORT:-8088}"
@@ -128,7 +118,7 @@ services:
       CATALYST_SUPERSET_IMAGE_DIGEST: "sha256:5822dff49c41fd745ce33e38af502f9c64df30d133aeba148c5d89b35a1004ef"
       CATALYST_SUPERSET_METADATA_IMAGE_DIGEST: "sha256:7c688148e5e156d0e86df7ba8ae5a05a2386aaec1e2ad8e6d11bdf10504b1fb7"
       CATALYST_SUPERSET_PLATFORM: "${SUPERSET_PLATFORM:-linux/arm64}"
-      CATALYST_SUPERSET_DRIVER_REVISION: "${SUPERSET_DRIVER_REVISION:-psycopg2-binary==2.9.9}"
+      CATALYST_SUPERSET_DRIVER_REVISION: "${SUPERSET_DRIVER_REVISION:-pyhive[hive_pure_sasl]==0.7.0}"
     volumes:
       - ./superset/superset_config.py:/app/pythonpath/superset_config.py:ro
       - ./scripts/superset-import.py:/opt/catalyst/superset-import.py:ro
@@ -141,8 +131,6 @@ services:
       - openelis-network
     depends_on:
       superset:
-        condition: service_healthy
-      analytics-db:
         condition: service_healthy
     restart: "no"
 
@@ -184,11 +172,15 @@ services:
       start_period: 10m
 
   fhir-data-pipes:
-    image: catalyst/fhir-data-pipes:3ea890884d674e2f31257a2da421601f2d75b5e9
+    # DIGI-UW's published controller build, pinned by digest like every other
+    # image here. It carries DIGI-UW/ohs-fhir-data-pipes#9, which stops
+    # HiveTableManager hardcoding `default.` in its DDL so the databaseName in
+    # analytics/config/thriftserver-hive-config.json is actually honored --
+    # without it every source's tables and views land in `default` and the
+    # second pipeline to run overwrites the first's canonical views.
+    # This replaced a clone-and-build of a bare upstream branch SHA.
+    image: itechuw/ohs-fhir-data-pipes-controller:sha-3d3656e@sha256:2f9caef7c3c940f8a0e1241551213954c1ea205371166eb8f1d40bd0311fda1a
     restart: "on-failure:10"
-    build:
-      context: ./.fhir-data-pipes
-      dockerfile: Dockerfile
     environment:
       JAVA_OPTS: >-
         -Xms512m
@@ -199,21 +191,26 @@ services:
         -Djavax.net.ssl.keyStore=/etc/openelis-global/client_facing_keystore
         -Djavax.net.ssl.keyStorePassword=kspass
         -Djavax.net.ssl.keyStoreType=PKCS12
-      FHIRDATA_GENERATEPARQUETFILES: "false"
-      FHIRDATA_CREATEHIVERESOURCETABLES: "false"
-      FHIRDATA_CREATEPARQUETVIEWS: "false"
-      FHIRDATA_SINKDBCONFIGPATH: "config/postgres-sink.json"
+      FHIRDATA_GENERATEPARQUETFILES: "true"
+      FHIRDATA_CREATEHIVERESOURCETABLES: "true"
+      FHIRDATA_CREATEPARQUETVIEWS: "true"
+      FHIRDATA_THRIFTSERVERHIVECONFIG: "config/thriftserver-hive-config.json"
       FHIRDATA_NUMTHREADS: "1"
     ports:
       - "127.0.0.1:${DATA_PIPES_PORT:-8090}:8080"
     volumes:
       - ./analytics/config:/app/config:ro
-      - data-pipes-dwh:/app/dwh
+      # Upstream's compose-controller-spark-sql-single.yaml shares the warehouse
+      # at /dwh, and the controller registers absolute Parquet locations into
+      # the Hive metastore. The thriftserver must therefore mount this volume at
+      # the identical path, or the registered views resolve to nothing and
+      # queries return zero rows against a warehouse that looks healthy.
+      - data-pipes-dwh:/dwh
       - key_trust-store-volume:/etc/openelis-global:ro
     networks:
       - openelis-network
     depends_on:
-      analytics-db:
+      spark-thriftserver:
         condition: service_healthy
       hapi-mtls-proxy:
         condition: service_healthy
@@ -227,6 +224,40 @@ services:
       timeout: 5s
       retries: 30
       start_period: 30s
+
+  # Upstream's single-process Spark SQL environment, copied from
+  # docker/compose-controller-spark-sql-single.yaml in google/fhir-data-pipes
+  # at the pinned release. It reads the Parquet the controller writes and serves it
+  # over Hive Thrift; Catalyst and Superset are ordinary SQL clients of it.
+  spark-thriftserver:
+    image: docker.io/bitnamilegacy/spark:4.0.0
+    restart: unless-stopped
+    command:
+      - sbin/start-thriftserver.sh
+      - --driver-memory
+      - "${SPARK_DRIVER_MEMORY:-5g}"
+    environment:
+      HIVE_SERVER2_THRIFT_PORT: "10000"
+    ports:
+      - "127.0.0.1:${SPARK_THRIFT_PORT:-10001}:10000"
+    volumes:
+      # Read-only for the thriftserver: the pipeline controller writes this
+      # warehouse through its own read-write mount, and every query Catalyst
+      # sends arrives here. A statement that would modify source data reaches
+      # Spark and Spark's own filesystem layer refuses it, which is the
+      # read-only guarantee the Spark dialect adapter declares.
+      - data-pipes-dwh:/dwh:ro
+      # The embedded Derby metastore lives under the Spark install; persisting
+      # it is what keeps registered tables and views across a restart.
+      - spark-thriftserver-home:/opt/bitnami/spark
+    networks:
+      - openelis-network
+    healthcheck:
+      test: ["CMD-SHELL", "beeline help || exit 1"]
+      interval: 10s
+      retries: 10
+      start_period: 5s
+      timeout: 60s
 
   med-agent-hub:
     # Survives a daemon restart or an OrbStack reboot: these four were the
@@ -280,18 +311,17 @@ services:
     environment:
       MED_AGENT_HUB_BASE_URL: "http://med-agent-hub:8080"
       CATALYST_QUERY_PROFILE_ID: "${MVP_RESOLVED_PROFILE_ID:-catalyst-query-e4b-qwen14b}"
-      CATALYST_ANALYTICS_DSN: "postgresql://catalyst_readonly:demo-readonly-change-me@analytics-db:5432/catalyst_analytics"
-      CATALYST_CATALOG_PATH: "/app/config/analytics-catalog-v1.json"
+      CATALYST_CONNECTION_URI: "hive2://catalyst@spark-thriftserver:10000/openelis"
+      CATALYST_DIALECT: "spark"
       CATALYST_PREVIEW_STORE_PATH: "/app/state/previews.sqlite3"
       CATALYST_SUPERSET_OUTBOX: "/app/superset-outbox"
       CATALYST_SUPERSET_RECEIPTS: "/app/superset-receipts"
-      CATALYST_SUPERSET_ANALYTICS_URI: "postgresql+psycopg2://catalyst_readonly:demo-readonly-change-me@analytics-db:5432/catalyst_analytics"
+      CATALYST_SUPERSET_ANALYTICS_URI: "hive://catalyst@spark-thriftserver:10000/openelis"
       CATALYST_QUERY_MAX_ROWS: "${CATALYST_QUERY_MAX_ROWS:-100}"
       CATALYST_STATEMENT_TIMEOUT_MS: "${CATALYST_STATEMENT_TIMEOUT_MS:-10000}"
       CATALYST_EXECUTION_LEASE_SECONDS: "${CATALYST_EXECUTION_LEASE_SECONDS:-60}"
       CATALYST_HUB_TIMEOUT_SECONDS: "${CATALYST_HUB_TIMEOUT_SECONDS:-360}"
     volumes:
-      - ./analytics/catalog/analytics-catalog-v1.json:/app/config/analytics-catalog-v1.json:ro
       - ./docs/contracts:/docs/contracts:ro
       - gateway-state:/app/state
       - ./runtime/superset/outbox:/app/superset-outbox
@@ -299,7 +329,7 @@ services:
     networks:
       - openelis-network
     depends_on:
-      analytics-db:
+      spark-thriftserver:
         condition: service_healthy
       med-agent-hub:
         condition: service_healthy
@@ -334,8 +364,8 @@ services:
         condition: service_healthy
 
 volumes:
-  analytics-db-data:
   data-pipes-dwh:
+  spark-thriftserver-home:
   gateway-state:
   superset-metadata-data:
   superset-home:

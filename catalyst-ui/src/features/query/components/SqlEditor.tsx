@@ -1,4 +1,4 @@
-import { PostgreSQL, sql } from "@codemirror/lang-sql";
+import { StandardSQL, sql } from "@codemirror/lang-sql";
 import { syntaxHighlighting } from "@codemirror/language";
 import { Compartment, EditorState } from "@codemirror/state";
 import { Button } from "@carbon/react";
@@ -8,7 +8,7 @@ import "./SqlEditor.css";
 import { sqlHighlightStyle } from "./sqlHighlight";
 import {
   buildSqlCompletionSchema,
-  formatPostgresqlSql,
+  formatSql as formatSqlIn,
   type SqlCatalogRelation,
 } from "./sqlEditorSupport";
 
@@ -21,15 +21,31 @@ export interface SqlEditorProps {
   wrapLines?: boolean;
   onWrapLinesChange?: (wrapLines: boolean) => void;
   focusRequestId?: number;
+  // The source's declared dialect, so highlighting, completion and formatting
+  // describe the grammar the query actually runs in.
+  dialect: string;
 }
 
 const EMPTY_CATALOG: readonly SqlCatalogRelation[] = [];
+
+// CodeMirror ships no Spark grammar, and this build serves one engine, so
+// standard SQL is what the editor highlights and completes with. It is the
+// honest choice for a dialect CodeMirror does not model: the shared language,
+// without claiming to understand extensions it has no grammar for. The
+// declared dialect still drives formatting and the editor's language mode.
+const EDITOR_DIALECTS: Record<string, typeof StandardSQL> = {
+  spark: StandardSQL,
+};
+
+const editorDialect = (dialect: string) =>
+  EDITOR_DIALECTS[dialect.toLowerCase()] ?? StandardSQL;
 
 export const SqlEditor = ({
   label,
   value,
   onChange,
   catalog = EMPTY_CATALOG,
+  dialect,
   readOnly = false,
   wrapLines: controlledWrapLines,
   onWrapLinesChange,
@@ -46,6 +62,7 @@ export const SqlEditor = ({
   const readOnlyCompartmentRef = useRef(new Compartment());
   const initialConfigurationRef = useRef({
     labelId,
+    dialect,
     readOnly,
     value,
     wrapLines: controlledWrapLines ?? true,
@@ -78,7 +95,7 @@ export const SqlEditor = ({
           syntaxHighlighting(sqlHighlightStyle),
           languageCompartmentRef.current.of(
             sql({
-              dialect: PostgreSQL,
+              dialect: editorDialect(initial.dialect),
               schema: initial.schema,
               upperCaseKeywords: true,
             }),
@@ -134,13 +151,13 @@ export const SqlEditor = ({
     viewRef.current?.dispatch({
       effects: languageCompartmentRef.current.reconfigure(
         sql({
-          dialect: PostgreSQL,
+          dialect: editorDialect(dialect),
           schema: completionSchema,
           upperCaseKeywords: true,
         }),
       ),
     });
-  }, [completionSchema]);
+  }, [completionSchema, dialect]);
 
   useEffect(() => {
     viewRef.current?.dispatch({
@@ -178,7 +195,7 @@ export const SqlEditor = ({
     if (!view || readOnly) return;
     try {
       const current = view.state.doc.toString();
-      const formatted = formatPostgresqlSql(current);
+      const formatted = formatSqlIn(current, dialect);
       if (formatted === current) {
         setStatus("SQL is already formatted.");
         return;
@@ -195,7 +212,7 @@ export const SqlEditor = ({
   };
 
   return (
-    <div className="sql-editor" data-language="postgresql">
+    <div className="sql-editor" data-language={dialect}>
       <div id={labelId} className="sql-editor__label">
         {label}
       </div>

@@ -8,7 +8,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 ANALYTICS = ROOT / "analytics"
-PINNED_DATA_PIPES_COMMIT = "3ea890884d674e2f31257a2da421601f2d75b5e9"
+PINNED_DATA_PIPES_IMAGE = (
+    "itechuw/ohs-fhir-data-pipes-controller:sha-3d3656e"
+    "@sha256:2f9caef7c3c940f8a0e1241551213954c1ea205371166eb8f1d40bd0311fda1a"
+)
 PINNED_OPENELIS_DOCKER_COMMIT = "f118d0ae778a30028c16be2af549843ec166f655"
 
 
@@ -42,12 +45,16 @@ def load_simple_yaml_section(text, section):
 
 
 class BootstrapContractTests(unittest.TestCase):
-    def test_data_pipes_bootstrap_is_pinned_and_checkout_is_ignored(self):
-        script = (ROOT / "scripts/bootstrap-fhir-data-pipes.sh").read_text()
-        self.assertIn(PINNED_DATA_PIPES_COMMIT, script)
-        self.assertRegex(script, r"git (?:-C .* )?checkout --detach")
-        self.assertRegex(script, r"rev-parse HEAD")
-        self.assertIn(".fhir-data-pipes/", (ROOT / ".gitignore").read_text().splitlines())
+    def test_data_pipes_runs_a_digest_pinned_upstream_release_image(self):
+        """The pipeline is consumed as a published release, never built from a
+        cloned upstream revision: a bare branch SHA is collectable (GitHub
+        answered `upload-pack: not our ref` once the pinned commit was gone,
+        which blocked every local bring-up), whereas a digest-pinned release
+        tag is immutable and needs no third-party Git remote at all."""
+        compose = (ROOT / "docker-compose.mvp.yml").read_text()
+        self.assertIn(f"image: {PINNED_DATA_PIPES_IMAGE}", compose)
+        self.assertNotIn("context: ./.fhir-data-pipes", compose)
+        self.assertFalse((ROOT / "scripts/bootstrap-fhir-data-pipes.sh").exists())
 
     def test_openelis_bootstrap_is_pinned_and_detached(self):
         script = (ROOT / "scripts/bootstrap-openelis.sh").read_text()
@@ -64,7 +71,7 @@ class DataPipesConfigTests(unittest.TestCase):
         cls.config_text = cls.config_path.read_text()
         cls.config = load_simple_yaml_section(cls.config_text, "fhirdata")
 
-    def test_controller_uses_fhir_search_to_postgresql_without_spark(self):
+    def test_controller_materializes_the_shipped_spark_warehouse(self):
         self.assertEqual("FHIR_SEARCH", self.config["fhirFetchMode"])
         self.assertEqual(
             "http://hapi-mtls-proxy:8080/fhir",
@@ -74,20 +81,39 @@ class DataPipesConfigTests(unittest.TestCase):
             "Patient,Observation,ServiceRequest,Specimen,DiagnosticReport",
             self.config["resourceList"],
         )
-        self.assertFalse(self.config["generateParquetFiles"])
-        self.assertFalse(self.config["createParquetViews"])
-        self.assertFalse(self.config["createHiveResourceTables"])
+        self.assertTrue(self.config["generateParquetFiles"])
+        self.assertTrue(self.config["createParquetViews"])
+        self.assertTrue(self.config["createHiveResourceTables"])
         self.assertEqual("config/views", self.config["viewDefinitionsDir"])
-        self.assertEqual(
-            "config/postgres-sink.json", self.config["sinkDbConfigPath"]
-        )
-        self.assertNotIn("spark", self.config_text.lower())
 
-        sink = json.loads(
-            (ANALYTICS / "config/postgres-sink.json").read_text()
+        # The controller registers absolute Parquet locations into the Hive
+        # metastore, so the prefix must be the same absolute path the
+        # thriftserver mounts. A relative prefix resolves against the
+        # container's /app working directory and silently diverges.
+        self.assertTrue(
+            self.config["dwhRootPrefix"].startswith("/dwh/"),
+            self.config["dwhRootPrefix"],
         )
-        self.assertEqual("postgresql", sink["databaseService"])
-        self.assertEqual("org.postgresql.Driver", sink["jdbcDriverClass"])
+
+        # The PostgreSQL sink is retired, not merely unused: leaving the key
+        # behind is what would let the substituted path quietly come back.
+        self.assertNotIn("sinkDbConfigPath", self.config)
+        self.assertFalse((ANALYTICS / "config/postgres-sink.json").exists())
+
+        self.assertEqual(
+            "config/thriftserver-hive-config.json",
+            self.config["thriftserverHiveConfig"],
+        )
+        thriftserver = json.loads(
+            (ANALYTICS / "config/thriftserver-hive-config.json").read_text()
+        )
+        self.assertEqual("hive2", thriftserver["databaseService"])
+        self.assertEqual(
+            "org.apache.hive.jdbc.HiveDriver", thriftserver["jdbcDriverClass"]
+        )
+        # Container-network address, not upstream's 172.17.0.1 host gateway.
+        self.assertEqual("spark-thriftserver", thriftserver["databaseHostName"])
+        self.assertEqual("10000", thriftserver["databasePort"])
 
     def test_view_definitions_are_upstream_defaults_plus_gap_fills(self):
         # The ingestion layer is the upstream fhir-data-pipes default views
@@ -245,131 +271,9 @@ class SeedContractTests(unittest.TestCase):
             self.assertRegex(self.backfill, rf'wait_for_resource "{resource}" {count}\b')
 
 
-class SemanticContractTests(unittest.TestCase):
-    """Text-shape assertions on the SQL/catalog files only (regex/string
-    checks, no execution). Real SQL semantics — GROUP BY collapse, FILTER
-    pivots, join cardinality — are guarded by
-    tests/analytics/test_fact_view_semantics.py against a live PostgreSQL."""
-
-    @classmethod
-    def setUpClass(cls):
-        cls.sql = (ANALYTICS / "sql/001_analytics_v1.sql").read_text()
-        cls.catalog = json.loads(
-            (ANALYTICS / "catalog/analytics-catalog-v1.json").read_text()
-        )
-        cls.run_schema = json.loads(
-            (ANALYTICS / "contracts/pipeline-run-v1.schema.json").read_text()
-        )
-
-    def test_lab_result_fact_has_one_observation_grain(self):
-        normalized = " ".join(self.sql.lower().split())
-        self.assertIn("create view analytics.lab_result_fact_v1 as", normalized)
-        fact_sql = normalized.split(
-            "create view analytics.lab_result_fact_v1 as", 1
-        )[1]
-        # Built over the lossless default projection: the per-coding cross
-        # product must be collapsed per observation, with the LOINC coding
-        # pivoted (never coding.first()-picked at ingest).
-        self.assertIn("from public.observation_flat as o", fact_sql)
-        self.assertIn("group by o.id", fact_sql)
-        self.assertIn("filter (where o.code_sys = 'http://loinc.org')", fact_sql)
-        self.assertIn(
-            "left join ( select distinct id, received_at from public.specimen_flat )",
-            fact_sql,
-        )
-        self.assertNotIn("select *", fact_sql)
-        self.assertIn("o.id as observation_id", fact_sql)
-        self.assertIn("s.received_at as specimen_received_at", fact_sql)
-        self.assertIn("as receipt_to_release_minutes", fact_sql)
-
-    def test_freshness_and_run_metadata_are_structured(self):
-        normalized = " ".join(self.sql.lower().split())
-        self.assertIn("analytics.pipeline_run_v1", normalized)
-        self.assertIn("source_watermark", normalized)
-        self.assertIn("completion_state", normalized)
-        self.assertIn("pipeline_run_id", normalized)
-        self.assertIn("observed_lag_seconds", normalized)
-
-        self.assertEqual(
-            "https://openelis.org/catalyst/contracts/analytics-pipeline-run-v1.schema.json",
-            self.run_schema["$id"],
-        )
-        required = set(self.run_schema["required"])
-        self.assertTrue(
-            {
-                "contractVersion",
-                "pipelineRunId",
-                "completionState",
-                "sourceWatermark",
-                "startedAt",
-                "completedAt",
-                "observedAt",
-            }.issubset(required)
-        )
-
-    def test_catalog_matches_documented_analytics_contract(self):
-        # The catalog is GENERATED (DB comments + analytics/catalog-overlay.json
-        # via the harness generator); only gateway-consumed sections may exist.
-        self.assertEqual("catalyst.analytics.catalog.v1", self.catalog["contractVersion"])
-        self.assertEqual("analytics-catalog-v1", self.catalog["catalogVersion"])
-        self.assertEqual("demo", self.catalog["deploymentMode"])
-        self.assertEqual("postgresql", self.catalog["dialect"])
-        self.assertIn("GENERATED", self.catalog["description"])
-        self.assertEqual(1, len(self.catalog["views"]))
-
-        view = self.catalog["views"][0]
-        self.assertEqual("analytics.lab_result_fact_v1", view["name"])
-        self.assertEqual("1", view["version"])
-        self.assertTrue(view["approved"])
-        self.assertTrue(view["grain"])
-        self.assertTrue(view["grain"].startswith("Exactly one row per FHIR Observation"))
-        # Sections Catalog.load never reads must not exist: inert prose in the
-        # catalog silently rots (the guidance never reaches the model).
-        for inert in (
-            "allowedFilters",
-            "allowedGroupings",
-            "terminology",
-            "freshness",
-            "examples",
-            "requiredConstraints",
-        ):
-            self.assertNotIn(inert, view)
-
-        self.assertEqual(
-            [
-                "observation_id",
-                "patient_id",
-                "service_request_id",
-                "specimen_id",
-                "result_status",
-                "observed_at",
-                "issued_at",
-                "test_code_system",
-                "test_code",
-                "test_name",
-                "result_value",
-                "result_unit",
-                "result_unit_system",
-                "result_unit_code",
-                "specimen_received_at",
-                "receipt_to_release_minutes",
-            ],
-            [column["name"] for column in view["columns"]],
-        )
-        self.assertTrue(all(column["nullable"] for column in view["columns"]))
-        self.assertTrue(all(column["description"] for column in view["columns"]))
-        self.assertEqual("result_unit", view["columns"][10]["unitColumn"])
-        dimensions = view["semanticDimensions"]
-        self.assertEqual("test_name", dimensions[0]["field"])
-        self.assertEqual(9, len(dimensions[0]["values"]))
-        self.assertNotIn("synthetic", json.dumps(view).lower())
-        self.assertNotIn("demo-only", json.dumps(view).lower())
-
-
 class ShellContractTests(unittest.TestCase):
     def test_new_shell_scripts_parse_and_are_executable(self):
         scripts = [
-            ROOT / "scripts/bootstrap-fhir-data-pipes.sh",
             ROOT / "scripts/mvp-seed.sh",
             ROOT / "scripts/mvp-analytics-health.sh",
             ANALYTICS / "openelis/backfill-hapi.sh",

@@ -12,6 +12,7 @@ from src.catalyst.query_parse import (
     _decode_exact_object,
     _parse_and_apply_patch,
     _parse_candidate,
+    _parse_review_object,
     _related_analyte_values,
     _semantic_binding_failures,
     _unknown_result_analyte,
@@ -82,6 +83,67 @@ def test_parse_candidate_clarification_branch():
     assert normalized["status"] == "needs_clarification"
     assert normalized["clarification"] == "Which date range?"
     assert binding_normalized is False
+
+
+@pytest.mark.parametrize(
+    ("data_source", "relation_prefix", "relation_count"),
+    [("openelis", "openelis", 30), ("openmrs-hiv", "openmrs_hiv", 24)],
+)
+def test_parse_candidate_adds_the_full_catalog_target_without_model_echo(
+    data_source: str, relation_prefix: str, relation_count: int
+):
+    extension = _extension()
+    extension["target"] = {
+        "dataSource": data_source,
+        "catalogVersion": f"{data_source}-catalog-v1",
+        "dialect": "spark",
+    }
+    extension["catalog"]["views"] = [
+        {"name": f"{relation_prefix}.relation_{index}", "fields": []}
+        for index in range(relation_count)
+    ]
+    content = json.dumps(
+        {
+            "status": "ready",
+            "sql": "SELECT 1",
+            "parameters": [],
+            "expectedColumns": [],
+        }
+    )
+
+    candidate, binding_normalized = _parse_candidate(
+        content, "List records", extension, label="candidate"
+    )
+
+    assert binding_normalized is False
+    assert candidate["target"] == _canonical_target(extension)
+    assert len(candidate["target"]["approvedViews"]) == relation_count
+
+
+def test_parse_flat_repair_adds_the_canonical_target_without_model_echo():
+    extension = _extension()
+    content = json.dumps(
+        {
+            "decision": "repair",
+            "checks": [{"name": "column_grounding", "status": "warned"}],
+            "status": "ready",
+            "sql": "SELECT patient_id FROM analytics.lab_result_fact_v1",
+            "parameters": [],
+            "expectedColumns": [
+                {"name": "patient_id", "logicalType": "string", "nullable": True}
+            ],
+        }
+    )
+
+    review = _parse_review_object(
+        content,
+        label="repair",
+        flat_repair=True,
+        question="List patients",
+        extension=extension,
+    )
+
+    assert review["candidate"]["target"] == _canonical_target(extension)
 
 
 def test_semantic_binding_failures_empty_without_named_analytes():

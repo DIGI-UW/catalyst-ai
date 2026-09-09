@@ -8,6 +8,8 @@ import sqlglot
 from sqlglot import exp
 from sqlglot.errors import ParseError
 
+from .dialects import DialectAdapter, resolve_dialect_adapter
+
 
 @dataclass(frozen=True)
 class Violation:
@@ -27,30 +29,6 @@ class QueryInvariantError(ValueError):
 def _phrase_in_question(question: str, phrase: str) -> bool:
     pattern = rf"(?<!\w){re.escape(phrase.strip())}(?!\w)"
     return re.search(pattern, question, flags=re.IGNORECASE) is not None
-
-
-def _named_semantic_requirements(
-    question: str, catalog: dict[str, Any]
-) -> list[tuple[str, str]]:
-    requirements: list[tuple[str, str]] = []
-    seen: set[tuple[str, str]] = set()
-    for view in catalog.get("views", []):
-        for dimension in view.get("semanticDimensions", []):
-            if dimension.get("semanticType") != "analyte":
-                continue
-            field = str(dimension.get("field", ""))
-            for value in dimension.get("values", []):
-                canonical = str(value.get("canonical", ""))
-                phrases = [canonical, *value.get("aliases", [])]
-                if not canonical or not any(
-                    _phrase_in_question(question, phrase) for phrase in phrases
-                ):
-                    continue
-                key = (field.casefold(), canonical.casefold())
-                if key not in seen:
-                    requirements.append((field, canonical))
-                    seen.add(key)
-    return requirements
 
 
 def _predicate_parameter_names(statement: exp.Expression, field: str) -> set[str]:
@@ -129,7 +107,12 @@ def validate_query_invariants(
         placeholders: set[str] = set()
         statements: list[exp.Expression | None] = []
         try:
-            statements = sqlglot.parse(query.get("sql", ""), read="postgres")
+            statements = sqlglot.parse(
+                query.get("sql", ""),
+                read=resolve_dialect_adapter(
+                    str(context["target"]["dialect"])
+                ).sqlglot_dialect,
+            )
             for statement in statements:
                 if statement is None:
                     continue
@@ -149,28 +132,6 @@ def validate_query_invariants(
                 )
             )
 
-        if len(statements) == 1 and statements[0] is not None:
-            parameter_values = {
-                parameter.get("name"): parameter.get("value")
-                for parameter in parameters
-            }
-            for field, canonical in _named_semantic_requirements(
-                expected_question, context["catalog"]
-            ):
-                bound_names = _predicate_parameter_names(statements[0], field)
-                if not any(
-                    str(parameter_values.get(name, "")).casefold()
-                    == canonical.casefold()
-                    for name in bound_names
-                ):
-                    violations.append(
-                        Violation(
-                            "missing_semantic_filter",
-                            f"The named analyte {canonical!r} must be constrained "
-                            f"by {field} using its canonical bound value.",
-                        )
-                    )
-
     if violations:
         raise QueryInvariantError(violations)
 
@@ -184,11 +145,12 @@ class SqlPolicy:
         self,
         query: dict[str, Any],
         *,
+        dialect: DialectAdapter,
         available_relations: set[str] | None = None,
     ) -> list[Violation]:
         sql = query.get("sql", "")
         try:
-            statements = sqlglot.parse(sql, read="postgres")
+            statements = sqlglot.parse(sql, read=dialect.sqlglot_dialect)
         except ParseError as error:
             return [Violation("invalid_sql", f"SQL could not be parsed: {error}")]
 
@@ -196,7 +158,7 @@ class SqlPolicy:
             return [
                 Violation(
                     "multiple_statements",
-                    "Exactly one PostgreSQL statement is allowed.",
+                    f"Exactly one {dialect.statement_label} statement is allowed.",
                 )
             ]
         statement = statements[0]
@@ -262,9 +224,7 @@ class SqlPolicy:
                     Violation(
                         "relation_not_found",
                         "Query references relations not present in the current "
-                        "readable PostgreSQL schema: "
-                        + ", ".join(missing_relations)
-                        + ".",
+                        "readable schema: " + ", ".join(missing_relations) + ".",
                     )
                 )
 

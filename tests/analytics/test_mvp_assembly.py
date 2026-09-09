@@ -14,7 +14,7 @@ SUPERSET_IMAGE = (
     "5822dff49c41fd745ce33e38af502f9c64df30d133aeba148c5d89b35a1004ef"
 )
 SUPERSET_PLATFORM = "linux/arm64"
-SUPERSET_DRIVER_REVISION = "psycopg2-binary==2.9.9"
+SUPERSET_DRIVER_REVISION = "pyhive[hive_pure_sasl]==0.7.0"
 
 
 class MvpComposeContractTests(unittest.TestCase):
@@ -28,15 +28,12 @@ class MvpComposeContractTests(unittest.TestCase):
         cls.superset_script = (ROOT / "scripts/mvp-superset.sh").read_text()
         cls.model_config_script = (ROOT / "scripts/mvp-model-config.sh").read_text()
         cls.hub_bootstrap = (ROOT / "scripts/bootstrap-med-agent-hub.sh").read_text()
-        cls.fhir_data_pipes_bootstrap = (
-            ROOT / "scripts/bootstrap-fhir-data-pipes.sh"
-        ).read_text()
         cls.openelis_bootstrap = (ROOT / "scripts/bootstrap-openelis.sh").read_text()
 
     def test_compose_assembles_only_the_required_mvp_services(self):
         self.assertIn(".openelis-docker/docker-compose.yml", self.compose)
         for service in (
-            "analytics-db",
+            "spark-thriftserver",
             "hapi-mtls-proxy",
             "fhir-data-pipes",
             "med-agent-hub",
@@ -46,7 +43,8 @@ class MvpComposeContractTests(unittest.TestCase):
             self.assertRegex(self.compose, rf"(?m)^  {re.escape(service)}:")
         self.assertNotRegex(self.compose, r"(?m)^  model-router(?:-fake)?:")
         self.assertFalse((ROOT / "scripts/fake-model-router.py").exists())
-        self.assertNotRegex(self.compose, r"(?m)^  spark:")
+        # The PostgreSQL analytics engine is retired, not merely unused.
+        self.assertNotRegex(self.compose, r"(?m)^  analytics-db:")
 
     def test_openelis_checkout_and_runtime_images_are_immutable(self):
         self.assertIn(
@@ -129,7 +127,7 @@ class MvpComposeContractTests(unittest.TestCase):
             "mvp-up.sh": (
                 "GATEWAY_PORT",
                 "CATALYST_UI_PORT",
-                "ANALYTICS_DB_PORT",
+                "SPARK_THRIFT_PORT",
                 "DATA_PIPES_PORT",
                 "MED_AGENT_HUB_PORT",
                 "OPENELIS_HTTPS_PORT",
@@ -139,7 +137,7 @@ class MvpComposeContractTests(unittest.TestCase):
             "mvp-seed.sh": (
                 "GATEWAY_PORT",
                 "CATALYST_UI_PORT",
-                "ANALYTICS_DB_PORT",
+                "SPARK_THRIFT_PORT",
                 "DATA_PIPES_PORT",
                 "MED_AGENT_HUB_PORT",
                 "OPENELIS_HTTPS_PORT",
@@ -149,7 +147,7 @@ class MvpComposeContractTests(unittest.TestCase):
             "mvp-health.sh": (
                 "GATEWAY_PORT",
                 "CATALYST_UI_PORT",
-                "ANALYTICS_DB_PORT",
+                "SPARK_THRIFT_PORT",
                 "DATA_PIPES_PORT",
                 "MED_AGENT_HUB_PORT",
                 "OPENELIS_HTTPS_PORT",
@@ -163,13 +161,22 @@ class MvpComposeContractTests(unittest.TestCase):
                 with self.subTest(script=script_name, variable=variable):
                     self.assertIn(f"export {variable}=", script)
 
-    def test_data_pipes_is_built_from_the_pinned_checkout_without_spark(self):
-        self.assertIn("context: ./.fhir-data-pipes", self.compose)
+    def test_data_pipes_runs_the_pinned_release_image_with_its_warehouse(self):
+        self.assertIn(
+            "image: itechuw/ohs-fhir-data-pipes-controller:sha-3d3656e"
+            "@sha256:2f9caef7c3c940f8a0e1241551213954c1ea205371166eb8f1d40bd0311fda1a",
+            self.compose,
+        )
+        self.assertNotIn("context: ./.fhir-data-pipes", self.compose)
         self.assertIn("./analytics/config:/app/config:ro", self.compose)
         self.assertTrue((ROOT / "analytics/config/flink-conf.yaml").is_file())
-        self.assertIn('FHIRDATA_GENERATEPARQUETFILES: "false"', self.compose)
-        self.assertIn('FHIRDATA_CREATEHIVERESOURCETABLES: "false"', self.compose)
-        self.assertIn('FHIRDATA_CREATEPARQUETVIEWS: "false"', self.compose)
+        self.assertIn('FHIRDATA_GENERATEPARQUETFILES: "true"', self.compose)
+        self.assertIn('FHIRDATA_CREATEHIVERESOURCETABLES: "true"', self.compose)
+        self.assertIn('FHIRDATA_CREATEPARQUETVIEWS: "true"', self.compose)
+        # The thriftserver must share the warehouse at the same path the
+        # controller registers, or its views resolve to nothing.
+        self.assertIn("data-pipes-dwh:/dwh", self.compose)
+        self.assertIn("sbin/start-thriftserver.sh", self.compose)
         self.assertIn("javax.net.ssl.keyStore", self.compose)
         self.assertIn("key_trust-store-volume:/etc/openelis-global:ro", self.compose)
         self.assertIn(
@@ -186,7 +193,6 @@ class MvpComposeContractTests(unittest.TestCase):
 
     def test_pinned_runtime_dependency_checkouts_are_reused_until_refresh_requested(self):
         for script, pinned_reference in (
-            (self.fhir_data_pipes_bootstrap, "FHIR_DATA_PIPES_COMMIT"),
             (self.openelis_bootstrap, "OPENELIS_DOCKER_REF"),
         ):
             with self.subTest(reference=pinned_reference):
@@ -202,7 +208,7 @@ class MvpComposeContractTests(unittest.TestCase):
         self.assertIn("${MED_AGENT_HUB_PORT:-8082}:8080", self.compose)
         self.assertIn("${CATALYST_UI_PORT:-3000}:8080", self.compose)
         for port_mapping in (
-            "127.0.0.1:${ANALYTICS_DB_PORT:-15433}:5432",
+            "127.0.0.1:${SPARK_THRIFT_PORT:-10001}:10000",
             "127.0.0.1:${DATA_PIPES_PORT:-8090}:8080",
             "127.0.0.1:${MED_AGENT_HUB_PORT:-8082}:8080",
             "127.0.0.1:${GATEWAY_PORT:-8000}:8000",
@@ -326,13 +332,13 @@ class MvpComposeContractTests(unittest.TestCase):
         self.assertIn('"roleModels": role_models', self.health_script)
         self.assertIn('model_router["modelIds"] = sorted', self.health_script)
 
-    def test_gateway_image_contains_runtime_contracts_and_catalog(self):
+    def test_gateway_image_contains_runtime_contracts_not_a_catalog(self):
         dockerfile = (ROOT / "catalyst-gateway/Dockerfile").read_text()
         self.assertIn("COPY docs/contracts /docs/contracts", dockerfile)
-        self.assertIn(
-            "COPY analytics/catalog /app/config",
-            dockerfile,
-        )
+        # Live discovery replaced the generated catalog; baking one into the
+        # image would put a second, stale answer next to the connection's.
+        self.assertNotIn("analytics/catalog", dockerfile)
+        self.assertNotIn("CATALYST_CATALOG_PATH", dockerfile)
         self.assertIn("context: .", self.compose)
         self.assertIn("dockerfile: catalyst-gateway/Dockerfile", self.compose)
         legacy_compose = (ROOT / "catalyst-dev.docker-compose.yml").read_text()
@@ -352,7 +358,15 @@ class MvpComposeContractTests(unittest.TestCase):
             "superset-importer",
         ):
             self.assertRegex(self.compose, rf"(?m)^  {service}:")
-        self.assertGreaterEqual(self.compose.count(f"image: {SUPERSET_IMAGE}"), 3)
+        # The three Superset services run an image built FROM the pinned
+        # digest, adding the Hive driver the published image does not carry.
+        # Pinning moves to the build arg; the digest is still what this is.
+        self.assertGreaterEqual(
+            self.compose.count("image: catalyst/superset:hive"), 3
+        )
+        self.assertGreaterEqual(
+            self.compose.count(f'SUPERSET_IMAGE: "{SUPERSET_IMAGE}"'), 3
+        )
         self.assertIn("catalyst_superset_metadata", self.compose)
         init_script = (ROOT / "scripts/superset-init.sh").read_text()
         self.assertIn("superset db upgrade", init_script)
@@ -378,7 +392,7 @@ class MvpComposeContractTests(unittest.TestCase):
         )
         self.assertIn(
             'CATALYST_SUPERSET_DRIVER_REVISION: '
-            '"${SUPERSET_DRIVER_REVISION:-psycopg2-binary==2.9.9}"',
+            '"${SUPERSET_DRIVER_REVISION:-pyhive[hive_pure_sasl]==0.7.0}"',
             self.compose,
         )
         self.assertIn("SUPERSET_PLATFORM=", self.health_script)
@@ -401,16 +415,10 @@ class MvpComposeContractTests(unittest.TestCase):
     def test_superset_runtime_separates_read_only_input_and_writable_receipts(self):
         gitignore = (ROOT / ".gitignore").read_text()
         config = (ROOT / "superset/superset_config.py").read_text()
-        roles = (ROOT / "analytics/sql/000_analytics_roles.sql").read_text()
         self.assertIn("/runtime/superset/", gitignore)
         self.assertIn("CATALYST_SUPERSET_METADATA_DSN", config)
         self.assertIn("SQLALCHEMY_DATABASE_URI", config)
         self.assertNotIn("catalyst_readonly", config)
-        self.assertIn(
-            "ALTER ROLE catalyst_readonly SET default_transaction_read_only = on;",
-            roles,
-        )
-        self.assertIn("REVOKE CREATE ON SCHEMA public FROM PUBLIC;", roles)
 
     def test_superset_lifecycle_retains_state_until_explicit_reset(self):
         down_script = (ROOT / "scripts/mvp-down.sh").read_text()
@@ -426,6 +434,15 @@ class MvpComposeContractTests(unittest.TestCase):
         )
         self.assertRegex(self.compose, r"(?m)^  superset-metadata-data:$")
         self.assertRegex(self.compose, r"(?m)^  superset-home:$")
+
+    def test_up_reuses_a_running_openelis_database_bind_mount(self):
+        self.assertIn('ps -q db.openelis.org', self.up_script)
+        self.assertIn('/var/lib/postgresql/data', self.up_script)
+        self.assertIn('"${existing_source}/PG_VERSION"', self.up_script)
+        self.assertIn('"${data_dir}/PG_VERSION"', self.up_script)
+        self.assertIn('.uninitialized-', self.up_script)
+        self.assertIn('ln -s "${existing_real}" "${data_dir}"', self.up_script)
+        self.assertIn('Refusing to choose between populated data directories', self.up_script)
 
     def test_superset_local_config_is_injected_without_serializing_credentials(self):
         importer = (ROOT / "scripts/superset-import.py").read_text()
@@ -463,7 +480,7 @@ class MvpComposeContractTests(unittest.TestCase):
             'run --rm --no-deps superset-importer status', self.superset_script
         )
         self.assertIn(
-            'up -d --wait --wait-timeout 180 analytics-db superset',
+            'up -d --wait --wait-timeout 180 spark-thriftserver superset',
             self.superset_script,
         )
         self.assertIn(
@@ -473,8 +490,9 @@ class MvpComposeContractTests(unittest.TestCase):
         self.assertIn(
             "./runtime/superset/receipts:/opt/catalyst/receipts:rw", self.compose
         )
+        # Superset renders against the same Spark source Catalyst queried.
         self.assertIn(
-            "postgresql://catalyst_readonly:demo-readonly-change-me@analytics-db:5432/catalyst_analytics",
+            "hive://catalyst@spark-thriftserver:10000/openelis",
             self.compose,
         )
         self.assertNotIn("set-database-uri", self.compose)
@@ -523,7 +541,6 @@ class MvpScriptContractTests(unittest.TestCase):
             "mvp-seed.sh",
             "mvp-health.sh",
             "mvp-down.sh",
-            "../tests/e2e/test_data_pipes_incremental.sh",
         ):
             with self.subTest(name=name):
                 script = ROOT / "scripts" / name
@@ -585,16 +602,19 @@ class MvpScriptContractTests(unittest.TestCase):
         script = (ROOT / "scripts/mvp-seed.sh").read_text()
         self.assertIn("--set=ON_ERROR_STOP=1", script)
 
-    def test_seed_gates_the_semantic_cohort_not_only_its_row_count(self):
+    def test_seed_gates_the_warehouse_through_spark_not_the_controller_log(self):
         script = (ROOT / "scripts/mvp-seed.sh").read_text()
-        self.assertIn("count(DISTINCT test_name)", script)
-        self.assertIn("WHERE test_name = 'Viral Load'", script)
-        self.assertIn(
-            "1152|96|9|384|1152|9|2025-07-15|2026-04-27",
-            script,
+        self.assertIn("SHOW VIEWS;", script)
+        self.assertIn("registered no views into the Spark thriftserver", script)
+
+    def test_openelis_uses_an_isolated_spark_database(self):
+        sink = json.loads(
+            (ROOT / "analytics/config/thriftserver-hive-config.json").read_text()
         )
-        self.assertIn("FROM public.service_request_flat_v1", script)
-        self.assertIn("1152|1152|9", script)
+        seed = (ROOT / "scripts/mvp-seed.sh").read_text()
+        self.assertEqual("openelis", sink["databaseName"])
+        self.assertIn("CREATE DATABASE IF NOT EXISTS openelis", seed)
+        self.assertIn("jdbc:hive2://localhost:10000/openelis", seed)
 
     def test_http_readiness_and_backfill_calls_are_bounded(self):
         for relative_path in (
@@ -614,7 +634,7 @@ class MvpScriptContractTests(unittest.TestCase):
             "OpenELIS application",
             "HAPI seed resources",
             "FHIR Data Pipes controller",
-            "analytics mart exact rows",
+            "Spark warehouse readable",
             "hub router configuration",
             "hub query profile",
             "gateway view of Hub query profile",

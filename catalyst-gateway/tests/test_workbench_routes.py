@@ -36,7 +36,7 @@ def _catalog() -> Catalog:
         data_source="openelis-demo",
         catalog_version="2026.07",
         schema_version="analytics-v1",
-        dialect="postgresql",
+        dialect="fixture",
         context_source_id="catalog:openelis-demo:2026.07",
         views=[
             {
@@ -67,7 +67,7 @@ def _candidate(sql: str) -> dict:
         "target": {
             "dataSource": "openelis-demo",
             "catalogVersion": "2026.07",
-            "dialect": "postgresql",
+            "dialect": "fixture",
             "approvedViews": ["analytics.lab_results"],
         },
         "sql": sql,
@@ -538,7 +538,7 @@ class FakeAnalytics:
         if self.error:
             raise self.error
         return ManualAnalyticsResult(
-            columns=[AnalyticsColumn(0, "test_name", "text", 25, "string")],
+            columns=[AnalyticsColumn(0, "test_name", "text", "string")],
             rows=[[{"type": "string", "value": "Malaria"}]],
             truncated=False,
         )
@@ -589,7 +589,7 @@ class BlockingFakeAnalytics(FakeAnalytics):
         self.started.set()
         await self.release.wait()
         return ManualAnalyticsResult(
-            columns=[AnalyticsColumn(0, "test_name", "text", 25, "string")],
+            columns=[AnalyticsColumn(0, "test_name", "text", "string")],
             rows=[[{"type": "string", "value": "Malaria"}]],
             truncated=False,
         )
@@ -755,7 +755,7 @@ def test_editor_catalog_route_exposes_versioned_contract(tmp_path: Path) -> None
         data_source="openelis-demo",
         catalog_version="catalog-v3",
         schema_version="schema-v2",
-        dialect="postgresql",
+        dialect="fixture",
         context_source_id="catalog:openelis-demo:catalog-v3",
         views=[
             {
@@ -826,7 +826,7 @@ def test_editor_catalog_route_exposes_versioned_contract(tmp_path: Path) -> None
         "contractVersion": "catalyst.workbench.editor-catalog.v1",
         "catalogVersion": "catalog-v3",
         "schemaVersion": "schema-v2",
-        "dialect": "postgresql",
+        "dialect": "fixture",
         "schemas": [
             {
                 "name": "analytics",
@@ -909,19 +909,15 @@ def test_editor_catalog_route_exposes_versioned_contract(tmp_path: Path) -> None
     assert _workbench_session_count(tmp_path) == 0
 
 
-def test_editor_catalog_route_exposes_every_approved_fact_column(
+def test_editor_catalog_route_exposes_every_discovered_fact_column(
     tmp_path: Path,
 ) -> None:
-    catalog_path = (
-        Path(__file__).resolve().parents[2]
-        / "analytics"
-        / "catalog"
-        / "analytics-catalog-v1.json"
-    )
+    from tests.test_catalog_runtime import _base_catalog
+
     client, _ = _client(
         tmp_path,
         _ready_query(),
-        catalog=Catalog.load(catalog_path),
+        catalog=_base_catalog(),
     )
 
     response = client.get("/v1/catalyst/workbench/catalog")
@@ -953,15 +949,11 @@ def test_editor_catalog_route_exposes_every_approved_fact_column(
     result_value = next(
         column for column in view["columns"] if column["name"] == "result_value"
     )
-    assert result_value == {
-        "name": "result_value",
-        "logicalType": "decimal",
-        "description": (
-            "Numeric FHIR Quantity value; do not aggregate across unlike units."
-        ),
-        "nullable": True,
-        "unitColumn": "result_unit",
-    }
+    # Discovery reports the column and its type; curated unit linkage is not
+    # something a connection can tell us, so it is not asserted here.
+    assert result_value["name"] == "result_value"
+    assert result_value["logicalType"] == "decimal"
+    assert result_value["nullable"] is True
 
 
 def test_editor_catalog_failure_is_useful_and_does_not_mutate_state(
@@ -971,7 +963,7 @@ def test_editor_catalog_failure_is_useful_and_does_not_mutate_state(
         data_source="openelis-demo",
         catalog_version="catalog-v3",
         schema_version="schema-v2",
-        dialect="postgresql",
+        dialect="fixture",
         context_source_id="catalog:openelis-demo:catalog-v3",
         views=[
             {
@@ -1012,20 +1004,11 @@ def test_ready_generation_creates_restorable_version_and_validation(
     assert session["provenance"]["generationOutcome"]["contractVersion"] == (
         "catalyst.query.v1"
     )
-    assert session["datasetId"] == "pipeline-run-1"
-    assert session["datasetVersion"] == "pipeline-run-1"
+    # A connection reports a schema, not a curated dataset identity, so the
+    # session is identified by its source and the schema it discovered.
+    assert session["datasetId"] == "openelis-demo"
     assert session["catalogVersion"] == "2026.07"
-    assert session["provenance"]["datasetSnapshot"] == {
-        "datasetId": "pipeline-run-1",
-        "dataSource": "openelis-demo",
-        "pipelineRunId": "pipeline-run-1",
-        "synthetic": None,
-        "patients": 1,
-        "results": 1,
-        "testTypes": 1,
-        "firstObservedAt": "2026-01-01T00:00:00Z",
-        "lastObservedAt": "2026-01-01T00:00:00Z",
-    }
+    assert session["provenance"]["datasetSnapshot"]["dataSource"] == "openelis-demo"
     expected_profile_snapshot = {
         "profileId": PROFILE_ID,
         "profileLabel": "Catalyst query checked",
@@ -2825,7 +2808,7 @@ def test_a_hand_written_query_can_use_every_relation_the_writer_sees(
         data_source="openelis-demo",
         catalog_version="2026.07",
         schema_version="analytics-v1",
-        dialect="postgresql",
+        dialect="fixture",
         context_source_id="catalog:openelis-demo:2026.07",
         views=[
             {
