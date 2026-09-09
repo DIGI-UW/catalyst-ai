@@ -137,11 +137,19 @@ def _spark_discover_relations(cursor: Any) -> list[dict[str, Any]]:
         name = str(row[1])
         listed.append((namespace, name))
 
+    cursor.execute("SHOW VIEWS")
+    views = {(str(row[0] or ""), str(row[1])) for row in cursor.fetchall()}
+    temporary_names = {name for namespace, name in listed if not namespace}
+
     relations: list[dict[str, Any]] = []
     for namespace, name in listed:
         qualified = f"{namespace}.{name}" if namespace else name
+        unqualified_visible = not namespace or name not in temporary_names
+        identifier = SPARK.quote_identifier(name)
+        if namespace:
+            identifier = f"{SPARK.quote_identifier(namespace)}.{identifier}"
         try:
-            cursor.execute(f"DESCRIBE TABLE {SPARK.quote_identifier(name)}")
+            cursor.execute(f"DESCRIBE TABLE {identifier}")
             described = cursor.fetchall()
         except Exception:
             # A relation that cannot be described is still reported, so the
@@ -150,7 +158,7 @@ def _spark_discover_relations(cursor: Any) -> list[dict[str, Any]]:
                 {
                     "name": qualified,
                     "relationType": "relation",
-                    "unqualifiedVisible": True,
+                    "unqualifiedVisible": unqualified_visible,
                     "grain": f"Rows readable from {qualified}",
                     "fields": [],
                 }
@@ -182,8 +190,8 @@ def _spark_discover_relations(cursor: Any) -> list[dict[str, Any]]:
         relations.append(
             {
                 "name": qualified,
-                "relationType": "view" if namespace == "" else "table",
-                "unqualifiedVisible": True,
+                "relationType": "view" if (namespace, name) in views else "table",
+                "unqualifiedVisible": unqualified_visible,
                 "grain": f"Rows readable from {qualified}",
                 "fields": fields,
             }
