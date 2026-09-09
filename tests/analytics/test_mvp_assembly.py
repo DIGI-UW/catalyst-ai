@@ -435,6 +435,15 @@ class MvpComposeContractTests(unittest.TestCase):
         self.assertRegex(self.compose, r"(?m)^  superset-metadata-data:$")
         self.assertRegex(self.compose, r"(?m)^  superset-home:$")
 
+    def test_up_reuses_a_running_openelis_database_bind_mount(self):
+        self.assertIn('ps -q db.openelis.org', self.up_script)
+        self.assertIn('/var/lib/postgresql/data', self.up_script)
+        self.assertIn('"${existing_source}/PG_VERSION"', self.up_script)
+        self.assertIn('"${data_dir}/PG_VERSION"', self.up_script)
+        self.assertIn('.uninitialized-', self.up_script)
+        self.assertIn('ln -s "${existing_real}" "${data_dir}"', self.up_script)
+        self.assertIn('Refusing to choose between populated data directories', self.up_script)
+
     def test_superset_local_config_is_injected_without_serializing_credentials(self):
         importer = (ROOT / "scripts/superset-import.py").read_text()
         provenance_writer = self.health_script[
