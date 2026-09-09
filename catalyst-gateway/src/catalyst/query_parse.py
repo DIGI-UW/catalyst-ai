@@ -120,7 +120,6 @@ def _parse_review_object(
     if flat_repair and "candidate" not in value:
         candidate_fields = (
             "status",
-            "target",
             "sql",
             "parameters",
             "expectedColumns",

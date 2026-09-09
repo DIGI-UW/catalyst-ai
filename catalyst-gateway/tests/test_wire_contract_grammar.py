@@ -92,8 +92,9 @@ def test_review_wire_forces_a_repair_to_carry_its_query():
     candidate = repair["properties"]["candidate"]
 
     assert "candidate" in repair["required"]
-    for field in ("status", "target", "sql", "parameters", "expectedColumns"):
+    for field in ("status", "sql", "parameters", "expectedColumns"):
         assert field in candidate["required"], f"repair candidate may omit {field}"
+    assert "target" not in candidate["properties"]
 
     # And the validator still rejects the stub, so defence in depth holds.
     stub = {
@@ -102,6 +103,13 @@ def test_review_wire_forces_a_repair_to_carry_its_query():
         "candidate": {"status": "ready"},
     }
     assert list(REVIEW_VALIDATOR.iter_errors(stub)), "validator accepts the stub"
+
+
+def test_flat_repair_wire_leaves_target_metadata_to_catalyst():
+    schema = REPAIR_FORMAT["json_schema"]["schema"]
+
+    assert "target" not in schema["required"]
+    assert "target" not in schema["properties"]
 
 
 def test_review_wire_keeps_approve_and_reject_usable():
@@ -144,11 +152,11 @@ def test_a_ready_branch_still_has_to_carry_a_complete_query():
     ready = _generation_branches()["ready"]
     assert set(ready["required"]) == {
         "status",
-        "target",
         "sql",
         "parameters",
         "expectedColumns",
     }
+    assert "target" not in ready["properties"]
 
 
 def test_asking_a_question_carries_the_question_and_no_sql():
