@@ -4,6 +4,10 @@
 Builder design are accepted; the generic connection, Spark reference deployment,
 and final Dashboard acceptance remain open.
 
+The [Workbench usability proposal](specs/staff-workbench-ux/spec.md) contains a
+reviewable mock, design deltas, and overlap analysis for the staff-facing UX
+upgrade. It is a proposed supplement, not a replacement for this contract.
+
 ## Purpose
 
 Catalyst helps a person:

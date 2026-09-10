@@ -36,13 +36,8 @@ jobs:
         with:
           version: "latest"
 
-      - name: Load cached venv
-        id: cached-uv-dependencies
-        uses: actions/cache@v5
-        with:
-          path: ${{ matrix.project }}/.venv
-          key: venv-${{ runner.os }}-${{ matrix.project }}-${{ hashFiles('${{ matrix.project }}/uv.lock') }}
-
+      # setup-uv caches downloads. Rebuild the environment here because Python
+      # launchers contain absolute checkout paths and are unsafe to restore.
       - name: Install dependencies
         working-directory: ${{ matrix.project }}
         run: |

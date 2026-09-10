@@ -100,6 +100,10 @@ execution path.
 
 These files contain the current requirements.
 
+For review: [staff Workbench usability proposal and interactive mock](docs/specs/staff-workbench-ux/spec.md),
+including its overlap with current plans. This proposal has not replaced the
+binding design.
+
 ## Repository layout
 
 - `catalyst-gateway/` — model request, connection, query, result, and dashboard

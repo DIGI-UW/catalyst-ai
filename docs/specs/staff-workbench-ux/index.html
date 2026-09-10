@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="appearance.js?v=3"></script>
+  <link rel="stylesheet" href="appearance.css?v=4">
+  <title>Catalyst · UX design preview</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; height: 100dvh; display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--background); color: var(--text); font: 14px/1.4 system-ui, sans-serif; }
+    header { padding: 12px 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; background: var(--layer); border-bottom: 1px solid var(--border); }
+    h1 { font-size: 16px; margin: 0; }
+    p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
+    label { display: flex; align-items: center; gap: 8px; }
+    select, a { min-height: 36px; padding: 7px; font: inherit; }
+    a { color: var(--action-text); }
+    select { background: var(--field); color: var(--text); border: 1px solid var(--control-border); border-radius: 4px; }
+    select:focus-visible, a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+    main { padding: 16px; overflow: auto; }
+    iframe { display: block; margin: auto; width: 100%; height: 100%; min-height: 540px; border: 0; outline: 1px solid var(--border); background: var(--layer); }
+  </style>
+</head>
+<body>
+  <header>
+    <div><h1>Catalyst design preview</h1><p>Proposed interface · fictional examples · no AI, database, or publication requests</p></div>
+    <label>Screen <select id="screen">
+      <option value="empty">First question</option><option value="results">Results</option>
+      <option value="ready">Query ready</option><option value="limited">Limited results</option>
+      <option value="error">Database error</option><option value="clarify">Clarification</option>
+      <option value="unsupported">Unable to answer</option><option value="datasets">Datasets</option>
+      <option value="widgets">Widgets</option><option value="dashboards">Dashboards</option>
+      <option value="imported">Dashboard imported</option><option value="import-failed">Dashboard import failed</option>
+    </select></label>
+    <label>Width <select id="width"><option value="100%">Fill window</option><option value="1280px">1280 px</option><option value="640px">640 px</option><option value="390px">390 px</option><option value="320px">320 px</option></select></label>
+    <a href="spec.md">Design specification</a>
+  </header>
+  <main><iframe id="preview" title="Catalyst interactive design mock" src="mock.html?state=empty"></iframe></main>
+  <script>
+    const preview = document.querySelector('#preview');
+    document.querySelector('#screen').addEventListener('change', event => {
+      preview.src = `mock.html?state=${encodeURIComponent(event.target.value)}`;
+    });
+    document.querySelector('#width').addEventListener('change', event => {
+      preview.style.width = event.target.value;
+    });
+  </script>
+</body>
+</html>
