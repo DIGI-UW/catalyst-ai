@@ -23,7 +23,10 @@ test("the composer stays available while reading and preserves an expanded draft
   await page.evaluate(
     "document.getElementById('catalyst-followup').setSelectionRange(4, 7)",
   );
+  const originalHeight = (await input.boundingBox())!.height;
   await page.getByRole("button", { name: "Expand" }).click();
+  await expect.poll(async () => (await input.boundingBox())!.height)
+    .toBeGreaterThan(originalHeight + 50);
   await expect(input).toBeFocused();
   await expect(input).toHaveValue(draft);
   await expect(page.getByRole("button", { name: "Restore" })).toBeVisible();
@@ -33,6 +36,26 @@ test("the composer stays available while reading and preserves an expanded draft
   );
   expect(selection).toEqual([4, 7]);
   await page.getByRole("button", { name: "Restore" }).click();
+  await expect(input).toBeFocused();
+  await expect.poll(async () => (await input.boundingBox())!.height)
+    .toBeCloseTo(originalHeight, 0);
+});
+
+test("the first question grows and restores its actual writing area", async ({ page }) => {
+  await installBaselineApi(page, { empty: true });
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto("/");
+  const input = page.getByRole("textbox", { name: "Your question" });
+  await input.fill("Keep this question while changing the writing area.");
+  const originalHeight = (await input.boundingBox())!.height;
+  await page.getByRole("button", { name: "Expand", exact: true }).click();
+  await expect.poll(async () => (await input.boundingBox())!.height)
+    .toBeGreaterThan(originalHeight + 50);
+  await expect(input).toBeFocused();
+  await page.getByRole("button", { name: "Restore", exact: true }).click();
+  await expect.poll(async () => (await input.boundingBox())!.height)
+    .toBeCloseTo(originalHeight, 0);
+  await expect(input).toHaveValue("Keep this question while changing the writing area.");
   await expect(input).toBeFocused();
 });
 
