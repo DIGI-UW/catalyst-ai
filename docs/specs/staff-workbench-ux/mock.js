@@ -13,6 +13,8 @@ let expanded = false;
 let advanced = false;
 let priorHeight = 88;
 let opener;
+let dataOpener;
+let dataOpen = false;
 let noticeTimer;
 let datasetName = 'Monthly activity';
 let widgetName = 'Monthly activity';
@@ -24,16 +26,20 @@ const isLibrary = () => ['datasets', 'widgets', 'dashboards', 'imported', 'impor
 const facts = () => `<div class="facts"><div><span>Data source</span>${escapeHtml(source)}</div><div><span>Returned rows</span>${state === 'limited' ? '100 · total unknown' : '6'}</div><div><span>Run</span>Query 1 · illustrative result</div></div>`;
 const table = () => `<div class="table-scroll"><table><caption>Illustrative monthly activity · first 6 rows</caption><thead><tr><th scope="col">Month</th><th scope="col">Completed tests</th></tr></thead><tbody>${[['March 2026',184],['April 2026',206],['May 2026',198],['June 2026',225],['July 2026',217],['August 2026',240]].map(([month,count])=>`<tr><td>${month}</td><td>${count}</td></tr>`).join('')}</tbody></table></div>`;
 const technical = () => `<details ${advanced ? "open" : ""}><summary>Query and technical details</summary><p class="small">Source: ${escapeHtml(source)}<br>SQL dialect: Spark SQL<br>Query version: 1 · execution: 1</p><pre>${escapeHtml(draftSql)}</pre><p class="small">Schema and trace identifiers are available here in the product. This mock has no live provenance.</p></details>`;
-const sqlEditor = () => `<details id="sql-details" ${advanced ? "open" : ""}><summary>View or edit SQL</summary><label for="sql">SQL query</label><textarea class="sql" id="sql" spellcheck="false">${escapeHtml(draftSql)}</textarea><p class="small muted">Sample SQL only. The mock does not validate or execute it.</p><div class="actions"><button class="secondary" data-action="validate">Validate</button><button class="secondary" data-action="format">Format</button><button class="text-button" data-action="restore">Restore</button><button class="text-button" data-action="clear">Clear draft</button></div><details><summary>Parameters and generation details</summary><p>No parameters in this example. The product preserves typed parameters, model output, findings, and exact query history.</p></details></details>`;
+const sqlEditor = () => `<details id="sql-details" ${advanced ? "open" : ""}><summary>View or edit SQL</summary><label for="sql">SQL query</label><textarea class="sql" id="sql" spellcheck="false">${escapeHtml(draftSql)}</textarea><p class="small muted">Sample SQL only. The mock does not validate or execute it.</p><div class="actions"><button class="secondary" data-action="validate">Validate</button><button class="secondary" data-action="format">Format</button><button class="text-button" data-action="restore">Restore</button><button class="text-button" data-action="clear">Clear draft</button></div><details ${advanced ? "open" : ""}><summary>Parameters and generation details</summary><p>No parameters in this example. The product preserves typed parameters, model output, findings, and exact query history.</p></details></details>`;
 
 function render() {
   document.body.dataset.state = state;
+  document.body.dataset.advanced = String(advanced);
+  $('#mode-indicator').hidden = !advanced;
   const section = isLibrary() ? (['imported','import-failed'].includes(state) ? 'dashboards' : state) : 'workbench';
   document.querySelectorAll('[data-section]').forEach(button => {
     if (button.dataset.section === section) button.setAttribute('aria-current', 'page');
     else button.removeAttribute('aria-current');
   });
   $('#composer').hidden = isLibrary();
+  $('#return-to-question').hidden = isLibrary();
+  $('#data-source').textContent = source;
   $('#advanced-tools').hidden = !advanced;
   $('#composer [data-dialog="ai"]').hidden = advanced;
   $('#profile-summary').textContent = profile;
@@ -49,7 +55,7 @@ function render() {
   if (state === 'empty') {
     body = `<div class="intro"><p>Catalyst helps you explore information from your connected data. You choose what to retrieve and what to save.</p></div>`;
   } else if (section === 'datasets') {
-    body = saved ? `<div class="card"><div class="card-header"><div><h2>${escapeHtml(datasetName)}</h2><p class="muted">${escapeHtml(source)} · 2 columns</p></div><span class="tag success">Saved</span></div><p>Reuse the saved query to create a chart or table. Dashboard views run it against the connected source.</p><div class="actions"><button data-dialog="review">Review Dataset</button><button class="secondary" data-action="widget">Create chart or table</button></div></div>` : `<div class="card empty"><h2>Your saved queries will appear here</h2><p>Run a query, review its results, then save it as a Dataset.</p><button data-action="back">Return to your question</button></div>`;
+    body = saved ? `<div class="card"><div class="card-header"><div><h2>${escapeHtml(datasetName)}</h2><p class="muted">${escapeHtml(source)} · 2 columns<span class="advanced-only"> · Dataset</span></p></div><span class="tag success">Saved</span></div><p>Reuse the saved query to create a chart or table. Dashboard views run it against the connected source.</p><div class="actions"><button data-dialog="review">Review Dataset</button><button class="secondary" data-action="widget">Create chart or table</button></div></div>` : `<div class="card empty"><h2>Your saved queries will appear here</h2><p>Run a query, review its results, then save it as a Dataset.</p><button data-action="back">Return to your question</button></div>`;
   } else if (section === 'widgets') {
     body = `<div class="card empty"><h2>${widget ? escapeHtml(widgetName) : 'Create your first chart or table'}</h2><p>${widget ? `${escapeHtml(widgetType)} · ${escapeHtml(datasetName)} Dataset` : saved ? 'A saved Dataset is ready. Choose how you want to display it.' : 'Start by running and saving a query as a Dataset.'}</p><button data-action="${widget ? 'dashboard' : saved ? 'widget' : 'back'}">${widget ? 'Add to dashboard' : saved ? 'Create chart or table' : 'Return to your question'}</button></div>`;
   } else if (section === 'dashboards') {
@@ -61,13 +67,47 @@ function render() {
     } else if (state === 'error') {
       body += `<div class="card"><div class="callout error" role="alert"><h2>The query could not run</h2><p>The database reported that a column could not be found. Check the SQL or describe the change you need below.</p></div><details open><summary>Database diagnostic</summary><pre>Example diagnostic: column completed_tests not found</pre></details>${sqlEditor()}<div class="actions"><button data-action="run">Try again</button></div></div>`;
     } else if (state === 'clarify' || state === 'unsupported') {
-      body += `<div class="card"><span class="tag">Prepared with AI</span><h2>${state === 'clarify' ? 'Which period should I use?' : 'This data cannot answer that question'}</h2><p>${state === 'clarify' ? 'Please specify the start and end dates for the report.' : 'The requested information is not available in the connected source. You can browse the available data or ask a different question.'}</p><p class="muted small">No new query was run. Your previous query and result are unchanged.</p><button class="text-button" data-dialog="data">Browse available data</button></div>`;
+      body += `<div class="card"><span class="tag">Prepared with AI</span><h2>${state === 'clarify' ? 'Which period should I use?' : 'This data cannot answer that question'}</h2><p>${state === 'clarify' ? 'Please specify the start and end dates for the report.' : 'The requested information is not available in the connected source. You can browse the available data or ask a different question.'}</p><p class="muted small">No new query was run. Your previous query and result are unchanged.</p><button class="text-button" data-browse aria-expanded="${dataOpen}" aria-controls="data-browser">Browse available data</button></div>`;
     } else {
       body += `<div class="card"><div class="card-header"><div><h2>Your results are ready</h2><p class="muted">${state === "limited" ? "100 rows returned · total unknown" : "6 rows returned"}</p></div></div>${state === 'limited' ? '<div class="callout warning"><strong>Showing the first 100 rows</strong><p>More are available; the total is unknown. Refine your question if you need a smaller result.</p></div>' : ''}<div class="actions"><button data-dialog="review">View results</button><button class="text-button" data-action="edit">View or edit SQL</button></div>${advanced ? `${sqlEditor()}<button data-action="run">Run query</button>` : ""}<details><summary>About these results</summary><p class="small">The database returned a result. This does not establish that the answer is correct. SQL findings: none recorded in this example. AI review status: unknown.</p><p class="small">Exact query and technical evidence are available with the full results.</p></details></div>`;
     }
   }
   $('#content').innerHTML = body;
+  document.querySelectorAll('[data-browse]').forEach(button => button.setAttribute('aria-expanded', String(dataOpen)));
 }
+
+// Fictional schema only. Production uses complete connection metadata and optional reviewed descriptions.
+const exampleRelations = [
+  {name:'example_monthly_activity', label:'Monthly activity', description:'Completed tests, grouped by month.', fields:[['month','Month','DATE'],['completed_tests','Completed tests','BIGINT']]},
+  {name:'example_requests', label:'Test requests', description:'When tests were requested and their status.', fields:[['id','Request identifier','STRING'],['date','Request date','DATE'],['status','Request status','STRING']]},
+  {name:'example_results', label:'Test results', description:'Test names and their recorded values.', fields:[['id','Result identifier','STRING'],['test_name','Test name','STRING'],['value','Recorded value','STRING']]},
+];
+$('#data-list').innerHTML = exampleRelations.map(relation => `<li><details><summary><span>${escapeHtml(relation.label)}<small>${escapeHtml(relation.description)}</small><code class="relation-name">${escapeHtml(relation.name)}</code></span></summary><code>${escapeHtml(relation.name)}</code><dl>${relation.fields.map(([name,label,type]) => `<dt>${escapeHtml(label)}</dt><dd><code>${escapeHtml(name)} · ${escapeHtml(type)}</code></dd>`).join('')}</dl></details></li>`).join('');
+function filterData() {
+  const term = $('#search-data').value.trim().toLowerCase();
+  const rows = [...$('#data-list').children];
+  rows.forEach(row => { row.hidden = !row.textContent.toLowerCase().includes(term); });
+  const count = rows.filter(row => !row.hidden).length;
+  $('#data-count').textContent = term ? `${count} of ${rows.length} example tables match` : `${rows.length} example tables · open to see fields`;
+  $('#data-no-matches').hidden = count !== 0;
+}
+function toggleData(open, trigger) {
+  dataOpen = open;
+  if (open && trigger) dataOpener = trigger;
+  document.body.classList.toggle('data-open', open);
+  $('#data-browser').hidden = !open;
+  document.querySelectorAll('[data-browse]').forEach(button => button.setAttribute('aria-expanded', String(open)));
+  if (open) $('#search-data').focus();
+  else if (dataOpener?.isConnected) dataOpener.focus();
+  else $('#main').focus();
+}
+$('#close-data').addEventListener('click', () => toggleData(false));
+$('#return-to-question').addEventListener('click', () => $('#question').focus());
+$('#clear-data-search').addEventListener('click', () => { $('#search-data').value = ''; filterData(); $('#search-data').focus(); });
+$('#data-browser').addEventListener('keydown', event => {
+  if (event.key === 'Escape') { event.preventDefault(); toggleData(false); }
+});
+filterData();
 
 function closePanel() {
   $('#panel').close();
@@ -78,15 +118,13 @@ function openPanel(kind, trigger) {
   opener = trigger;
   const footer = $('#panel-footer');
   footer.innerHTML = '';
-  const titles = {review:'Review results',ai:'Query settings',data:'Available data',source:'Start a new session',widget:'Create chart or table',import:'Import into Superset'};
+  const titles = {review:'Review results',ai:'Query settings',source:'Start a new session',widget:'Create chart or table',import:'Import into Superset'};
   $('#panel-title').textContent = titles[kind];
   if (kind === 'review') {
     $('#panel-body').innerHTML = `<label for="dataset-name">Save as</label><input id="dataset-name" value="${escapeHtml(datasetName)}">${facts()}${state === 'limited' ? '<div class="callout warning">100 rows returned. More are available; the total is unknown. The mock illustrates six rows below.</div>' : ''}${table()}<p class="small muted">Saving keeps this query and its recorded execution. Superset runs the saved query against the connected source when the dashboard is viewed.</p><p class="small">Database diagnostic: none in this example.<br>SQL findings: none recorded in this example.<br>AI review status: unknown in this example.</p>${technical()}`;
     footer.innerHTML = `<button data-action="save" ${saved ? 'disabled' : ''}>${saved ? 'Saved to your queries' : 'Save query'}</button><button class="secondary" data-action="close">Close</button>`;
   } else if (kind === 'ai') {
     $('#panel-body').innerHTML = `<p>AI prepares SQL. You choose when to run it and whether to save it.</p><label for="profile">Model profile</label><select id="profile"><option value="Gemma + Qwen" ${profile === "Gemma + Qwen" ? "selected" : ""}>Gemma 4 E4B writer + Qwen 2.5 14B reviewer</option><option value="Gemma writer" ${profile === "Gemma writer" ? "selected" : ""}>Gemma 4 12B writer</option></select><p class="small">These are illustrative profile choices. In the product, the selected available profile and exact models are recorded for each query. Changing it never changes earlier evidence.</p><details><summary>What the AI receives</summary><p>Your instruction, the source's complete readable schema and dialect, and applicable same-session context. Result rows are not sent to the model.</p></details>`;
-  } else if (kind === 'data') {
-    $('#panel-body').innerHTML = `<p>${escapeHtml(source)}</p><label for="search-data">Find a table or column</label><input id="search-data" type="search" placeholder="Search available data"><ul class="data-list">${[['example_monthly_activity','month · completed_tests'],['example_requests','id · date · status'],['example_results','id · test_name · value']].map(([name,columns])=>`<li><code>${name}</code><p>${columns}</p></li>`).join('')}</ul><p class="small muted">Three fictional relations are shown for layout review. The product browser includes every readable table, view, column, and type.</p>`;
   } else if (kind === 'source') {
     $('#panel-body').innerHTML = `<p>The current conversation stays with ${escapeHtml(source)}. A new session starts a separate conversation.</p><label for="source">Data source</label><select id="source"><option>OpenELIS Laboratory</option><option>OpenMRS HIV/ART program</option></select><p class="small muted">This preview resets its illustrative state. It does not create a real session.</p>`;
     footer.innerHTML = '<button data-action="new">Start session</button><button class="secondary" data-action="close">Cancel</button>';
@@ -105,11 +143,17 @@ function notify(message) {
   $('#notice').hidden = false;
   noticeTimer = setTimeout(() => { $('#notice').hidden = true; }, 5000);
 }
-$('#advanced-toggle').addEventListener('click', () => {
-  advanced = !advanced;
-  $('#advanced-toggle').textContent = advanced ? 'Hide advanced tools' : 'Show advanced tools';
-  $('#advanced-toggle').setAttribute('aria-expanded', String(advanced));
+$('#advanced-toggle').addEventListener('change', event => {
+  advanced = event.target.checked;
   render();
+  const reviewDetails = $('#panel-body details');
+  if (reviewDetails && $('#panel-title').textContent === 'Review results') reviewDetails.open = advanced;
+});
+$('#view-options').addEventListener('keydown', event => {
+  if (event.key === 'Escape') { event.preventDefault(); $('#view-options').open = false; $('#view-options summary').focus(); }
+});
+document.addEventListener('click', event => {
+  if (!$('#view-options').contains(event.target)) $('#view-options').open = false;
 });
 $('#expand').addEventListener('click', () => {
   if (!expanded) { priorHeight = $('#question').getBoundingClientRect().height; $('#question').style.height = 'min(40dvh, 360px)'; }
@@ -123,6 +167,7 @@ $('#question-form').addEventListener('submit', event => {
   if (!$('#question').value.trim()) { $('#composer-error').hidden = false; $('#question').focus(); return; }
   question = $('#question').value.trim();
   $('#question').value = ''; $('#composer-error').hidden = true; state = 'ready'; draftSql = sql; render();
+  if (dataOpen && window.matchMedia('(max-width: 960px)').matches) { toggleData(false); $('#main').focus(); }
   notify('Preview query prepared using fictional example SQL. No AI request was made.');
 });
 $('#question').addEventListener('keydown', event => {
@@ -147,16 +192,17 @@ document.addEventListener('change', event => {
 });
 document.addEventListener('input', event => {
   if (event.target.id === 'sql') draftSql = event.target.value;
-  if (event.target.id === 'search-data') document.querySelectorAll('.data-list li').forEach(row => { row.hidden = !row.textContent.toLowerCase().includes(event.target.value.toLowerCase()); });
+  if (event.target.id === 'search-data') filterData();
 });
 document.addEventListener('click', event => {
   const button = event.target.closest('button');
   if (!button) return;
   if (button.dataset.section) { state = button.dataset.section === 'workbench' ? 'results' : button.dataset.section; render(); return; }
+  if (button.hasAttribute('data-browse')) { toggleData(!dataOpen, button); return; }
   if (button.dataset.dialog) { openPanel(button.dataset.dialog, button); return; }
   const action = button.dataset.action;
   if (action === 'close') closePanel();
-  if (action === 'new') { source = $('#source').value; saved = false; widget = false; publication = 'draft'; state = 'empty'; $('#question').value = ''; closePanel(); render(); }
+  if (action === 'new') { source = $('#source').value; saved = false; widget = false; publication = 'draft'; state = 'empty'; $('#question').value = ''; $('#search-data').value = ''; filterData(); closePanel(); render(); }
   if (action === 'run') { state = 'results'; render(); notify('Showing fictional results for layout review. No SQL was executed.'); }
   if (action === 'edit') { state = 'ready'; render(); $('#sql-details').open = true; $('#sql').focus(); }
   if (action === 'validate' || action === 'format') notify('Preview only. SQL validation and formatting use the existing editor in the product.');

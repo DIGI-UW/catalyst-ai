@@ -47,7 +47,7 @@ A workspace splitter is unnecessary for this field-level requirement.
 
 ## Screen hierarchy and language
 
-The first screen leads with “What do you want to know?”, the selected source,
+The first screen leads with “What would you like to find out?”, the selected source,
 a brief explanation of prepare/review/run, and the input. Move the raw schema
 card grid into the complete data browser. Do not add example-prompt buttons.
 
@@ -58,15 +58,16 @@ and grouping changes; the domain objects, APIs and save behavior keep their
 existing identities. This explicitly amends the existing navigation presentation.
 
 Remove the permanent development-style sidebar. Use a centered content column,
-a comfortable writing card, readable type and restrained borders. The warm
-neutral surface and green accent are proposed visual choices, not evidence of
-better clinical outcomes. Reuse Carbon controls and theme tokens with small
-application-level color aliases; do not introduce another design system.
+a comfortable writing card, readable type and restrained borders. Use neutral
+light surfaces or charcoal dark surfaces, with clear violet accents for actions
+and focus. The owner rejected broad purple tinting, a gold header stripe, and
+dusty lavender buttons. Keep the OpenClinAI connection to a small purple mark
+with a tiny gold highlight. These are visual preferences, not evidence of better
+clinical outcomes. Reuse Carbon controls and semantic theme tokens.
 
-“What data is available?” opens the existing searchable, filterable, paginated
-browser with every readable table, view, column, and type. Descriptions can
-accompany original names; the disclosure must not filter model context or
-remove a human's access to any relation.
+“What data is available?” opens a companion browser that stays usable while
+writing. It serves the existing complete-schema requirement; the interaction
+contract below replaces the mock's earlier blocking data dialog.
 
 Place exact model names and profile configuration in **Query settings**. Keep
 that control directly accessible beside the question field. AI-prepared output
@@ -77,19 +78,20 @@ selection, substitution, or fallback.
 
 ### Complexity is disclosed, not removed
 
-**Show advanced tools** opens the existing SQL and technical controls and keeps
-them visible through query preparation, results, review, and library visits.
-**Hide advanced tools** changes presentation only. Keep the setting for the
-active visit; no role system, separate expert application, or server preference
+Put **Advanced mode** in the header's quieter **View options** disclosure,
+alongside Appearance. It is a workspace-wide presentation preference, not a
+local editor toggle. Default off; show a small “Advanced” indicator in View
+options while enabled. Keep the setting through query preparation, results,
+data browsing, review, and library visits for the active visit; no role system, separate expert application, or server preference
 service is needed. Individual controls remain reachable without enabling the
-whole advanced view. Switching views must preserve drafts, parameters, selection,
+whole advanced mode. Switching views must preserve drafts, parameters, selection,
 query/execution identity, results, and focus.
 
 | Capability | Simple view | Direct access / advanced view |
 | --- | --- | --- |
 | Question and source | Always visible | Same source/session and request state |
 | SQL editing | View or edit SQL | Keep the single editor open, with Format, Wrap, Validate, Restore, Clear, parameters and history |
-| Complete schema | What data is available? | The same searchable, paginated browser with all readable relations, columns and types |
+| Complete schema | What data is available? | The same complete browser, with exact relation identifiers also shown in its collapsed rows |
 | Model profile | Query settings | Explicit chooser and exact selected profile/model identities |
 | Query/execution provenance | Technical details in result review | Keep exact SQL, parameters, dialect, schema, model configuration and traces open |
 | Limitations and failures | Always visible when relevant | Same errors and warnings; never hidden by the view toggle |
@@ -103,8 +105,72 @@ limited fixtures do not implement every capability in this inventory.
 
 Use Carbon type, spacing, color, theme, and focus tokens. Aim for comfortable
 16 px body/input text; reserve smaller type for secondary information and
-monospace for SQL or exact identifiers. Preserve dark/system theme preferences;
-the mock demonstrates the proposed light-theme hierarchy.
+monospace for SQL or exact identifiers. In Advanced mode, expand SQL, parameters,
+generation details and result provenance by default; expose exact source/model
+context and technical object identities alongside the same library items. Keep
+explicit execution/save/publish actions unchanged. In simple mode, each capability
+remains directly accessible through its named disclosure.
+
+### Appearance
+
+Use **View options → Appearance → System / Light / Dark**. Reuse the existing
+`useThemePreference` in `catalyst-ui/src/features/query/theme.ts`, including
+`catalyst.theme` persistence, system following, and fallback when storage is
+unavailable. Theme and Advanced mode are independent choices. Switching either
+must preserve the question, SQL, parameters, selected source and results.
+
+| Role | Light reference | Dark reference |
+| --- | --- | --- |
+| Page / surface | `#fafafa` / `#ffffff` | `#19191c` / `#222225` |
+| Main text | `#252329` | `#eeeef0` |
+| Primary action / text | `#7540d0` / white | `#8b4cf0` / white |
+| Links and disclosure | `#6d35c3` | `#bb99ff` |
+| Focus | `#7540d0` | `#bb99ff` |
+| Brand detail | OpenClinAI purple `#4b2e83`, small gold `#f2c75c` dot | Same small mark |
+
+The action hues are a proposed Catalyst adaptation, not an official UW palette
+claim. Gold is not a general border, focus or text color. Warning, error and
+success roles retain distinct semantic colors and text; they are not recolored
+as branding. Map these roles to the existing Carbon theme tokens, including
+hover/focus/disabled states. This proposes an amendment to the binding design's
+Gray 10 color values, not a component-library replacement or new theme service.
+
+The preview's small `appearance.js` uses a separate preview-only preference;
+production must use the existing React implementation.
+
+### Browse data while writing
+
+**Available data is nonmodal.** It must not dim or disable the question, take
+over keyboard navigation, execute a query, or display result rows. Desktop uses
+a companion panel alongside the workspace and composer; the selected source is
+named at its top. The question remains editable while the panel is open.
+
+- Lead with supplied readable labels and short, reviewed descriptions. An open
+  item exposes exact table/view names, field names and types. Without a supplied
+  label or description, show the exact identifier; do not invent clinical
+  meaning, silently rename relations or hide undescribed data.
+- Search names, descriptions and fields across the **whole readable schema**,
+  not just the current page. Preserve the existing source/test filters where
+  applicable, pagination, counts, loading, empty and error/retry states. Clearing
+  search or filters restores full access. UI filtering never changes model schema.
+- “Back to your question” focuses the composer without closing the browser.
+  Keep search, expanded items, scroll position, question and SQL while moving
+  between them. Closing and reopening retains browsing state for that source.
+  Changing source refreshes its browser context; do not show old-source metadata.
+- On narrow screens, use the upper workspace area for the browser and keep the
+  composer below. Closing restores the previous workspace. Preparing a query
+  returns the upper area to query review; reopening restores the browser state.
+  On very short screens or with the software keyboard open, allow normal page
+  flow rather than compressing either region until it is unusable.
+- Opening focuses search. Tab can leave the panel; it is not trapped. Close or
+  Escape from inside the browser returns to its opener (or a stable workspace
+  heading if that control was replaced). Escape while writing does not close it.
+- Use the existing schema retrieval/browser components, Carbon search and
+  accordion controls, and responsive layout. No new indexing, model-generated
+  catalog, schema allowlist, data-preview service, or second workspace state.
+
+The mock uses three explicitly fictional relations to demonstrate search and
+browsing. This does not establish complete live catalog retrieval or pagination.
 
 ## Query, result, and failure states
 
@@ -167,7 +233,9 @@ later Superset views are frozen snapshots.
 | Question input | Shared Carbon `TextArea`, `Button`, and `Select` presentation; existing request/state owners. |
 | SQL | Existing CodeMirror editor and actions; change surrounding hierarchy and disclosure. |
 | Feedback | Existing states with Carbon notifications/tags and common bounded-count wording. |
-| Data and model details | Existing full browsers/panels, Carbon Accordion/Select where appropriate. |
+| Available data | Existing complete-schema retrieval/browser state; nonmodal companion region, Carbon Search and Accordion. |
+| View options | Existing theme preference plus one visit-level Advanced mode; Carbon Select/Toggle in an accessible disclosure. |
+| Model details | Existing profile chooser and evidence; Carbon Select where appropriate. |
 | Review and libraries | Existing components and Carbon tables/forms; reorder content and repair focus. |
 | Publish/import | Existing bundle and importer receipts; clear labels and recovery instructions. |
 
@@ -188,7 +256,9 @@ For the eventual implementation:
   drag/Expand/Restore, no text loss, submit shortcut, and failure recovery.
 - Verify desktop, 390, 320 and 640 CSS-pixel widths and short viewports. Growth
   must not obscure the action or focused content.
-- Check that advanced tools stay open across steps and that hiding them preserves drafts, parameters, results and selected profile. Confirm all capabilities in the table remain reachable.
+- Check that Advanced mode applies across Explore, data browsing, result review and Saved work; switching it preserves drafts, parameters, results and selected profile. All capabilities remain reachable in simple mode.
+- Browse and search while typing; preserve draft, SQL, expanded items and scroll. Verify keyboard return, no focus trap, narrow layout and complete live schema access, including missing descriptions and retrieval failures.
+- Verify System/Light/Dark, explicit preference retention, system-change handling, and text/control/focus contrast in each mode. Inspect results, errors, warnings and overlays as well as the landing page.
 - Check review-panel keyboard containment and return to its actual trigger.
 - Preserve complete-data access, exact selected SQL, stale results, truthful
   counts, explicit saves and receipt-based publication in existing tests.
