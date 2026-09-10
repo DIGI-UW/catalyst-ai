@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { defaultFields, defaultFilters, exportRows, csv, saveConfiguration, loadConfiguration, catalystRecords, differences, comparisonRows, dateError } from './model.mjs';
+import { defaultFields, defaultFilters, exportRows, csv, catalystRecords, differences, comparisonRows } from './model.mjs';
 
 test('August export uses collection dates, status and result multiplicity', () => {
   const rows = exportRows(defaultFilters);
@@ -10,15 +10,6 @@ test('August export uses collection dates, status and result multiplicity', () =
   assert.ok(!rows.some(row => row.collectionDate === '2026-09-01' || row.resultStatus === 'Preliminary'));
   assert.equal(exportRows({ ...defaultFilters, status: 'All results' }).length, 6);
   assert.equal(exportRows({ ...defaultFilters, from: '2026-07-01', to: '2026-07-31' }).length, 0);
-});
-test('saved configurations omit dates, restore fields, and do not mutate a running request', () => {
-  const fields = [...defaultFields], filters = { ...defaultFilters };
-  const config = saveConfiguration(fields, filters);
-  fields.pop(); filters.status = 'Preliminary';
-  assert.equal(config.fields.length, 7);
-  assert.equal(config.filters.status, 'Validated');
-  assert.ok(!('from' in config.filters) && !('to' in config.filters));
-  assert.deepEqual(loadConfiguration(config).filters, { ...defaultFilters, from: '', to: '' });
 });
 test('CSV preserves selected order, escaping, empty cells and complete row count', () => {
   const rows = exportRows(defaultFilters);
@@ -36,12 +27,4 @@ test('parity review identifies values and multiplicity rather than counts alone'
   const altered = structuredClone(catalystRecords); altered[0].resultValue = 'wrong';
   assert.equal(differences(reference, altered).missing.length, 1);
   assert.equal(differences(reference, altered).extra.length, 1);
-});
-test('report dates must be selected, ordered and bounded', () => {
-  assert.equal(dateError(defaultFilters), '');
-  assert.match(dateError({ from: '', to: '' }), /both dates/);
-  assert.match(dateError({ from: '2026-09-01', to: '2026-08-01' }), /on or after/);
-  assert.match(dateError({ from: '2026-01-01', to: '2026-08-31' }), /90 days/);
-  assert.equal(dateError({ from: '2026-01-01', to: '2026-03-31' }), '');
-  assert.match(dateError({ from: '2026-01-01', to: '2026-04-01' }), /90 days/);
 });

@@ -1,98 +1,85 @@
-# OpenELIS reporting and Catalyst integration — design draft
+# Catalyst with an OpenELIS source — integration design draft
 
-**Status:** Interactive design for owner review. Implements the clarified
-mock/spec checkpoint of 10 September 2026. Application implementation, real
-source parity and owner acceptance remain open.
+**Status:** Interactive design for owner review, 10 September 2026. Application
+implementation, real-source parity and owner acceptance remain open.
 
-[Open the review hub](index.html?view=integration) ·
-[Approved Catalyst reference](../staff-workbench-ux/index.html) ·
+[Open the Catalyst draft](index.html?view=integration&app=catalyst) ·
+[OpenELIS reporting mock](https://digi-uw.github.io/openelis-work/#/reports/custom-data-export) ·
 [Integration roadmap](https://github.com/pmanko/clinical-ai-validation-harness/blob/main/specs/openelis-reporting-catalyst-integration.md)
 
-## Goal and authority
+## Ownership and boundary
 
-Two independent applications serve clinical/program staff first and analysts
-second. OpenELIS performs configurable reporting without AI or Catalyst.
-Catalyst queries its configured OpenELIS source through its existing Workbench.
-They share organizational sign-in and equivalent data access in the intended
-integration. They do not embed or link into one another, transfer report
-criteria, or use the exported CSV as Catalyst's source.
+| Home | Owns |
+| --- | --- |
+| `openelis-work` | OpenELIS reporting mock, OpenELIS styling, configurable-export and queue requirements |
+| Catalyst, this directory | The Catalyst-side experience with an independently selected OpenELIS source; fictional comparison examples for review |
+| Harness integration roadmap and review hub | Cross-project decisions, acceptance milestones and publication links |
 
-This draft owns the new integration interactions illustrated here. The
-[OpenELIS export requirements](https://github.com/DIGI-UW/openelis-work/blob/main/designs/reports/custom-data-export.md)
-remain the source for its complete variable catalog, compatibility rules and
-export/queue contracts. Catalyst's [product specification](../../specification.md)
-and [binding design](../../dashboard-builder-mvp-design.md) retain ownership of
-existing behavior. This draft does not change the current Catalyst release
-checkpoint or replace the approved visual reference.
+The owner clarified this separation during review. The duplicate OpenELIS
+screen previously placed in this directory is removed. Use the existing
+[OpenELIS reporting design and specification](https://github.com/DIGI-UW/openelis-work/blob/main/designs/reports/custom-data-export.md);
+its wizard, configurations and queue remain there. Do not reproduce them in
+Catalyst's stylesheet or maintain a second OpenELIS implementation here.
 
-## OpenELIS Export MVP
+The review hub links out to that canonical OpenELIS mock. This is a reviewer
+link outside the product surfaces, not an application handoff. The applications
+open independently: no product links, embedded interface, transferred report
+criteria or CSV ingestion is proposed. OpenELIS exports work without AI or
+Catalyst. Catalyst independently queries its configured source.
 
-1. **Choose fields:** select export columns; see identifying fields locked when
-   the account lacks permission. Load a personal saved configuration.
-2. **Set filters:** choose a fresh collection-date period, permitted lab section,
-   test and result status. Going back preserves choices.
-3. **Review and export:** review visible field/filter labels, name the export,
-   optionally save reusable choices, and generate the CSV.
-4. **My Report Queue:** leave a generating job, return to its status and download
-   the finished file. A failure preserves its request and offers a new retry
-   job; an expired job restores choices but requires new dates.
-
-Configuration saves omit the date range. Duplicate names require overwrite
-confirmation. Estimate failure does not discard input or prevent submission.
-The prototype routes example exports through the queue to make that workflow
-reviewable; production retains the existing draft's immediate/queued thresholds.
-
-The interactive example contains seven Sample & Testing columns and the
-virology scenario. The broader source catalog and other row families are
-linked requirements, not implemented by this bounded mock. This is not
-approval to reduce production export scope. Patient printing, Jasper
-replacement, automatic scheduling and dashboards are outside this design.
+Catalyst's [product specification](../../specification.md) and
+[binding design](../../dashboard-builder-mvp-design.md) retain ownership of
+existing behavior. This draft does not expand the current Catalyst release
+checkpoint or reopen its approved visual reference.
 
 ## Catalyst experience
 
-Reuse the approved appearance and presentation assets directly, including its
-mark, title typography, neutral surfaces, composer and Explore / Saved work
-navigation. Integration styles add only the new surfaces and responsive layout.
+Reuse the approved logo, title typography, neutral light/dark surfaces, spacing,
+composer and Explore / Saved work navigation directly from
+[the approved design assets](../staff-workbench-ux/index.html).
 
-- Select OpenELIS independently. Browsing its permitted schema remains nonmodal
-  and usable while drafting. The illustrated catalog is fictional and represents
-  the complete readable schema for this preview's connection.
-- Write or refine the example question. Continue prepares an inspectable query
-  but retrieves no rows. Get results is a separate, explicit action.
-- Preserve question, SQL and source through a failed request and retry.
-  General Advanced mode and resizing preserve draft and results.
-- Save a successful Dataset and reopen the saved version without executing
-  again. Its source and recorded results remain visible.
-- Changing source starts a fresh session and retains the earlier session.
-  It never rewrites the source of existing work.
+1. Open Catalyst independently and select OpenELIS Laboratory.
+2. Browse the permitted schema alongside the question. The fictional catalog
+   represents the complete readable schema of this preview's connection.
+3. Write or refine the example question. Continue prepares an inspectable query
+   and retrieves no rows. Get results is a separate explicit action.
+4. Review the full example result, blank values, repeated accessions and source
+   details. Failure retains question and SQL for retry.
+5. Save a successful Dataset and reopen its recorded version without executing.
+   An unfinished follow-up does not replace the saved result's executed question.
+6. Change source by starting a fresh session; resume the earlier source-bound
+   session without rewriting it. Resizing and Advanced mode preserve drafts.
 
-The static preview illustrates one query; it does not interpret arbitrary
-questions or SQL. Edited SQL remains visible, with an explicit preview
-limitation instead of silently substituting the example. Production still
-executes exact selected SQL according to the existing contract.
+This static preview illustrates one query, not arbitrary question interpretation
+or SQL execution. Edited SQL remains visible with an explicit preview limitation;
+production executes exact selected SQL through its configured connection.
+Mock state stays in this page. It makes no clinical, AI or authentication calls.
 
-## Shared sign-in and equivalent access
+## Shared identity and equivalent access — future implementation
 
-The reviewer can select Signed in, Sign-in required or No reporting access.
-Both application previews reflect the same fictional account state, without
-requests to an identity provider. Signing back in restores each application's
-own draft. Preview controls live outside the product surfaces.
+The Catalyst reviewer controls illustrate Maya Chen with Virology access and no
+identifying-field permission, Sign-in required and No reporting access. The
+question survives a change in mock access state. OpenELIS illustrates its own
+account states in its own design; these previews do not synchronize credentials
+or demonstrate working single sign-on.
 
-The example staff member can read Virology results but cannot read identifying
-fields. OpenELIS visibly locks those fields; Catalyst's readable source does
-not expose them. No-reporting-access blocks both result surfaces.
+The integration requirement is the same organizational identity and equivalent
+lab-unit and identifying-field permissions in both applications. Shared sign-in
+alone does not establish equivalent permissions. Catalyst's current demo excludes
+production identity and sensitive-data authorization; real backend/connection
+enforcement, download access and access-revocation behavior remain implementation
+work. Model instructions or UI hiding cannot enforce those boundaries.
 
-**Implementation work remains:** Catalyst's current demo excludes production
-identity and authorization. Shared organizational sign-in, lab-unit access,
-field access, download authorization and access-revocation behavior require
-real implementation and review before production use. They must be enforced by
-the backend/configured data access, not UI hiding or model instructions.
-This draft adds no relation allowlist, SQL translation or connector framework.
+The selected FHIR Data Pipes → Parquet → Spark SQL path remains the starting
+point. Verify reporting-field coverage, status/correction semantics, laboratory
+timezone, source snapshot and freshness before claiming parity. An alternative
+source architecture requires a separate roadmap decision.
 
-## Parity scenario and evidence boundary
+## Fictional comparison examples
 
-The review-only tab is outside both products and adds no staff comparison
-feature. It uses independent fictional representations of:
+The parity tab belongs to review, outside both products. It contains a
+downloadable fictional OpenELIS-style CSV and an independently represented
+Catalyst result. Catalyst does not read that CSV.
 
 | Item | Example definition |
 | --- | --- |
@@ -100,43 +87,30 @@ feature. It uses independent fictional representations of:
 | Filters | Virology; HIV viral load; Validated result status |
 | Row meaning | One result; repeated accessions are not automatically duplicates |
 | Columns | Accession number, collection date, lab section, test, result, unit, result status |
-| Missing result | Empty CSV cell; displayed as Not recorded |
+| Missing value | Empty CSV cell; displayed as Not recorded |
 | Expected output | Five fictional rows, including two distinct results for one accession |
 
-The comparison examples cover matching data, a missing record, loss of a valid
-second result and an incorrectly included September 1 record. Comparison
-preserves multiplicity and blank values; equal counts alone do not prove parity.
-The CSV can be downloaded and inspected. Neither representation is read from a
-clinical system, and the Catalyst mock does not consume the CSV.
+Review examples cover a missing record, loss of a valid second result and an
+incorrectly included September 1 record. They preserve multiplicity and blank
+values; matching counts alone do not establish parity. These are illustrative
+fixtures, not files from a clinical system or evidence of a passing integration.
+The native OpenELIS export must itself be checked against source records before
+it is used as a real comparison reference.
 
-Before real parity review, agree actual field mappings, source snapshot/refresh
-cutoff, laboratory timezone, status/correction semantics and record references.
-Inspect source records to validate the native CSV before treating it as a
-comparison reference. The existing FHIR Data Pipes → Parquet → Spark SQL path
-remains the starting point. Verify coverage and freshness; an alternative path
-requires a separate explicit roadmap decision.
+## Validation and acceptance
 
-## Review and delivery
+The design PR records fixture tests, browser question/save/failure/access/session
+checks, keyboard and resizing checks, and inspected desktop/narrow light/dark
+screenshots against the approved reference. Export/configuration/queue checks
+belong to the OpenELIS design PR. Screenshots and raw browser evidence stay in
+private/ignored storage.
 
-| Checkpoint | State |
-| --- | --- |
-| Clarification and draft construction | Complete; owner choices reflected here |
-| Local technical validation | Five fixture tests and browser journey checks passed; desktop/narrow light/dark screenshots inspected. See the design PR for the validation scope. |
-| Published preview | Tracked by the harness review hub; its source revision identifies the published version. Publication is separate from owner approval. |
-| Owner design acceptance | Pending |
-| Product implementation and real-source parity | Separate work; not proven by this mock |
+Run `node --test docs/specs/openelis-reporting-integration/model.test.mjs`.
+Serve the parent design directory and open this directory's index for local review.
+The harness publishes exact source files beside the approved reference and
+records their source commit and hashes. Its reviewer link opens OpenELIS's own
+published mock; it does not copy those screens into this repository.
 
-Local review: serve the parent design directory over HTTP and open this folder's
-index with `?view=integration`. Run fixture checks with
-`node --test docs/specs/openelis-reporting-integration/model.test.mjs`.
-
-Review the complete export/configuration/queue and Catalyst question/save paths,
-failure and retry, fresh dates, source/session retention, permissions, light/dark
-appearance, narrow layouts, keyboard focus and CSV download. Compare Catalyst's
-presentation against the approved view in the same hub.
-
-The harness publishes these source files beside the approved assets and
-records their exact source commit. Its synchronization check verifies bytes and
-the generated specification/revision links. Updating a runtime submodule pin
-alone does not update the preview. Generated screenshots and raw browser
-evidence stay in private/ignored storage, not in this design directory.
+Construction, technical validation, publication, owner design acceptance,
+application implementation, real-source parity and deployment are separate
+milestones in the integration roadmap. Owner design acceptance is pending.
