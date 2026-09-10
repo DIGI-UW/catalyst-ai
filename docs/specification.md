@@ -224,6 +224,9 @@ It is not a source, warehouse, or restricted schema copy.
 - Each Dataset retains source, dialect, readable-schema reference, SQL,
   parameters, execution identity, typed shape, warnings, and recorded
   configuration.
+- A saved query without a generated question turn records `turnId: null`; it
+  retains its actual session, query-version and execution identities. Publication
+  accepts this manual/reused-SQL lineage without inventing a question turn.
 - Saving uses the source recorded with the originating session. If that identity
   is missing, ask the person to run the query in a new session before saving;
   never substitute a default connection.
@@ -250,6 +253,8 @@ SQL; Run continues through the existing query-version execution path.
   the Dataset's typed shape.
 - The person reviews the suggestion and may choose another compatible type.
 - A saved Widget is immutable and retains its Dataset identity and bindings.
+  Review a saved chart before editing it; saving changes creates a new version
+  with the same logical identity and leaves earlier versions unchanged.
 - The accepted visualization families are table, key value, time series,
   grouped or stacked bar, and proportion bar.
 
@@ -259,7 +264,11 @@ SQL; Run continues through the existing query-version execution path.
 - Each Dataset keeps its own readable-schema reference; a harmless later schema
   refresh does not block same-source composition.
 - A saved Dashboard is immutable and keeps stable logical identity across
-  versions.
+  versions. Review and arrange a saved Dashboard to change chart order and widths
+  (full, half, or third of a row). Reopening restores that arrangement; native
+  Superset publication preserves it and keeps the stable Dashboard address.
+- Retrying an identical save returns the existing saved version. A save failure
+  leaves the arrangement and other draft fields available for correction/retry.
 
 ### Publication and import
 

@@ -137,11 +137,12 @@ export interface CatalystApi {
       datasetVersionId: string;
       title?: string;
       presentationKind?: DashboardPresentationKind;
+      baseVersionId?: string;
     },
     signal?: AbortSignal,
   ): Promise<DashboardBuilderEntity>;
   saveDashboard?(
-    input: { title?: string; widgetVersionIds: string[] },
+    input: { title?: string; widgetVersionIds: string[]; widgetWidths?: Record<string, 4 | 6 | 12>; baseVersionId?: string },
     signal?: AbortSignal,
   ): Promise<DashboardBuilderEntity>;
   publishDashboard?(dashboardVersionId: string, signal?: AbortSignal): Promise<DashboardPublication>;

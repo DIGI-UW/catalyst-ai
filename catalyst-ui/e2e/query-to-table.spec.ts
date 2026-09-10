@@ -1139,9 +1139,9 @@ test("question to iterative notebook to imported dashboard", async ({
       .getByRole("button", { name: "Create a chart or table" })
       .click();
     const widgetReview = page.getByRole("dialog", { name: "Review panel" });
-    await widgetReview.getByLabel("Widget name").fill("Latest viral load results");
+    await widgetReview.getByLabel("Chart name").fill("Latest viral load results");
     await widgetReview.getByLabel("Visualization").selectOption("time_series_line");
-    await widgetReview.getByRole("button", { name: "Save Widget" }).click();
+    await widgetReview.getByRole("button", { name: "Save chart or table" }).click();
     await expect(page.getByText(/Latest viral load results.*saved to Charts and tables\./)).toBeVisible();
 
     await navigate("Charts and tables");
@@ -1256,7 +1256,7 @@ test("question to iterative notebook to imported dashboard", async ({
       await expect(page.getByRole("heading", { level: 1, name: "Charts and tables" }))
         .toBeVisible();
       await expectNoHorizontalOverflow(`${width}px Widget library`);
-      const responsiveWidgetTrigger = page.getByRole("button", { name: "New Widget" });
+      const responsiveWidgetTrigger = page.getByRole("button", { name: "New chart or table" });
       await responsiveWidgetTrigger.click();
       await expect(page.getByRole("dialog", { name: "Review panel" })).toBeVisible();
       await expectNoHorizontalOverflow(`${width}px Widget review`);

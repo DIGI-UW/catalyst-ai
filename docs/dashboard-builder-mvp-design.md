@@ -366,38 +366,62 @@ Purpose: find and reuse a saved query.
   recorded execution snapshot. This addition retains the approved Explore /
   Saved work shell and the three Saved work groups.
 
-### 4. Widgets library
+### 4. Charts and tables library
 
-Purpose: reuse a chart config on another dashboard.
+Purpose: review a saved visualization and reuse it on a Dashboard.
 
-- Header: eyebrow "Library", H1 "Widgets", description "Saved chart configurations. A widget can sit on more than one dashboard."
-- `display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr))`.
-- Card: background `#fff`, `box-shadow: 0 0.125rem 0.5rem rgb(0 0 0 / 8%)`, no radius.
-  - Thumbnail band: height `7rem`, padding `1rem`, background `#f4f4f4`, `border-bottom: 1px solid #e0e0e0`, contents centered. One thumbnail per viz type: line = two polylines (`#0f62fe`, `#a56eff`); KPI = value `2rem`/600 plus trend line `0.75rem` `#0e6027`; bar = five `#0f62fe` rects; table = four stacked bars (`#8d8d8d` header, `#c6c6c6` rows); proportion = one 2.5rem-tall row split `#0f62fe` / `#78a9ff` / `#c6c6c6`.
-  - Body: padding `1rem`, `gap: 0.375rem` — name `0.875rem`/600; "<type> · <dataset>" `0.75rem` `#6f6f6f`; placement `0.75rem` `#525252` ("On Lab operations", "On Lab operations · HIV/ART program", or "Not placed"); then an "Add to dashboard" ghost button (height `2rem`, `1px solid #0f62fe`).
-- Seed cards: "Median turnaround, 30 days" (Big number, `212m`, "↓ 8% vs previous 30 days"); "Results by test type" (Bar); "Rejection reasons" (Proportion bar); "Pending results, current" (Table). A widget saved during the session appears first.
+- Use the same approved Saved work card treatment as Saved queries: neutral
+  surfaces, 14px radius, 24px/28px padding, 23px/550 headings and wrapping actions.
+  The heading is “Charts and tables”; the category navigation retains counts.
+- Each card identifies the saved title, chart type, immutable version, source,
+  saved query and Dashboard dependencies. Review opens the exact saved version;
+  edits create a successor with the same logical identity. Earlier versions and
+  Dashboard references remain unchanged. Unchanged saves do not duplicate work.
+- Create charts only from real saved queries. The review panel shows a schematic
+  type preview; authoritative values and charts render in Superset after import.
+  Do not seed illustrative mock cards or values into the application.
+- Add to Dashboard supports existing same-source Dashboards or a new Dashboard
+  draft. The saved version is reused without changing its query or execution.
 
 ### 5. Dashboards
 
-Purpose: see what exists, which bundle is ready/imported, and jump to Superset.
+Purpose: review and arrange saved charts, see publication state, and open Superset.
 
-- Header: eyebrow "Library", H1 "Dashboards", description "Catalyst publishes the desired configuration; Superset imports and renders it."
-- Rows stacked `gap: 1rem`. Each row: `display: flex; gap: 1.5rem`, padding `1.25rem 1.5rem`, background `#fff`, `box-shadow: 0 0.125rem 0.5rem rgb(0 0 0 / 8%)`, `border-left: 3px solid` — `#f1c21b` when a bundle is pending import, `#24a148` when the exact digest is Imported.
-  - **Layout mirror** (left, `width: 9rem`): `display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 1.5rem; gap: 0.25rem`; tiles span 1–3 columns. A newly added widget is `#0f62fe`; existing widgets `#c6c6c6`; empty space `#e0e0e0`. Read-only — it is a wayfinding hint, not an editor.
-  - Middle: name `1rem`/600; meta `0.875rem` `#525252` ("6 widgets · 3 datasets"); publication line `0.75rem` — `#8e6a00` "Bundle ready — import pending", `#0e6027` "Imported · Jul 15, 14:02", or the explicit failed-import state.
-  - Right: "Publish to Superset" primary button above "Download bundle" and an "Open Superset" ghost link with launch-16 icon, all height `2.5rem`.
-- Seed rows: "Lab operations" (Bundle ready) and "HIV/ART program" (Imported Jul 12, 09:20).
+- Use the same Saved work heading, category navigation and neutral rounded cards.
+  Each card identifies its name, immutable version, chart count, saved time and a
+  read-only schematic of its saved order and widths. “Review and arrange” opens
+  that exact configuration.
+- In review, move charts earlier/later and choose full-row, half-row or third-row
+  widths using keyboard-operable controls. The preview and published Superset
+  layout use the same order and twelve-column packing. Existing configurations
+  without widths retain full-row charts. Closing an unsaved review does not alter
+  saved work; failure/retry retains the current selections.
+- Saving changes appends an immutable version under the same logical Dashboard
+  identity. Its Superset address remains stable. Multiple saved chart versions
+  from the same source can be combined across catalog refreshes; each saved query
+  retains its original schema provenance. Different sources cannot be mixed.
+- Preserve Publish to Superset, Download bundle and Open Superset. Bundle ready,
+  Imported and Import failed are explicit text states, with recorded diagnostics
+  and recovery guidance. Only a receipt for that exact bundle establishes import;
+  Open Superset is available after a successful import.
+- The arrangement is configuration, not a second chart renderer. Superset-only
+  edits remain subject to overwrite on the next Catalyst publication.
 
 ### 6. Review panel (slide-over)
 
-One panel component, two modes. Opened by any draft tile or library row; this is **the only place saves happen**.
+One panel component for query, chart and Dashboard review. Opened by any draft tile or library row; this is **the only place saves happen**.
 
-- Scrim: fixed below the header, `left: 0`, `right: 0`, `bottom: 0`, background `rgb(22 22 22 / 40%)`, `z-index: 130`; click closes.
-- Panel: fixed right, `top: 2.5rem`, `bottom: 0`, `width: min(32rem, calc(100vw - 4rem))`, background `#fff`, `border-left: 1px solid #e0e0e0`, `box-shadow: -0.25rem 0 1rem rgb(0 0 0 / 18%)`, `z-index: 140`, `display: flex; flex-direction: column`.
-- Underlying page gets `filter: blur(1.5px)` (`transition: filter 120ms`) — cheap depth cue; drop it if it costs paint performance.
-- **Header**: padding `1.25rem 1.5rem`, `border-bottom: 1px solid #e0e0e0`. Kicker `0.75rem` `#6f6f6f` uppercase `letter-spacing: 0.08em` ("Dataset" / "Widget"); title `1.25rem`/400 `letter-spacing: -0.025em` ("Review dataset" / "Review widget"); 2.5rem close icon button (close-20), hover `#e8e8e8`.
-- **Body**: `flex: 1; overflow-y: auto`, padding `1.5rem`, sections `gap: 1.5rem`.
-- **Footer**: padding `1rem 1.5rem`, `border-top: 1px solid #e0e0e0`, background `#f4f4f4`; primary save + "Close" ghost, `gap: 0.75rem`, both height `2.5rem`.
+- Match the approved mock's full-height review: panel at `inset: 0 0 0 auto`,
+  width `min(720px, 100%)`, semantic surface background, and a scrim over the
+  whole page. Remove the former banner offset; it cuts through the current header.
+- Header: 20px/24px padding, neutral eyebrow and 23px/550 title, with a named Close
+  control. Use “Review saved query”, “Review saved chart” or “Review and arrange
+  Dashboard” for saved versions, and a create/review-draft title for new work.
+- Body: 24px padding, scrollable remaining height. Footer: 16px/24px padding,
+  neutral field background, wrapping save and Close actions. Neutral secondary
+  labels and off-white dark-theme text match the mock.
+- Escape closes and returns focus to the invoker. Keep keyboard focus inside the
+  open dialog; fixed header/footer regions must not cover focused controls.
 
 **Dataset mode body**
 1. Name text input (label `0.75rem` `#525252`; Carbon underline field: `background: #f4f4f4`, `border-bottom: 1px solid #8d8d8d`, `min-height: 2.5rem`).
@@ -431,8 +455,14 @@ One panel component, two modes. Opened by any draft tile or library row; this is
    SQL owns report calculations; selecting a chart never asks the user to repeat
    an aggregation or changes that SQL.
 3. "Reads" block: label `0.75rem` `#525252`, then a `#f4f4f4` row (padding `0.75rem 1rem`) with dataset name and its Draft/Saved pill. When the dataset is unsaved, a `0.75rem` `#8e6a00` note: "Saving the widget saves this dataset too — publication includes the dataset before the chart."
-4. "Add to dashboard" Select: "Lab operations" · "HIV/ART program" · "Don't place it yet".
-5. Footer button label is derived: "Save widget and add" when a dashboard is chosen, "Save widget" when "Don't place it yet", "Saved" (disabled) after.
+4. “Add to Dashboard” offers the latest saved version of each same-source
+   Dashboard and “Save without placing”. It preserves existing order and widths,
+   appending the new chart at full width; arrangement remains editable in review.
+5. Save chart and add saves the chart first, then appends a Dashboard version.
+   If placement fails, the chart remains saved and the selection remains open for
+   retry without creating another chart version. Show which operation failed.
+   With no destination, save to Charts and tables. Unchanged saved charts show
+   Saved; an explicit placement remains available.
 
 ### 7. Success toast
 
@@ -467,7 +497,7 @@ Use Carbon `ToastNotification` if it can be positioned this way; otherwise match
 - Save buttons are single-shot: disabled and relabeled after success. Local unsaved changes may be discarded before publication; cross-system Undo after import is deferred.
 - *Publish to Superset* (Dashboards): writes/downloads the atomic outbox ZIP and flips the row to `Bundle ready`. Only an exact CLI receipt may later show `Imported` or `Import failed`.
 
-**Not in the MVP** (all considered and cut, in this order of likely reintroduction): arbitrary column-mapping panel, model-generated/"why this suggestion" reasoning, full Catalyst chart rendering, size/slot picker, parameter → native-filter mapping, config diff before write, embedded Superset viewing, dashboard rename/delete/share from Catalyst.
+**Not in the MVP** (all considered and cut, in this order of likely reintroduction): arbitrary column-mapping panel, model-generated/"why this suggestion" reasoning, full Catalyst chart rendering, arbitrary pixel sizing/freeform placement, parameter → native-filter mapping, config diff before write, embedded Superset viewing, dashboard rename/delete/share from Catalyst.
 
 **Loading / error states** (the prototype shows representative generation evidence; production implements every state):
 - Question/follow-up in flight: skeleton latest-turn workbench state; composer
@@ -505,7 +535,7 @@ Session-scoped state (prototype names in parentheses):
 | `validation` + `execution` | exact-digest findings and latest execution summary/typed result reference | drives advisory state, explicit Run, result staleness, and eligibility for a Dataset tile |
 | `catalogOpen` + runtime catalog projection | boolean + server response | nonmodal Available data companion backed by the complete runtime relations/columns, filters, paging, and status; never fetches rows |
 | `evidenceOpen` | boolean | exposes raw candidate/failure evidence, findings, and database diagnostics without creating a second editor |
-| `panel` | null \| "dataset" \| "widget" | which slide-over mode is open |
+| `panel` | null \| "dataset" \| "widget" \| "dashboard" | which slide-over mode is open |
 | `sqlOpen` | boolean | SQL/provenance accordion |
 | `dsSaved`, `wSaved` | boolean (prototype) / immutable Catalyst version ids (implementation) | Draft vs. Saved for the current drafts |
 | `dsName`, `wName` | string | editable names, deterministically prefilled from question/result metadata |

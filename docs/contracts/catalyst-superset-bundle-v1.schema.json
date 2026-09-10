@@ -263,7 +263,11 @@
           "$ref": "#/$defs/uuidCanonical"
         },
         "turnId": {
-          "$ref": "#/$defs/uuidCanonical"
+          "description": "Question turn when one exists; null for a first manual or reused-SQL query without a generated turn.",
+          "anyOf": [
+            {"$ref": "#/$defs/uuidCanonical"},
+            {"type": "null"}
+          ]
         },
         "queryVersionId": {
           "$ref": "#/$defs/uuidCanonical"

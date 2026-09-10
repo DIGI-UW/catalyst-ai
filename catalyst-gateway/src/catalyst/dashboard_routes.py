@@ -77,6 +77,11 @@ def install_dashboard_routes(app: FastAPI, builder: DashboardBuilder) -> None:
                     if payload.get("presentationKind") is not None
                     else None
                 ),
+                base_version_id=(
+                    str(payload["baseVersionId"])
+                    if payload.get("baseVersionId")
+                    else None
+                ),
             )
         except KeyError as error:
             return _error(400, "invalid_request", f"Missing field: {error.args[0]}.")
@@ -104,6 +109,12 @@ def install_dashboard_routes(app: FastAPI, builder: DashboardBuilder) -> None:
             entity = builder.save_dashboard(
                 title=str(payload.get("title") or ""),
                 widget_version_ids=widget_version_ids,
+                widget_widths=payload.get("widgetWidths"),
+                base_version_id=(
+                    str(payload["baseVersionId"])
+                    if payload.get("baseVersionId")
+                    else None
+                ),
             )
         except KeyError as error:
             return _error(400, "invalid_request", f"Missing field: {error.args[0]}.")

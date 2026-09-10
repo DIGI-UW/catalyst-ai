@@ -16,6 +16,7 @@ import type {
   WorkbenchSession,
 } from "../types";
 import { savedQueryDraft } from "../savedQueryDraft";
+import { DashboardArrangement, type ChartWidth } from "./DashboardArrangement";
 import { ExecutionResult } from "./WorkbenchPanel";
 import "./DashboardPublishPanel.css";
 
@@ -34,6 +35,14 @@ interface DashboardPublishPanelProps {
   onNavigate: (section: DashboardBuilderSection) => void;
   onReuseQuery?: (dataset: DashboardBuilderEntity) => void;
 }
+
+const dashboardWidths = (entity: DashboardBuilderEntity | null): Record<string, ChartWidth> => {
+  const placements = entity?.configuration.widgets;
+  if (!Array.isArray(placements)) return {};
+  return Object.fromEntries(placements.filter(isRecord).map(item => [
+    String(item.versionId), item.width === 4 || item.width === 6 ? item.width : 12,
+  ]));
+};
 
 type ReviewPanel = "dataset" | "widget" | "dashboard" | null;
 
@@ -263,6 +272,10 @@ export const DashboardPublishPanel = ({
   const [datasetEvidenceLoading, setDatasetEvidenceLoading] = useState(false);
   const [widgetTitle, setWidgetTitle] = useState("");
   const [dashboardTitle, setDashboardTitle] = useState("");
+  const [reviewedWidgetVersionId, setReviewedWidgetVersionId] = useState("");
+  const [reviewedDashboardVersionId, setReviewedDashboardVersionId] = useState("");
+  const [placementDashboardVersionId, setPlacementDashboardVersionId] = useState("");
+  const [widgetWidths, setWidgetWidths] = useState<Record<string, ChartWidth>>({});
   const [presentationKind, setPresentationKind] =
     useState<DashboardPresentationKind>("table");
   const [selectedDatasetVersionId, setSelectedDatasetVersionId] = useState("");
@@ -463,6 +476,23 @@ export const DashboardPublishPanel = ({
     (assessment) => assessment.compatible,
   );
   const suggestedKind = suggestedPresentation(selectedDataset);
+  const reviewedWidget = widgets.find(item => item.versionId === reviewedWidgetVersionId);
+  const widgetUnchanged = Boolean(reviewedWidget && widgetTitle.trim() === entityTitle(reviewedWidget, "Chart")
+    && effectiveDatasetVersionId === reviewedWidget.configuration.datasetVersionId
+    && presentationKind === reviewedWidget.configuration.presentationKind);
+  const placementDashboards = dashboards.filter(candidate =>
+    !dashboards.some(other => other.id === candidate.id && other.ordinal > candidate.ordinal)
+    && dashboardWidgetVersionIds(candidate).every(id => {
+      const widget = widgets.find(item => item.versionId === id);
+      const dataset = datasets.find(item => item.versionId === widget?.configuration.datasetVersionId);
+      const source = dataset && configurationRecord(dataset, "source")?.dataSourceId;
+      return Boolean(source && selectedDataset && source === configurationRecord(selectedDataset, "source")?.dataSourceId);
+    }));
+  const reviewedDashboard = dashboards.find(item => item.versionId === reviewedDashboardVersionId);
+  const dashboardUnchanged = Boolean(reviewedDashboard && dashboardTitle.trim() === entityTitle(reviewedDashboard, "Dashboard")
+    && JSON.stringify(selectedWidgetVersionIds) === JSON.stringify(dashboardWidgetVersionIds(reviewedDashboard))
+    && selectedWidgetVersionIds.every(id => (widgetWidths[id] ?? 12) === dashboardWidths(reviewedDashboard)[id]));
+
 
   useEffect(() => {
     if (!panel) return;
@@ -552,22 +582,23 @@ export const DashboardPublishPanel = ({
       }
     }
     if (next === "widget") {
-      const datasetVersionId =
-        entityVersionId ?? currentDataset?.versionId ?? datasets[0]?.versionId ?? "";
-      const dataset =
-        datasets.find((candidate) => candidate.versionId === datasetVersionId) ?? null;
+      const saved = widgets.find(item => item.versionId === entityVersionId);
+      const datasetVersionId = saved ? String(saved.configuration.datasetVersionId)
+        : entityVersionId ?? currentDataset?.versionId ?? datasets[0]?.versionId ?? "";
+      const dataset = datasets.find(candidate => candidate.versionId === datasetVersionId) ?? null;
+      setReviewedWidgetVersionId(saved?.versionId ?? "");
+      setPlacementDashboardVersionId("");
+      setWidgetTitle(saved ? entityTitle(saved, "Chart") : "");
       setSelectedDatasetVersionId(datasetVersionId);
-      setPresentationKind(suggestedPresentation(dataset));
+      setPresentationKind(saved ? saved.configuration.presentationKind as DashboardPresentationKind : suggestedPresentation(dataset));
     }
     if (next === "dashboard") {
-      setDashboardTitle("");
-      setSelectedWidgetVersionIds(
-        entityVersionId
-          ? [entityVersionId]
-          : widgets[0]
-            ? [widgets[0].versionId]
-            : [],
-      );
+      const saved = dashboards.find(item => item.versionId === entityVersionId);
+      setReviewedDashboardVersionId(saved?.versionId ?? "");
+      setDashboardTitle(saved ? entityTitle(saved, "Dashboard") : "");
+      setWidgetWidths(dashboardWidths(saved ?? null));
+      setSelectedWidgetVersionIds(saved ? dashboardWidgetVersionIds(saved)
+        : entityVersionId ? [entityVersionId] : widgets[0] ? [widgets[0].versionId] : []);
     }
     setPanel(next);
   };
@@ -607,17 +638,33 @@ export const DashboardPublishPanel = ({
     setBusy(true);
     setError(null);
     try {
-      const saved = await api.saveDashboardWidget({
+      const saved = widgetUnchanged && reviewedWidget ? reviewedWidget : await api.saveDashboardWidget({
         datasetVersionId: effectiveDatasetVersionId,
         ...(widgetTitle.trim() ? { title: widgetTitle.trim() } : {}),
         presentationKind,
+        ...(reviewedWidgetVersionId ? { baseVersionId: reviewedWidgetVersionId } : {}),
       });
       setWidgets((current) => [saved, ...current.filter((item) => item.versionId !== saved.versionId)]);
       setSelectedWidgetVersionIds((current) =>
         current.includes(saved.versionId) ? current : [...current, saved.versionId],
       );
-      setWidgetTitle("");
-      setToast(`“${entityTitle(saved, "Widget")}” saved to Charts and tables.`);
+      setReviewedWidgetVersionId(saved.versionId);
+      setWidgetTitle(entityTitle(saved, "Chart"));
+      if (placementDashboardVersionId && api.saveDashboard) {
+        const destination = placementDashboards.find(item => item.versionId === placementDashboardVersionId);
+        if (!destination) throw new Error("The chart is saved. Choose a Dashboard using the same data source.");
+        const previousIds = dashboardWidgetVersionIds(destination);
+        const ids = previousIds.includes(saved.versionId) ? previousIds : [...previousIds, saved.versionId];
+        const arranged = await api.saveDashboard({
+          baseVersionId: destination.versionId, title: entityTitle(destination, "Dashboard"),
+          widgetVersionIds: ids,
+          widgetWidths: { ...dashboardWidths(destination), [saved.versionId]: 12 },
+        });
+        setDashboards(current => [arranged, ...current.filter(item => item.versionId !== arranged.versionId)]);
+        setToast(`“${entityTitle(saved, "Chart")}” saved and added to ${entityTitle(arranged, "Dashboard")}.`);
+      } else {
+        setToast(`“${entityTitle(saved, "Chart")}” saved to Charts and tables.`);
+      }
       closePanel();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Catalyst could not save this Widget.");
@@ -633,6 +680,8 @@ export const DashboardPublishPanel = ({
     try {
       const saved = await api.saveDashboard({
         widgetVersionIds: selectedWidgetVersionIds,
+        widgetWidths: Object.fromEntries(selectedWidgetVersionIds.map(id => [id, widgetWidths[id] ?? 12])),
+        ...(reviewedDashboardVersionId ? { baseVersionId: reviewedDashboardVersionId } : {}),
         ...(dashboardTitle.trim() ? { title: dashboardTitle.trim() } : {}),
       });
       setDashboards((current) => [saved, ...current.filter((item) => item.versionId !== saved.versionId)]);
@@ -826,7 +875,7 @@ export const DashboardPublishPanel = ({
         <div>
           <p className="eyebrow">Saved work</p>
           <h1 id="widgets-title">Charts and tables</h1>
-          <p>Saved chart definitions backed by immutable Dataset versions.</p>
+          <p>Charts and tables built from your saved queries.</p>
         </div>
         <Button
           type="button"
@@ -836,34 +885,40 @@ export const DashboardPublishPanel = ({
             openPanel("widget");
           }}
         >
-          New Widget
+          New chart or table
         </Button>
       </header>
       {renderLibraryNavigation()}
       {widgets.length === 0 ? (
         <p className="builder-empty-note">No charts or tables saved yet. Choose a saved query to create one.</p>
       ) : (
-        <div className="builder-widget-grid">
-          {widgets.map((widget) => (
-            <article key={widget.versionId} className="builder-widget-card">
-              <div className="builder-widget-card__preview" aria-hidden="true">▥</div>
-              <h2>{entityTitle(widget, "Widget")}</h2>
-              <p>{entityPresentation(widget)}</p>
-              <small>Dataset {String(configurationValue(widget, "datasetVersionId")).slice(0, 8)}</small>
-              <Button
-                type="button"
-                kind="ghost"
-                size="sm"
-                className="builder-widget-card__action"
-                onClick={(event) => {
+        <div className="builder-saved-list">
+          {widgets.map(widget => {
+            const dataset = datasets.find(item => item.versionId === widget.configuration.datasetVersionId);
+            const sourceId = dataset ? String(configurationRecord(dataset, "source")?.dataSourceId ?? "Unknown") : "Unknown";
+            const placements = dashboards.filter(item => dashboardWidgetVersionIds(item).includes(widget.versionId));
+            return <article key={widget.versionId} className="builder-saved-card" aria-label={`${entityTitle(widget, "Chart")} version ${widget.ordinal}`}>
+              <header className="builder-saved-card__header">
+                <h2>{entityTitle(widget, "Chart")}</h2><Tag type="gray">Saved</Tag>
+              </header>
+              <p className="builder-saved-card__parameters"><span>{entityPresentation(widget)}</span> · {dataset ? entityTitle(dataset, "Saved query") : "Saved query unavailable"}</p>
+              <dl className="builder-saved-card__facts">
+                <div><dt>Source</dt><dd>{dataSources.find(item => item.id === sourceId)?.label ?? sourceId}</dd></div>
+                <div><dt>Saved version</dt><dd>{widget.ordinal}</dd></div>
+                <div><dt>Used by</dt><dd>{placements.length} {placements.length === 1 ? "Dashboard" : "Dashboards"}</dd></div>
+              </dl>
+              <div className="builder-saved-card__actions">
+                <Button onClick={event => {
+                  setReturnFocusTarget(event.currentTarget);
+                  openPanel("widget", widget.versionId);
+                }}>Review {entityTitle(widget, "chart")}</Button>
+                <Button kind="tertiary" onClick={event => {
                   setReturnFocusTarget(event.currentTarget);
                   openPanel("dashboard", widget.versionId);
-                }}
-              >
-                Add {entityTitle(widget, "Widget")} to dashboard
-              </Button>
-            </article>
-          ))}
+                }}>Add {entityTitle(widget, "Chart")} to dashboard</Button>
+              </div>
+            </article>;
+          })}
         </div>
       )}
     </section>
@@ -875,7 +930,7 @@ export const DashboardPublishPanel = ({
         <div>
           <p className="eyebrow">Saved work</p>
           <h1 id="dashboards-title">Dashboards</h1>
-          <p>Reviewed Widget collections ready for deterministic Superset import.</p>
+          <p>Bring your charts together and open them in Superset.</p>
         </div>
         <Button
           type="button"
@@ -903,10 +958,10 @@ export const DashboardPublishPanel = ({
               ? "import_failed"
               : savedPublication?.status;
             return (
-              <article key={dashboard.versionId} className="builder-dashboard-row">
+              <article key={dashboard.versionId} className="builder-saved-card builder-dashboard-row" aria-label={`${entityTitle(dashboard, "Dashboard")} version ${dashboard.ordinal}`}>
                 <div>
                   <h2>{entityTitle(dashboard, "Dashboard")}</h2>
-                  <p>{dashboardWidgetVersionIds(dashboard).length} Widgets · saved {dateLabel(dashboard.createdAt)}</p>
+                  <p>Version {dashboard.ordinal} · {dashboardWidgetVersionIds(dashboard).length} charts · saved {dateLabel(dashboard.createdAt)}</p>
                   {displayStatus === "imported" && <Tag type="green">Imported</Tag>}
                   {displayStatus === "bundle_ready" && <Tag type="blue">Superset bundle ready</Tag>}
                   {displayStatus === "import_failed" && savedPublication && (
@@ -924,7 +979,14 @@ export const DashboardPublishPanel = ({
                     </>
                   )}
                 </div>
-                <div className="builder-dashboard-row__actions">
+                <DashboardArrangement
+                  widgets={dashboardWidgetVersionIds(dashboard).flatMap(id => widgets.find(item => item.versionId === id) ?? [])}
+                  widths={dashboardWidths(dashboard)} />
+                <div className="builder-saved-card__actions builder-dashboard-row__actions">
+                  <Button kind="tertiary" onClick={event => {
+                    setReturnFocusTarget(event.currentTarget);
+                    openPanel("dashboard", dashboard.versionId);
+                  }}>Review and arrange {entityTitle(dashboard, "Dashboard")}</Button>
                   {exactImported && savedPublication?.importState?.dashboardUrl ? (
                     <Button
                       as="a"
@@ -969,7 +1031,7 @@ export const DashboardPublishPanel = ({
           kind="error"
           lowContrast
           hideCloseButton
-          title="Dashboard builder action failed"
+          title="Could not save or publish this work"
           subtitle={error}
         />
       )}
@@ -999,8 +1061,8 @@ export const DashboardPublishPanel = ({
                   {panel === "dataset"
                     ? reviewedDataset ? "Review saved query" : "Review results"
                     : panel === "widget"
-                      ? "Review Widget draft"
-                      : "Create Dashboard"}
+                      ? reviewedWidgetVersionId ? "Review saved chart" : "Review chart draft"
+                      : reviewedDashboardVersionId ? "Review and arrange Dashboard" : "Create Dashboard"}
                 </h2>
               </div>
               <button
@@ -1161,15 +1223,15 @@ export const DashboardPublishPanel = ({
                   </div>
                   <TextInput
                     id="builder-widget-title"
-                    labelText="Widget name"
+                    labelText="Chart name"
                     value={widgetTitle}
                     disabled={busy}
-                    placeholder="Untitled Widget"
+                    placeholder="Untitled chart"
                     onChange={(event) => setWidgetTitle(event.currentTarget.value)}
                   />
                   <Select
                     id="builder-widget-dataset"
-                    labelText="Reads Dataset"
+                    labelText="Saved query"
                     value={effectiveDatasetVersionId}
                     disabled={busy}
                     onChange={(event) => {
@@ -1177,6 +1239,7 @@ export const DashboardPublishPanel = ({
                       const dataset =
                         datasets.find((candidate) => candidate.versionId === datasetVersionId) ?? null;
                       setSelectedDatasetVersionId(datasetVersionId);
+                      setPlacementDashboardVersionId("");
                       setPresentationKind(suggestedPresentation(dataset));
                     }}
                   >
@@ -1203,6 +1266,14 @@ export const DashboardPublishPanel = ({
                       <SelectItem key={presentation.value} value={presentation.value} text={presentation.label} />
                       );
                     })}
+                  </Select>
+                  <Select id="builder-widget-placement" labelText="Add to Dashboard"
+                    value={placementDashboardVersionId} disabled={busy}
+                    helperText="Choose a Dashboard using the same data source, or save the chart for later."
+                    onChange={event => setPlacementDashboardVersionId(event.currentTarget.value)}>
+                    <SelectItem value="" text="Save without placing" />
+                    {placementDashboards.map(item => <SelectItem key={item.versionId} value={item.versionId}
+                      text={entityTitle(item, "Dashboard")} />)}
                   </Select>
                   <section className="builder-review__evidence" aria-labelledby="widget-binding-title">
                     <h3 id="widget-binding-title">Chart binding</h3>
@@ -1234,8 +1305,21 @@ export const DashboardPublishPanel = ({
                     placeholder="Catalyst dashboard"
                     onChange={(event) => setDashboardTitle(event.currentTarget.value)}
                   />
+                  {selectedWidgetVersionIds.length > 0 && <DashboardArrangement
+                    widgets={selectedWidgetVersionIds.flatMap(id => widgets.find(item => item.versionId === id) ?? [])}
+                    widths={widgetWidths} disabled={busy}
+                    onWidthChange={(id, width) => setWidgetWidths(current => ({ ...current, [id]: width }))}
+                    onMove={(id, direction) => setSelectedWidgetVersionIds(current => {
+                      const index = current.indexOf(id);
+                      const destination = index + direction;
+                      if (index < 0 || destination < 0 || destination >= current.length) return current;
+                      const reordered = [...current];
+                      [reordered[index], reordered[destination]] = [reordered[destination]!, reordered[index]!];
+                      return reordered;
+                    })}
+                  />}
                   <fieldset className="builder-widget-picker">
-                    <legend>Widgets</legend>
+                    <legend>Charts and tables</legend>
                     {widgets.map((widget) => (
                       <label key={widget.versionId}>
                         <input
@@ -1288,19 +1372,19 @@ export const DashboardPublishPanel = ({
               {panel === "widget" && (
                 <Button
                   type="button"
-                  disabled={busy || !effectiveDatasetVersionId}
+                  disabled={busy || !effectiveDatasetVersionId || (widgetUnchanged && !placementDashboardVersionId)}
                   onClick={() => void saveWidget()}
                 >
-                  {busy ? "Saving…" : "Save Widget"}
+                  {busy ? "Saving…" : placementDashboardVersionId ? widgetUnchanged ? "Add to Dashboard" : "Save chart and add" : widgetUnchanged ? "Saved" : reviewedWidgetVersionId ? "Save new chart version" : "Save chart or table"}
                 </Button>
               )}
               {panel === "dashboard" && (
                 <Button
                   type="button"
-                  disabled={busy || selectedWidgetVersionIds.length === 0}
+                  disabled={busy || selectedWidgetVersionIds.length === 0 || dashboardUnchanged}
                   onClick={() => void saveDashboard()}
                 >
-                  {busy ? "Saving…" : "Save Dashboard"}
+                  {busy ? "Saving…" : dashboardUnchanged ? "Saved" : reviewedDashboardVersionId ? "Save new Dashboard version" : "Save Dashboard"}
                 </Button>
               )}
               <Button type="button" kind="tertiary" onClick={closePanel}>Close</Button>
