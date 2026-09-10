@@ -343,6 +343,13 @@ describe("Dashboard Builder supervised promotion", () => {
     await user.click(screen.getByRole("button", { name: "Review Count result" }));
     expect(screen.getByRole("heading", { name: "Review saved query" })).toBeVisible();
     expect(screen.getByRole("table", { name: "Result rows" })).toBeVisible();
+    const dialog = screen.getByRole("dialog", { name: "Review panel" });
+    const savedName = within(dialog).getByLabelText("Query name");
+    expect(savedName).toBeEnabled();
+    expect(savedName).toHaveAttribute("readonly");
+    await user.type(savedName, " edited");
+    expect(savedName).toHaveValue("Count result");
+    expect(within(dialog).getByText("Source: openelis")).toBeVisible();
     // A saved Dataset's footer is the next step, not a spent button.
     expect(
       screen.getByRole("button", { name: "Create a chart or table" }),
