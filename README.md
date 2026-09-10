@@ -93,6 +93,10 @@ in the deployment's `.env`. Preserve that prefix at the reverse proxy. The
 renderer, health checks and imported Dashboard links use these settings; leave
 both empty for the ordinary local URLs. Continue to run lifecycle and import
 operations through the harness wrapper from the checkout owning the deployment.
+Import requires healthy Spark and Superset services with the same configuration
+as the running stack. It does not start, restart or reconfigure them. If settings
+differ, retry with the existing settings or deliberately update the stack with
+the lifecycle wrapper before importing.
 
 ## Documentation
 

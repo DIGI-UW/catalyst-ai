@@ -481,10 +481,7 @@ class MvpComposeContractTests(unittest.TestCase):
         self.assertIn(
             'run --rm --no-deps superset-importer status', self.superset_script
         )
-        self.assertIn(
-            'up -d --wait --wait-timeout 180 spark-thriftserver superset',
-            self.superset_script,
-        )
+        self.assertNotIn("up -d", self.superset_script)
         self.assertIn(
             'run --rm --no-deps superset-importer import', self.superset_script
         )
