@@ -1,8 +1,10 @@
 # Catalyst workbench usability design
 
-**Status:** Proposed design supplement for review; not runtime implementation or
-final product acceptance. Existing product contracts remain authoritative until
-the owner adopts the changes identified here.
+**Status:** Design and specification frozen by the owner on 9 September 2026,
+based on commit `8542d5e59f40bf1dc2fcde06dd724095fa6d370a`. Implementation starts
+after PR #81 is properly merged. This records the design target, not deployed
+behavior or final product acceptance. See the [implementation handoff](implementation-handoff.md)
+for merge prerequisites, authority alignment and delivery order.
 
 **Audience:** clinical and program staff without SQL knowledge first; analysts
 second. The owner's immediate need is a resizable question-writing area at the
