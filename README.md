@@ -87,6 +87,13 @@ outbox and uses explicit importer receipts for status. Catalyst does not build a
 second chart runtime, embed result rows in bundles, or open a second database
 execution path.
 
+For a shared host, set `SUPERSET_APP_ROOT` to a path such as
+`/catalyst-dashboards` and `CATALYST_SUPERSET_PUBLIC_URL` to its full public URL
+in the deployment's `.env`. Preserve that prefix at the reverse proxy. The
+renderer, health checks and imported Dashboard links use these settings; leave
+both empty for the ordinary local URLs. Continue to run lifecycle and import
+operations through the harness wrapper from the checkout owning the deployment.
+
 ## Documentation
 
 - [Product specification](docs/specification.md)
