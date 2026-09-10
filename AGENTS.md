@@ -9,8 +9,9 @@ files before changing product behavior:
 2. `docs/dashboard-builder-mvp-design.md`
 3. `docs/med-agent-hub.md`
 
-The binding Dashboard visual reference is
-`docs/prototypes/dashboard-builder-mvp/Catalyst Dashboard Builder 4c.dc.html`.
+The approved visual reference is `docs/specs/staff-workbench-ux/index.html`.
+The written binding design owns all Dashboard behavior; removed prototypes in
+Git history are not current authorities.
 
 Current documents contain current requirements and implementation status. Run
 reports are evidence, not product requirements.
@@ -33,8 +34,8 @@ state, and native Superset bundle publication. It does not own FHIR ingestion, a
 clinical warehouse, or a preferred database engine.
 
 FHIR Data Pipes -> Parquet -> Spark SQL is the selected reference deployment.
-Its implementation and acceptance are open; it is not Catalyst core. OpenELIS deployment files live under `analytics/` for
-packaging convenience.
+Its harness baseline is merged; live acceptance remains open. It is not Catalyst
+core. OpenELIS deployment files live under `analytics/` for packaging convenience.
 
 Validation never blocks or rewrites exact selected SQL. Catalyst retains its time
 and returned-row limits and records typed rows or the database error. Do not add
@@ -45,14 +46,11 @@ A session binds one source. Changing source starts a new session.
 
 ## Program order
 
-The validation harness owns program order:
-
-1. implement the generic connection and run the Phase 1 context comparison;
-2. define Phase 2 conversation mode after reviewing that report;
-3. complete Phase 3 Dashboard Builder.
-
-Phase 1 connection implementation includes one Dataset-to-Superset regression smoke. That
-smoke does not close or reduce Dashboard Builder.
+The validation harness Feature 008 plan owns delivery order: approved usability
+iterations first, then Dashboard functionality after feedback on the complete
+local usability gate. Model comparison and broader conversation are separately
+scheduled. The Dataset-to-Superset regression smoke does not close or reduce
+Dashboard Builder acceptance.
 
 For final Dashboard acceptance, compare the live Workbench, Dataset
 review/library, Widget review/library, Dashboard library/arrangement, and
@@ -85,8 +83,8 @@ wrapper for cross-repository work. Do not invoke Catalyst Compose alone for
 acceptance because the wrapper supplies the isolated ports, Hub context, and
 reference-source configuration. Seeding and reset remain explicit operations.
 
-The Spark reference stack is not implemented. Current Compose files do not
-establish Spark acceptance.
+Use the harness task register for current deployment and acceptance evidence;
+Compose files alone do not establish Spark acceptance.
 
 ## Model boundary
 

@@ -76,8 +76,9 @@ access, and sensitive-data controls are later work.
 ## Dashboard Builder
 
 The binding product contract is
-[docs/dashboard-builder-mvp-design.md](docs/dashboard-builder-mvp-design.md) and
-its populated binding 4c page.
+[docs/dashboard-builder-mvp-design.md](docs/dashboard-builder-mvp-design.md).
+The approved visual reference is the
+[staff Workbench preview](docs/specs/staff-workbench-ux/index.html).
 
 Phase 1 connection work includes one Dataset-to-Superset regression smoke. Final
 Dashboard Builder acceptance remains a later product phase and requires a

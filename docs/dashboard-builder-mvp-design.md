@@ -1,20 +1,19 @@
 # Catalyst Dashboard Builder MVP design
 
 **Status:** Binding Dashboard Builder interaction and visual contract
-**Interactive reference:** `docs/prototypes/dashboard-builder-mvp/`
+**Interactive reference:** [Approved staff Workbench preview](specs/staff-workbench-ux/index.html)
 
-This document is the current interaction and visual source for the Workbench and
-Dashboard Builder. The populated `Catalyst Dashboard Builder 4c.dc.html` page is
-the binding reference for Dashboard object flow, panels, libraries, arrangement,
-and publication. The frozen staff Workbench mock is dated evidence for the
-accepted shell, composer, Available data, disclosure, and appearance amendments.
-This written contract controls when either static page cannot express current
-behavior or they conflict.
+This document is the current interaction and visual contract for the Workbench
+and Dashboard Builder. The owner-frozen staff Workbench mock is the visual
+reference for the shell, composer, Available data, disclosure, and appearance.
+The written requirements below define Dashboard object flow, reviews, libraries,
+arrangement, and publication, including states the illustrative mock does not
+implement. The written contract controls if the mock cannot express a state.
 
-The [frozen staff Workbench design](specs/staff-workbench-ux/spec.md) and its
-[overlap review](specs/staff-workbench-ux/overlap.md) are dated design evidence.
-Their accepted navigation, composer, disclosure, data-browser, result-review,
-appearance, and accessibility behavior is incorporated into this contract.
+The [frozen design](specs/staff-workbench-ux/spec.md) and
+[overlap review](specs/staff-workbench-ux/overlap.md) retain dated design evidence.
+Their accepted requirements are incorporated here. The earlier HTML prototypes
+were retired on 10 September 2026; see [retirement accounting](#prototype-retirement).
 
 ## Current product decisions
 
@@ -128,7 +127,8 @@ The accepted Ask invariants are testable requirements:
    sharing, scheduling, cache policy, production naming/authorization, and
    production secrets remain later decisions.
 
-The prototype remains viewable with `scripts/serve-dashboard-prototype.sh`.
+Open `docs/specs/staff-workbench-ux/index.html` through a static HTTP server
+to browse the approved mock and its light/dark states.
 Where the detailed design below says API write, sync, push, or undo, implement
 the outbox/import semantics above for this milestone.
 
@@ -151,17 +151,13 @@ remain post-MVP.
 
 Repo this extends: `DIGI-UW/openelis-catalyst` (branch `main`), app at `catalyst-ui/`.
 
-## About the Design Files
+## Implementation and fidelity
 
-The files in this bundle are **design references created in HTML** — prototypes showing intended look and builder behavior, not production code to copy directly and not a replacement for the accepted Ask/query-notebook behavior. The task is to **recreate these designs in `catalyst-ui`** using its existing environment: React + TypeScript with IBM Carbon Design System conventions (the existing app already uses Carbon tokens, IBM Plex Sans/Mono, and Carbon component patterns in `catalyst-ui/src/features/query/`). Prefer real `@carbon/react` components (`DataTable`, `Tile`, `SideNav`, `Accordion`, `Button`, `Select`, `TextArea`, `Tag`, `InlineNotification`) over hand-rolled markup wherever a Carbon component matches what the prototype draws.
-
-## Fidelity
-
-**High-fidelity.** `Catalyst Dashboard Builder 4c.dc.html` carries final colors, typography, spacing, states, and interactions — recreate it faithfully, but express it through Carbon components and tokens rather than copying inline styles. `Dashboard Builder Wireframes.dc.html` is **low-fidelity** and is included only as design rationale (four structural directions considered, and why 4c won).
-
-`Catalyst Query Screen.dc.html` is a partial visual snapshot of the **existing**
-app screen. The running current product and its automated tests—not that static
-snapshot—are the behavioral baseline to integrate and regress.
+Implement the written behavior and approved staff Workbench appearance in
+`catalyst-ui` with its existing React, TypeScript, Carbon, and CodeMirror
+components. Reuse Carbon controls and semantic tokens; preview HTML and
+illustrative state are not production implementation. The current running
+product and tests establish the behavior to preserve while applying this design.
 
 ## Product model
 
@@ -582,20 +578,29 @@ No image assets. All icons are inline SVG on Carbon's 32×32 grid, drawn from `@
 
 Fonts: IBM Plex Sans and IBM Plex Mono, loaded from Google Fonts in the prototype — use the app's existing `@ibm/plex` dependency instead.
 
-## Files
+## Prototype retirement
 
-In this bundle:
+The owner requested removal of obsolete previews on 10 September 2026 after the
+older Dashboard template was mistakenly published instead of the approved mock.
+The three `.dc.html` pages, their `support.js` runtime, and their dedicated server
+script are removed from the current tree. Git history retains the prior files;
+none remains an implementation authority or a public preview destination.
 
-| File | What it is |
+| Retired material | Requirement disposition |
 | --- | --- |
-| `Catalyst Dashboard Builder 4c.dc.html` | **Binding visual reference.** Hi-fi, interactive: all four screens, both Workbench states, integrated populated query workbench, both panel modes, save flows, and toast. Written invariants above remain normative. |
-| `Catalyst Query Screen.dc.html` | Partial recreation of today's Catalyst query screen. Use the running current product and its tests—not this static page—as the behavioral baseline for Format/Validate/Run, evidence, typed results, versions, and restoration. |
-| `Dashboard Builder Wireframes.dc.html` | Lo-fi rationale: four structural directions (1a–1d), the merged direction (2a–2c), the minimal conversational variants (3a–3b), and the panel variants (4a–4c). 4c is the one that was built. |
-| `github.md` | Repo association and screen map. |
+| Populated Dashboard Builder 4c page | Query chronology, exact-query execution, stale results, Dataset/Widget tiles, and review are covered by MVP interaction contract and Screens 1 and 6. |
+| 4c libraries and save flow | Dataset → Widget → Dashboard ownership and immutable versions remain in Product model, Screens 3–6, Saving, and State Management. Saving a Widget can save its Dataset first and may leave placement unset. |
+| 4c Dashboard and publication states | Dashboard layout summary, multiple Widgets, publication order, bundle-ready/imported/failure states, receipts, and Superset rendering remain in the final MVP decisions, Screen 5, and Data fetching. No demonstrated mock action is live evidence. |
+| 4c panel and feedback | Reusable review modes, exact result table, types, limits, SQL snapshot, provenance, close/Escape/focus behavior, and save confirmations remain in Screen 6 and Interactions & Behavior. |
+| Older shell, colors, fixed composer, and default technical detail | Superseded by the approved staff Workbench appearance, resizable composer, Available data, and Advanced-mode requirements in this document. |
+| Query Screen snapshot | The actual product and its behavioral tests cover the SQL editor, Format/Validate/Run, parameters, history, failures, and restoration. The snapshot adds no current requirement. |
+| Alternative wireframes and preview runtime | Discarded design alternatives and preview-only machinery; no current product requirement. |
 
-These are `.dc.html` files — self-contained HTML that opens directly in a browser. Ignore the `support.js` runtime and the `<x-dc>` wrapper; the design content is the markup and the small state class at the bottom of each file.
-
-Source files the recreation was based on, in `DIGI-UW/openelis-catalyst` @ `main`: `catalyst-ui/src/styles.css`, `catalyst-ui/src/App.tsx`, `catalyst-ui/src/features/query/QueryWorkspace.tsx`, and `catalyst-ui/src/features/query/components/{DemoBanner,AskOpenElisNavigation,DatasetBrowser,QuestionForm,ResultsTable,ProvenancePanel}.tsx`. The populated examples represent the complete readable schema from the configured connection plus optional reviewed descriptions. Generated catalog files are not product inputs.
+The approved visual reference is `docs/specs/staff-workbench-ux/index.html` with
+its sibling `mock.html`, `mock.css`, `mock.js`, `appearance.css`, and
+`appearance.js`. Publish the complete bundle and compare rendered screenshots
+against the approved preview; a file hash or HTTP 200 alone does not verify
+that the correct design was selected or that it renders.
 
 ## Open questions for the team
 
