@@ -17,12 +17,8 @@ Optional descriptions may enrich the readable schema but cannot hide relations.
 ## Status
 
 The query notebook, frozen staff Workbench design, and binding Dashboard Builder
-design are accepted. Staff Workbench implementation, the generic connection,
-Spark reference deployment, and final Dashboard Builder acceptance remain open.
-
-The current runtime uses an engine-specific analytics adapter and generated
-schema metadata. It does not yet implement the generic connection or Spark
-reference path, so it is not used for the next Phase 1 comparison.
+design are accepted. The validation harness [Feature 008 task register](https://github.com/pmanko/clinical-ai-validation-harness/blob/main/specs/008-catalyst-query-workbench/tasks.md)
+tracks implementation, merged revisions, deployment, and owner acceptance.
 
 ## Product flow
 

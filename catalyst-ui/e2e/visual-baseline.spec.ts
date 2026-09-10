@@ -112,7 +112,7 @@ test.describe(`visual baseline (${theme})`, () => {
     await page
       .locator(".query-turn__dataset")
       .first()
-      .getByRole("button", { name: "Save to datasets" })
+      .getByRole("button", { name: "Review results" })
       .click();
     const dialog = page.getByRole("dialog", { name: "Review panel" });
     await expect(dialog).toBeVisible();

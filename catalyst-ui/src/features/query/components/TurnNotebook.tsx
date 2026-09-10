@@ -106,8 +106,8 @@ interface TurnNotebookProps {
   onOpenDetails: (turnId: string, tab?: DetailsTab) => void;
   /** Take the candidate a failed turn retained into the editor. */
   onEditAttempt?: (versionId: string) => void;
-  /** Promote this turn's result into the Datasets library. */
-  onSaveDataset?: () => void;
+  /** Review the exact retained execution without changing the current query. */
+  onReviewResult?: (executionId: string) => void;
   /**
    * The editable current query, rendered as the last cell in the stack: the
    * work in progress sits where the next committed turn will, rather than in
@@ -271,16 +271,11 @@ export const TurnNotebook = ({
   onGenerate,
   onOpenDetails,
   onEditAttempt,
-  onSaveDataset,
+  onReviewResult,
   activeCell = null,
   draftDivergent = false,
 }: TurnNotebookProps) => {
   const [turnVisibilityOverrides, setTurnVisibilityOverrides] = useState<
-    Record<string, boolean>
-  >({});
-  // Each executed turn shows its own result. Minimising is per cell, because
-  // "I have seen this one" is a judgement about that turn, not the thread.
-  const [minimisedResults, setMinimisedResults] = useState<
     Record<string, boolean>
   >({});
   const revisionProfiles = useMemo(
@@ -390,6 +385,91 @@ export const TurnNotebook = ({
               className="query-turn__detail"
               aria-label={`Query turn ${turn.ordinal}`}
             >
+              {turn.status === "failed" && (
+                <div
+                  className={
+                    asksTheReader(turn)
+                      ? "query-turn__failure query-turn__failure--answered"
+                      : "query-turn__failure"
+                  }
+                  role="status"
+                >
+                  <strong>
+                    {writerAnswered(turn) === "asked"
+                      ? "Needs your answer"
+                      : writerAnswered(turn) === "declined"
+                        ? "Not supported by this data"
+                        : "Generation failed"}
+                  </strong>
+                  <p>
+                    {turn.failure?.message ?? "The generation did not complete."}
+                  </p>
+                  {/*
+                    Which checks failed, by name, so the reason is readable
+                    here rather than only in Evidence.
+                  */}
+                  {turn.failure?.checks && turn.failure.checks.length > 0 && (
+                    <dl className="query-turn__failure-checks">
+                      {turn.failure.checks.map((check) => (
+                        <div key={check.name}>
+                          <dt>{check.name}</dt>
+                          <dd>{check.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  )}
+                  {/*
+                    What the model actually returned settles any question this
+                    summary leaves open, and it is already recorded.
+                  */}
+                  {turn.failure?.evidenceAvailable && (
+                    <button
+                      type="button"
+                      className="query-turn__footer-link"
+                      onClick={() => onOpenDetails(turn.turnId, "evidence")}
+                    >
+                      Show the model's output
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {execution?.status === "succeeded" && (
+                <div className="query-turn__dataset">
+                  <div className="query-turn__dataset-heading">
+                    <DataBase size={20} aria-hidden="true" />
+                    <div className="query-turn__result-summary">
+                      <strong>Results ready</strong>
+                      <p>{execution.result
+                        ? `${rowLabel(execution.result.rowCount.returned)} · ${execution.result.columns.length} ${execution.result.columns.length === 1 ? "column" : "columns"}`
+                        : "The query completed without a table."}</p>
+                      {turn.current && grounding.kind === "stale" && <p>Earlier result — your query has changed.</p>}
+                      {execution.result?.rowCount.truncated && <p>Limited result; more rows may be available.</p>}
+                      {turn.validationStatus && turn.validationStatus !== "valid" && <p>Review the query findings before using these results.</p>}
+                    </div>
+                    {onReviewResult && (
+                      <Button type="button" kind="tertiary" size="sm"
+                        onClick={() => onReviewResult(execution.executionId)}>
+                        Review results
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+              {execution?.status === "failed" && (
+                <ExecutionResult
+                  session={session}
+                  sql={version?.sql ?? execution.query.sql}
+                  parameters={execution.query.parameters}
+                  executionOverride={execution}
+                  immutableSnapshot
+                  compact
+                  pageSize={10}
+                />
+              )}
+
+              <details className="query-turn__technical" open={advancedMode}>
+                <summary>Technical details</summary>
               {version && (
                 <div
                   className="query-turn__sql"
@@ -464,115 +544,6 @@ export const TurnNotebook = ({
                   );
                 })}
 
-              {turn.status === "failed" && (
-                <div
-                  className={
-                    asksTheReader(turn)
-                      ? "query-turn__failure query-turn__failure--answered"
-                      : "query-turn__failure"
-                  }
-                  role="status"
-                >
-                  <strong>
-                    {writerAnswered(turn) === "asked"
-                      ? "Needs your answer"
-                      : writerAnswered(turn) === "declined"
-                        ? "Not supported by this data"
-                        : "Generation failed"}
-                  </strong>
-                  <p>
-                    {turn.failure?.message ?? "The generation did not complete."}
-                  </p>
-                  {/*
-                    Which checks failed, by name, so the reason is readable
-                    here rather than only in Evidence.
-                  */}
-                  {turn.failure?.checks && turn.failure.checks.length > 0 && (
-                    <dl className="query-turn__failure-checks">
-                      {turn.failure.checks.map((check) => (
-                        <div key={check.name}>
-                          <dt>{check.name}</dt>
-                          <dd>{check.value}</dd>
-                        </div>
-                      ))}
-                    </dl>
-                  )}
-                  {/*
-                    What the model actually returned settles any question this
-                    summary leaves open, and it is already recorded.
-                  */}
-                  {turn.failure?.evidenceAvailable && (
-                    <button
-                      type="button"
-                      className="query-turn__footer-link"
-                      onClick={() => onOpenDetails(turn.turnId, "evidence")}
-                    >
-                      Show the model's output
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/*
-                A run is what the turn produced, so its result is presented as
-                this turn's dataset rather than as a table repeated by a
-                separate card. Saving promotes it to the Datasets library.
-              */}
-              {execution?.status === "succeeded" && version && (
-                <div className="query-turn__dataset">
-                  <div className="query-turn__dataset-heading">
-                    <DataBase size={16} aria-hidden="true" />
-                    <strong>Dataset from [{turn.ordinal}]</strong>
-                    <Tag type="blue" size="sm">Draft</Tag>
-                    <button
-                      type="button"
-                      className="query-turn__footer-link"
-                      aria-expanded={!minimisedResults[turn.turnId]}
-                      onClick={() =>
-                        setMinimisedResults((current) => ({
-                          ...current,
-                          [turn.turnId]: !current[turn.turnId],
-                        }))
-                      }
-                    >
-                      {minimisedResults[turn.turnId] ? "Expand" : "Minimize"}
-                    </button>
-                    {turn.current && onSaveDataset && (
-                      <Button
-                        type="button"
-                        kind="tertiary"
-                        size="sm"
-                        onClick={onSaveDataset}
-                      >
-                        Save to datasets
-                      </Button>
-                    )}
-                  </div>
-                  {!minimisedResults[turn.turnId] && (
-                    <ExecutionResult
-                      session={session}
-                      sql={version.sql}
-                      parameters={execution.query.parameters}
-                      executionOverride={execution}
-                      immutableSnapshot
-                      compact
-                      pageSize={10}
-                    />
-                  )}
-                </div>
-              )}
-              {execution?.status === "failed" && (
-                <ExecutionResult
-                  session={session}
-                  sql={version?.sql ?? execution.query.sql}
-                  parameters={execution.query.parameters}
-                  executionOverride={execution}
-                  immutableSnapshot
-                  compact
-                  pageSize={10}
-                />
-              )}
-
               <div className="query-turn__footer">
                 {validation && (
                   <span className="query-turn__footer-item">{validation}</span>
@@ -618,6 +589,7 @@ export const TurnNotebook = ({
                   </button>
                 )}
               </div>
+              </details>
             </section>
           )}
         </div>
@@ -626,7 +598,7 @@ export const TurnNotebook = ({
   };
 
   return (
-    <section className="turn-notebook" aria-label="Iterative query notebook">
+    <section className="turn-notebook" data-advanced={advancedMode ? "true" : undefined} aria-label="Iterative query notebook">
       <ol className="turn-notebook__timeline">
         {turns.map((turn) => (
           <li key={turn.turnId}>{renderCell(turn)}</li>
@@ -644,9 +616,7 @@ export const TurnNotebook = ({
               <div className="query-turn__body">
                 {draftDivergent && (
                   <p className="query-turn__provisional" role="status">
-                    Provisional draft — differs from{" "}
-                    {baseVersion ? `[${baseVersion.ordinal}]` : "the current query"}.
-                    Running it records a new version.
+                    You have edited the query. Get results to review the changes.
                   </p>
                 )}
                 {activeCell}
@@ -654,7 +624,7 @@ export const TurnNotebook = ({
             </article>
           </li>
         )}
-        {!activeCell && !generating && (
+        {advancedMode && !activeCell && !generating && (
           <li className="turn-notebook__composing" aria-hidden="true">
             <span className="query-turn__gutter">[{turns.length + 1}]</span>
             <span>composing…</span>

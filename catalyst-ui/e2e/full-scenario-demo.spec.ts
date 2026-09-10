@@ -112,15 +112,15 @@ test("plain-language question to a published Superset dashboard", async ({
 
   /** Save the current turn's dataset draft under a real name.
    *
-   * The cell's "Save to datasets" opens the dataset review panel; only the
+   * The cell's "Review results" opens the dataset review panel; only the
    * current turn offers it, so the locator is unique by construction. */
   const saveDataset = async (name: string) => {
-    await page.getByRole("button", { name: "Save to datasets" }).click();
+    await page.getByRole("button", { name: "Review results" }).click();
     const nameBox = page.getByPlaceholder(/Dataset from Query v/);
     await expect(nameBox).toBeVisible();
     await nameBox.click();
     await type(nameBox, name);
-    await page.getByRole("button", { name: "Save Dataset" }).click();
+    await page.getByRole("button", { name: "Save query" }).click();
     // Saving swaps the draft chrome for the saved entity; wait for the busy
     // label to clear before moving on.
     await expect(page.getByRole("button", { name: "Saving…" })).toHaveCount(0);

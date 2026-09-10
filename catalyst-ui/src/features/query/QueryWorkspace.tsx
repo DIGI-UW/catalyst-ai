@@ -581,9 +581,9 @@ export const QueryWorkspace = ({
   const revealTurnId = useRef<string | null>(null);
   // The dashboard panel owns the review dialog; the cell that produced the
   // result asks it to open.
-  const openDatasetReview = useRef<(() => void) | null>(null);
+  const openDatasetReview = useRef<((executionId?: string) => void) | null>(null);
   const registerDatasetOpener = useCallback(
-    (open: (() => void) | null) => {
+    (open: ((executionId?: string) => void) | null) => {
       openDatasetReview.current = open;
     },
     [],
@@ -1596,7 +1596,7 @@ export const QueryWorkspace = ({
           onGenerate={generateNextWorkbenchQuery}
           onOpenDetails={openDetails}
           onEditAttempt={editRetainedAttempt}
-          onSaveDataset={() => openDatasetReview.current?.()}
+          onReviewResult={(executionId) => openDatasetReview.current?.(executionId)}
           activeCell={
             <>
               <div hidden={!showEditor && !advancedMode}>{workbenchPanel}</div>
@@ -1725,6 +1725,7 @@ export const QueryWorkspace = ({
         )}
 
         <DashboardPublishPanel
+          advancedMode={advancedMode}
           api={api}
           hostedInThread={notebookShowing || !sessionHasWork}
           registerDatasetOpener={registerDatasetOpener}

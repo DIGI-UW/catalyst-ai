@@ -1,9 +1,8 @@
 # Catalyst product specification
 
 **Status:** Current product contract. The query notebook, frozen staff Workbench
-design, and binding Dashboard Builder design are accepted; implementation of
-the staff Workbench, the generic connection, the Spark reference deployment,
-and final Dashboard acceptance remain open.
+design, and binding Dashboard Builder design are accepted. The harness Feature
+008 task register tracks implementation, deployment, and owner acceptance.
 
 The [frozen staff Workbench design](specs/staff-workbench-ux/spec.md) is dated
 design evidence for this contract. Its accepted application behavior is

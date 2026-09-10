@@ -943,9 +943,9 @@ test("question to iterative notebook to imported dashboard", async ({
 
   if (useMockApi) {
     await navigate("Saved queries");
-    await expect(page.getByText("No Datasets saved yet.", { exact: true })).toBeVisible();
+    await expect(page.getByText(/No saved queries yet\./)).toBeVisible();
     await navigate("Charts and tables");
-    await expect(page.getByText("No Widgets saved yet.", { exact: true })).toBeVisible();
+    await expect(page.getByText(/No charts or tables saved yet\./)).toBeVisible();
     await navigate("Dashboards");
     await expect(page.getByText("No Dashboards saved yet.", { exact: true })).toBeVisible();
     await navigate("Explore");
@@ -1040,7 +1040,7 @@ test("question to iterative notebook to imported dashboard", async ({
   // The result appears with its originating turn; Advanced mode retains the editor.
   const datasetTile = page.locator(".query-turn__dataset").first();
   await expect(datasetTile).toBeVisible();
-  await expect(datasetTile.getByText(/^Dataset from \[\d+\]$/)).toBeVisible();
+  await expect(datasetTile.getByText("Results ready", { exact: true })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "SQL query" })).toBeVisible();
 
   if (useMockApi) {
@@ -1054,21 +1054,21 @@ test("question to iterative notebook to imported dashboard", async ({
     await expect(page.locator(".turn-composer__stale")).toHaveCount(0);
 
     // ------------------------------------------------ promote to a Dataset
-    await datasetTile.getByRole("button", { name: "Save to datasets" }).click();
+    await datasetTile.getByRole("button", { name: "Review results" }).click();
     const datasetReview = page.getByRole("dialog", { name: "Review panel" });
-    await expect(datasetReview.getByRole("heading", { name: "Results from Query v2" }))
+    await expect(datasetReview.getByText("Query v2", { exact: true }))
       .toBeVisible();
     await expect(datasetReview.getByText("patient-001", { exact: true })).toBeVisible();
     await expect(datasetReview.getByText("1200.0", { exact: true })).toBeVisible();
     await datasetReview.getByText("Query v2 SQL snapshot", { exact: true }).click();
     await expect(datasetReview.locator("pre")).toContainText("LIMIT 1");
-    await datasetReview.getByLabel("Dataset name").fill("Initial viral load result");
-    await datasetReview.getByRole("button", { name: "Save Dataset" }).click();
-    await expect(page.getByRole("status").filter({ hasText: /saved to Datasets\./ }))
+    await datasetReview.getByLabel("Query name").fill("Initial viral load result");
+    await datasetReview.getByRole("button", { name: "Save query" }).click();
+    await expect(page.getByRole("status").filter({ hasText: /saved to Saved queries\./ }))
       .toBeVisible();
     // Saving leads somewhere: the next step is offered where the user is.
     await expect(
-      datasetReview.getByRole("button", { name: "Build a widget from this Dataset" }),
+      datasetReview.getByRole("button", { name: "Create a chart or table" }),
     ).toBeVisible();
     await page.keyboard.press("Escape");
 
@@ -1117,26 +1117,26 @@ test("question to iterative notebook to imported dashboard", async ({
     });
 
     const successorTile = page.locator(".query-turn__dataset").last();
-    await successorTile.getByRole("button", { name: "Save to datasets" }).click();
+    await successorTile.getByRole("button", { name: "Review results" }).click();
     const successorReview = page.getByRole("dialog", { name: "Review panel" });
-    await expect(successorReview.getByRole("heading", { name: "Results from Query v3" }))
+    await expect(successorReview.getByText("Query v3", { exact: true }))
       .toBeVisible();
     await expect(successorReview.getByText("patient-002", { exact: true })).toBeVisible();
     await expect(successorReview.getByText("copies/ml", { exact: true }).first())
       .toBeVisible();
-    await successorReview.getByLabel("Dataset name").fill("Viral load with units");
-    await successorReview.getByRole("button", { name: "Save Dataset" }).click();
-    await expect(page.getByText(/Viral load with units.*saved to Datasets\./)).toBeVisible();
+    await successorReview.getByLabel("Query name").fill("Viral load with units");
+    await successorReview.getByRole("button", { name: "Save query" }).click();
+    await expect(page.getByText(/Viral load with units.*saved to Saved queries\./)).toBeVisible();
 
     // --------------------------------------------- dataset -> widget -> dash
     await successorReview
-      .getByRole("button", { name: "Build a widget from this Dataset" })
+      .getByRole("button", { name: "Create a chart or table" })
       .click();
     const widgetReview = page.getByRole("dialog", { name: "Review panel" });
     await widgetReview.getByLabel("Widget name").fill("Latest viral load results");
     await widgetReview.getByLabel("Visualization").selectOption("time_series_line");
     await widgetReview.getByRole("button", { name: "Save Widget" }).click();
-    await expect(page.getByText(/Latest viral load results.*saved to Widgets\./)).toBeVisible();
+    await expect(page.getByText(/Latest viral load results.*saved to Charts and tables\./)).toBeVisible();
 
     await navigate("Charts and tables");
     await expect(page.getByRole("heading", { level: 1, name: "Charts and tables" }))
@@ -1185,18 +1185,12 @@ test("question to iterative notebook to imported dashboard", async ({
     await expect(page.getByRole("combobox", { name: "Model profile" }))
       .toHaveValue(revisionProfileId);
 
-    // A cell's dataset minimises per cell, and says so.
-    const minimize = page.locator(".query-turn__dataset")
-      .last()
-      .getByRole("button", { name: "Minimize" });
-    await minimize.click();
-    await expect(page.getByRole("button", { name: "Expand" }).last())
-      .toHaveAttribute("aria-expanded", "false");
-    await page.getByRole("button", { name: "Expand" }).last().click();
+    // Results have one full table, reached from their retained turn.
+    await expect(page.locator(".query-turn__dataset table")).toHaveCount(0);
 
     // ------------------------------------------------ focus and keyboard
     await page.locator(".query-turn__dataset").last()
-      .getByRole("button", { name: "Save to datasets" }).click();
+      .getByRole("button", { name: "Review results" }).click();
     const keyboardReview = page.getByRole("dialog", { name: "Review panel" });
     const closeButtons = keyboardReview.getByRole("button", { name: "Close" });
     await expect(closeButtons.first()).toBeFocused();

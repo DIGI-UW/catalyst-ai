@@ -1,8 +1,7 @@
 # med-agent-hub integration boundary
 
-**Status:** Current Hub route and profile contract. The complete-schema and
-generic-connection behavior below is the selected Catalyst boundary and is not
-yet implemented.
+**Status:** Current Hub route and profile contract. The harness Feature 008
+task register tracks implementation and live acceptance of this boundary.
 
 The broader product requirements live in [the Catalyst specification](specification.md)
 and [product roadmap](roadmap.md). This document covers only the boundary

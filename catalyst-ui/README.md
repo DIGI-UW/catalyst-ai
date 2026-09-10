@@ -28,6 +28,12 @@ Close/reopen retains your search and expanded items; another source starts a
 fresh browser context. **Back to your question** returns focus without closing
 it, and **Try again** retries a failed schema load without changing your draft.
 
+After a run, choose **Review results** to inspect the full table, field types,
+limits and warnings. **Technical details** contains the exact SQL, parameters
+and recorded model information. Earlier results remain available, but only the
+current successful result can **Save query**. Saved queries then offer
+**Create a chart or table**.
+
 ## Local commands
 
 ```bash
