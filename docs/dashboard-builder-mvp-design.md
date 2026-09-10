@@ -8,6 +8,12 @@ populated Workbench state in `Catalyst Dashboard Builder 4c.dc.html` is the
 binding visual reference. This written contract defines behavior when a static
 mock cannot express it.
 
+The [Workbench usability proposal](specs/staff-workbench-ux/spec.md) explores a
+resizable question area and simpler default experience. Its
+[overlap review](specs/staff-workbench-ux/overlap.md) identifies the specific
+changes proposed to this binding design; this document remains authoritative
+until those changes are adopted.
+
 ## Current product decisions
 
 The decisions below govern the detailed design that follows.
