@@ -483,8 +483,8 @@ describe("WorkbenchPanel", () => {
     expect(
       results.querySelector(".workbench-execution__table-wrap--bounded"),
     ).toBeInTheDocument();
-    expect(within(results).getByRole("columnheader", { name: "patient_id" })).toBeVisible();
-    expect(within(results).getByRole("columnheader", { name: "result_value" })).toBeVisible();
+    expect(within(results).getByRole("columnheader", { name: /patient_id/ })).toBeVisible();
+    expect(within(results).getByRole("columnheader", { name: /result_value/ })).toBeVisible();
     expect(within(results).getByText("patient-7")).toBeVisible();
     expect(within(results).getByText("9000.0")).toBeVisible();
     expect(within(results).getByText('{"source":"openelis"}')).toBeVisible();

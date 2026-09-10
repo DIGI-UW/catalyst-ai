@@ -457,7 +457,7 @@ export const ExecutionResult = ({
       )}
       {result.rowCount.truncated && (
         <p className="workbench-execution__notice">
-          Results were truncated
+          {result.rowCount.returned} rows shown; more available; total unknown. Results were truncated
           {result.rowCount.truncationReason
             ? ` (${result.rowCount.truncationReason})`
             : ""}
@@ -499,6 +499,7 @@ export const ExecutionResult = ({
                 {columnOrder.map((sourceIndex) => (
                   <th key={`${result.columns[sourceIndex]!.ordinal}-${sourceIndex}`} scope="col">
                     {result.columns[sourceIndex]!.name}
+                    <small className="workbench-execution__column-type">{result.columns[sourceIndex]!.databaseType || result.columns[sourceIndex]!.logicalType}</small>
                   </th>
                 ))}
               </tr>

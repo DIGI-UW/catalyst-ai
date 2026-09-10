@@ -334,12 +334,12 @@ test("FHIR endpoint to a published Superset dashboard", async ({
 
   /** Save the current turn's dataset draft under a real name. */
   const saveDataset = async (name: string) => {
-    await page.getByRole("button", { name: "Save to datasets" }).click();
+    await page.getByRole("button", { name: "Review results" }).click();
     const nameBox = page.getByPlaceholder(/Dataset from Query v/);
     await expect(nameBox).toBeVisible();
     await nameBox.click();
     await type(nameBox, name);
-    await page.getByRole("button", { name: "Save Dataset" }).click();
+    await page.getByRole("button", { name: "Save query" }).click();
     await expect(page.getByRole("button", { name: "Saving…" })).toHaveCount(0);
     await dwell(1_500);
     await page

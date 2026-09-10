@@ -748,10 +748,10 @@ describe("Dashboard Builder Ask shell", () => {
     render(<QueryWorkspace api={client} />);
 
     await user.click(
-      await screen.findByRole("button", { name: "Save to datasets" }),
+      await screen.findByRole("button", { name: "Review results" }),
     );
     const review = await screen.findByRole("dialog", { name: "Review panel" });
-    await user.click(within(review).getByRole("button", { name: "Save Dataset" }));
+    await user.click(within(review).getByRole("button", { name: "Save query" }));
 
     await waitFor(() =>
       expect(client.saveDashboardDataset).toHaveBeenCalledWith({
@@ -762,7 +762,7 @@ describe("Dashboard Builder Ask shell", () => {
     // Saving used to be the end of the road: the next step lived in a nav
     // section you had to already know about.
     expect(
-      await screen.findByRole("button", { name: /Build a widget/ }),
+      await screen.findByRole("button", { name: /Create a chart or table/ }),
     ).toBeVisible();
   });
 

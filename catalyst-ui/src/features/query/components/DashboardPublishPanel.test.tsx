@@ -24,6 +24,8 @@ const session = {
       status: "succeeded",
       ordinal: 1,
       durationMs: 4,
+      maxRows: 250,
+      statementTimeoutMs: 30000,
       query: { sql: queryVersion.sql, parameters: [] },
       result: {
         columns: [
@@ -136,10 +138,10 @@ describe("Dashboard Builder supervised promotion", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Review dataset draft" }));
-    expect(screen.getByRole("heading", { name: "Results from Query v1" })).toBeVisible();
-    await user.type(screen.getByLabelText("Dataset name"), "Count result");
-    await user.click(screen.getByRole("button", { name: "Save Dataset" }));
+    await user.click(screen.getByRole("button", { name: "Review results" }));
+    expect(screen.getByRole("table", { name: "Result rows" })).toBeVisible();
+    await user.type(screen.getByLabelText("Query name"), "Count result");
+    await user.click(screen.getByRole("button", { name: "Save query" }));
 
     expect(api.saveDashboardDataset).toHaveBeenCalledWith({
       sessionId: "session-1",
@@ -148,7 +150,7 @@ describe("Dashboard Builder supervised promotion", () => {
     });
     expect(await screen.findByRole("button", { name: "Review widget draft" })).toBeVisible();
 
-    await user.click(screen.getByRole("button", { name: "Review widget draft" }));
+    await user.click(screen.getByRole("button", { name: "Create a chart or table" }));
     await user.selectOptions(screen.getByLabelText("Visualization"), "big_number");
     await user.type(screen.getByLabelText("Widget name"), "Count KPI");
     await user.click(screen.getByRole("button", { name: "Save Widget" }));
@@ -247,10 +249,12 @@ describe("Dashboard Builder supervised promotion", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Review dataset draft" }));
+    await user.click(screen.getByRole("button", { name: "Review results" }));
     const dialog = screen.getByRole("dialog", { name: "Review panel" });
-    expect(within(dialog).getByRole("heading", { name: "Results from Query v1" })).toBeVisible();
+    expect(within(dialog).getByRole("table", { name: "Result rows" })).toBeVisible();
     expect(within(dialog).queryByText("Later database failure")).not.toBeInTheDocument();
+    expect(within(dialog).getByText("Gemma writer + Qwen reviewer")).not.toBeVisible();
+    await user.click(within(dialog).getByText("Technical details", { exact: true }));
     expect(within(dialog).getByRole("listitem")).toHaveTextContent(
       "Confirm the intended reporting window.",
     );
@@ -281,11 +285,11 @@ describe("Dashboard Builder supervised promotion", () => {
 
     await screen.findByRole("heading", { name: "Saved queries" });
     await user.click(screen.getByRole("button", { name: "Review Count result" }));
-    expect(screen.getByRole("heading", { name: "Review saved Dataset" })).toBeVisible();
-    expect(screen.getByRole("heading", { name: "Results from Query v1" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Review saved query" })).toBeVisible();
+    expect(screen.getByRole("table", { name: "Result rows" })).toBeVisible();
     // A saved Dataset's footer is the next step, not a spent button.
     expect(
-      screen.getByRole("button", { name: "Build a widget from this Dataset" }),
+      screen.getByRole("button", { name: "Create a chart or table" }),
     ).toBeEnabled();
   });
 
@@ -349,7 +353,7 @@ describe("Dashboard Builder supervised promotion", () => {
     await user.click(
       await screen.findByRole("button", { name: "Review Older session Dataset" }),
     );
-    expect(await screen.findByRole("heading", { name: "Results from Query v1" })).toBeVisible();
+    expect(await screen.findByRole("table", { name: "Result rows" })).toBeVisible();
     expect(screen.getByRole("cell", { name: "77" })).toBeVisible();
     expect(screen.queryByText("Stale — editor has changes")).not.toBeInTheDocument();
     expect(api.getWorkbenchSession).toHaveBeenCalledWith("session-older");
@@ -383,7 +387,7 @@ describe("Dashboard Builder supervised promotion", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Review dataset draft" }));
+    await user.click(screen.getByRole("button", { name: "Review results" }));
     expect(screen.getByText("Showing 1–25 of 26 returned rows")).toBeVisible();
     expect(screen.queryByRole("cell", { name: "26" })).not.toBeInTheDocument();
     const review = screen.getByRole("dialog");
@@ -415,8 +419,8 @@ describe("Dashboard Builder supervised promotion", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Review dataset draft" }));
-    const save = screen.getByRole("button", { name: "Save Dataset" });
+    await user.click(screen.getByRole("button", { name: "Review results" }));
+    const save = screen.getByRole("button", { name: "Save query" });
     await user.click(save);
     await user.click(save);
     expect(api.saveDashboardDataset).toHaveBeenCalledTimes(1);
@@ -749,14 +753,70 @@ describe("Dashboard Builder supervised promotion", () => {
       />,
     );
 
-    const trigger = screen.getByRole("button", { name: "Review dataset draft" });
+    const trigger = screen.getByRole("button", { name: "Review results" });
     expect(trigger).toBeVisible();
-    expect(screen.getByText("Stale · rerun the visible query before saving")).toBeVisible();
+    expect(screen.getByText(/Your query has changed/)).toBeVisible();
     await user.click(trigger);
     const dialog = screen.getByRole("dialog", { name: "Review panel" });
+    expect(within(dialog).getByRole("button", { name: "Save query" })).toBeDisabled();
+    expect(within(dialog).getByText("Earlier result", { exact: true })).toBeVisible();
+    await user.click(within(dialog).getByText("Technical details", { exact: true }));
     expect(within(dialog).getByText("Query v1", { exact: true })).toBeVisible();
     expect(within(dialog).getByText("Query v1 SQL snapshot", { exact: true })).toBeVisible();
     expect(within(dialog).queryByText("Query v2", { exact: true })).not.toBeInTheDocument();
+  });
+
+  it("reviews an earlier run without saving the current result in its place", async () => {
+    const user = userEvent.setup();
+    const api = makeApi();
+    const newerVersion = { ...session.currentVersion!, versionId: "query-v2", ordinal: 2, sql: "SELECT 99 AS value" };
+    const newerRun = {
+      ...session.executions[0]!, executionId: "execution-2", versionId: "query-v2", ordinal: 2,
+      query: { sql: newerVersion.sql, parameters: [] },
+      result: { ...session.executions[0]!.result!, rows: [[{ type: "integer" as const, value: 99 }]] },
+    };
+    const updatedSession = { ...session, currentVersion: newerVersion, currentVersionId: newerVersion.versionId,
+      versions: [...session.versions, newerVersion], executions: [...session.executions, newerRun] };
+    let openReview: ((executionId?: string) => void) | null = null;
+    render(<>
+      <button onClick={() => openReview?.("execution-1")}>Earlier result</button>
+      <DashboardPublishPanel api={api} session={updatedSession} sql={newerVersion.sql} parameters={[]}
+        activeSection="ask" hostedInThread onNavigate={vi.fn()}
+        registerDatasetOpener={(open) => { openReview = open; }} />
+    </>);
+    const trigger = screen.getByRole("button", { name: "Earlier result" });
+    await user.click(trigger);
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("cell", { name: "1" })).toBeVisible();
+    expect(within(dialog).queryByRole("cell", { name: "99" })).not.toBeInTheDocument();
+    const save = within(dialog).getByRole("button", { name: "Save query" });
+    expect(save).toBeDisabled();
+    await user.click(save);
+    expect(api.saveDashboardDataset).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByText("Technical details", { exact: true }));
+    await user.selectOptions(within(dialog).getByRole("combobox", { name: "Recorded result" }), "execution-2");
+    expect(within(dialog).getByRole("cell", { name: "99" })).toBeVisible();
+    await user.click(within(dialog).getByRole("button", { name: "Save query" }));
+    expect(api.saveDashboardDataset).toHaveBeenCalledWith({ sessionId: "session-1", executionId: "execution-2" });
+    await user.keyboard("{Escape}");
+    expect(trigger).toHaveFocus();
+  });
+
+  it("does not replace missing saved-query evidence with the active session's rows", async () => {
+    const user = userEvent.setup();
+    const api = makeApi();
+    vi.mocked(api.listDashboardDatasets!).mockResolvedValue(collection("dataset", [{
+      ...savedDataset, configuration: { ...savedDataset.configuration,
+        source: { sessionId: "missing-session", executionId: "missing-run" } },
+    }]));
+    api.getWorkbenchSession = vi.fn().mockRejectedValue(new Error("Recorded session unavailable"));
+    render(<DashboardPublishPanel api={api} session={session} sql={queryVersion.sql} parameters={[]}
+      activeSection="datasets" onNavigate={vi.fn()} />);
+    await user.click(await screen.findByRole("button", { name: "Review Count result" }));
+    const dialog = screen.getByRole("dialog");
+    expect(await within(dialog).findByText("Recorded session unavailable")).toBeVisible();
+    expect(within(dialog).queryByRole("table")).not.toBeInTheDocument();
+    expect(within(dialog).getByText("Execution evidence is unavailable in this session")).toBeVisible();
   });
 
   it("contains keyboard focus in the review dialog and restores its trigger", async () => {
@@ -772,7 +832,7 @@ describe("Dashboard Builder supervised promotion", () => {
       />,
     );
 
-    const trigger = screen.getByRole("button", { name: "Review dataset draft" });
+    const trigger = screen.getByRole("button", { name: "Review results" });
     await user.click(trigger);
     const dialog = screen.getByRole("dialog", { name: "Review panel" });
     const closeButtons = within(dialog).getAllByRole("button", { name: "Close" });

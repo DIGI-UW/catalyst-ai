@@ -18,20 +18,16 @@ import { ExecutionResult } from "./WorkbenchPanel";
 import "./DashboardPublishPanel.css";
 
 interface DashboardPublishPanelProps {
+  advancedMode?: boolean;
   api: CatalystApi;
   session: WorkbenchSession | null;
   sql: string;
   parameters: BoundParameter[];
   activeSection: DashboardBuilderSection;
   disabled?: boolean;
-  /**
-   * The thread hosts each turn's dataset now, so the standalone tile would
-   * repeat a table already on screen, and a session with nothing asked of it
-   * has no result to offer. The panel registers its opener here so the cell
-   * that owns the result can raise the review dialog.
-   */
+  /** The thread supplies the result summaries and invokes this shared review. */
   hostedInThread?: boolean;
-  registerDatasetOpener?: (open: (() => void) | null) => void;
+  registerDatasetOpener?: (open: ((executionId?: string) => void) | null) => void;
   onNavigate: (section: DashboardBuilderSection) => void;
 }
 
@@ -238,6 +234,7 @@ const publicationFailureGuidance = (
 };
 
 export const DashboardPublishPanel = ({
+  advancedMode = false,
   api,
   session,
   sql,
@@ -264,6 +261,7 @@ export const DashboardPublishPanel = ({
     useState<DashboardPresentationKind>("table");
   const [selectedDatasetVersionId, setSelectedDatasetVersionId] = useState("");
   const [reviewedDatasetVersionId, setReviewedDatasetVersionId] = useState("");
+  const [reviewedExecutionId, setReviewedExecutionId] = useState("");
   const [selectedWidgetVersionIds, setSelectedWidgetVersionIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(
@@ -277,9 +275,6 @@ export const DashboardPublishPanel = ({
   >({});
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const reviewRef = useRef<HTMLElement | null>(null);
-  // The result is the artifact; showing it is the default, minimising is
-  // the choice.
-  const [datasetExpanded, setDatasetExpanded] = useState(true);
   const [returnFocusTarget, setReturnFocusTarget] = useState<HTMLElement | null>(null);
 
   const execution = newestSuccessfulExecution(session);
@@ -297,7 +292,7 @@ export const DashboardPublishPanel = ({
           // currentVersion.sql`, so once the editor presented the model's
           // query laid out, the columns were dropped, the content stopped
           // matching, and every model result was reported stale -- which
-          // disabled "Save Dataset" for queries nobody had touched.
+          // disabled "Save query" for queries nobody had touched.
           expectedColumns: editorExpectedColumns(session.currentVersion, sql),
         },
         session.currentVersion,
@@ -331,7 +326,9 @@ export const DashboardPublishPanel = ({
 
   const reviewedDataset = reviewedDatasetVersionId
     ? datasets.find((candidate) => candidate.versionId === reviewedDatasetVersionId) ?? null
-    : currentDataset;
+    : reviewedExecutionId
+      ? null
+      : currentDataset;
   const reviewedDatasetSource = reviewedDataset
     ? configurationRecord(reviewedDataset, "source")
     : null;
@@ -343,12 +340,18 @@ export const DashboardPublishPanel = ({
         ? hydratedDatasetSession.session
         : null
     : session;
-  const reviewedExecution = reviewedDatasetSource && reviewedSession
-    ? reviewedSession.executions.find(
-        (candidate) =>
-          candidate.executionId === reviewedDatasetSource.executionId,
+  const reviewedExecution = reviewedDatasetSource
+    ? reviewedSession?.executions.find(
+        (candidate) => candidate.executionId === reviewedDatasetSource.executionId,
       ) ?? null
-    : execution;
+    : reviewedExecutionId
+      ? session?.executions.find((candidate) => candidate.executionId === reviewedExecutionId) ?? null
+      : execution;
+  const canSaveReviewedResult = Boolean(
+    !reviewedDataset && reviewedExecution &&
+    reviewedExecution.executionId === execution?.executionId &&
+    !resultIsStale,
+  );
   const reviewedVersion = reviewedExecution && reviewedSession
     ? reviewedSession.versions.find((version) => version.versionId === reviewedExecution.versionId) ?? null
     : null;
@@ -467,9 +470,11 @@ export const DashboardPublishPanel = ({
       if (event.key !== "Tab" || !reviewRef.current) return;
       const focusable = Array.from(
         reviewRef.current.querySelectorAll<HTMLElement>(
-          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])',
         ),
-      );
+      ).filter((element) => !element.closest("[hidden]") &&
+        !Array.from(reviewRef.current!.querySelectorAll("details:not([open])"))
+          .some((details) => details.contains(element) && details.querySelector("summary") !== element));
       if (focusable.length === 0) return;
       const first = focusable[0]!;
       const last = focusable[focusable.length - 1]!;
@@ -494,13 +499,21 @@ export const DashboardPublishPanel = ({
   const openPanel = (
     next: Exclude<ReviewPanel, null>,
     entityVersionId?: string,
+    executionId?: string,
   ) => {
+    if (!panel) setReturnFocusTarget(document.activeElement instanceof HTMLElement ? document.activeElement : null);
     setError(null);
     setPublication(null);
     if (next === "dataset") {
       const selected = entityVersionId
         ? datasets.find((candidate) => candidate.versionId === entityVersionId) ?? null
-        : currentDataset;
+        : executionId
+          ? datasets.find((candidate) => {
+              const source = configurationRecord(candidate, "source");
+              return source?.sessionId === session?.sessionId && source?.executionId === executionId;
+            }) ?? null
+          : currentDataset;
+      setReviewedExecutionId(executionId ?? execution?.executionId ?? "");
       setReviewedDatasetVersionId(selected?.versionId ?? "");
       setDatasetTitle(selected ? entityTitle(selected, "Dataset") : "");
       setHydratedDatasetSession(null);
@@ -559,18 +572,18 @@ export const DashboardPublishPanel = ({
   };
 
   const saveDataset = async () => {
-    if (!session || !execution || !api.saveDashboardDataset || resultIsStale || busy) return;
+    if (!session || !reviewedExecution || !api.saveDashboardDataset || !canSaveReviewedResult || busy) return;
     setBusy(true);
     setError(null);
     try {
       const saved = await api.saveDashboardDataset({
         sessionId: session.sessionId,
-        executionId: execution.executionId,
+        executionId: reviewedExecution.executionId,
         ...(datasetTitle.trim() ? { title: datasetTitle.trim() } : {}),
       });
       setDatasets((current) => [saved, ...current.filter((item) => item.versionId !== saved.versionId)]);
       setSelectedDatasetVersionId(saved.versionId);
-      setToast(`“${entityTitle(saved, "Dataset")}” saved to Datasets.`);
+      setToast(`“${entityTitle(saved, "Dataset")}” saved to Saved queries.`);
       // Stay open. Saving used to close onto the thread, and the next step —
       // a Widget — lived in a nav section you had to already know about, so
       // the chain ended at the moment it should have continued. Re-pointing
@@ -598,7 +611,7 @@ export const DashboardPublishPanel = ({
         current.includes(saved.versionId) ? current : [...current, saved.versionId],
       );
       setWidgetTitle("");
-      setToast(`“${entityTitle(saved, "Widget")}” saved to Widgets.`);
+      setToast(`“${entityTitle(saved, "Widget")}” saved to Charts and tables.`);
       closePanel();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Catalyst could not save this Widget.");
@@ -653,15 +666,10 @@ export const DashboardPublishPanel = ({
     }
   };
 
-  const currentDatasetVersionId = currentDataset?.versionId;
-
   useEffect(() => {
-    registerDatasetOpener?.(() => openPanel("dataset", currentDatasetVersionId));
+    registerDatasetOpener?.((executionId) => openPanel("dataset", undefined, executionId));
     return () => registerDatasetOpener?.(null);
-    // openPanel is recreated each render; the dataset it targets is what
-    // actually changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [registerDatasetOpener, currentDatasetVersionId]);
+  });
 
   const renderAskArtifacts = () => {
     if (!session) return null;
@@ -696,86 +704,13 @@ export const DashboardPublishPanel = ({
 
     return (
       <section className="builder-artifacts" aria-label="Dashboard artifacts">
-        {hostedInThread ? null : datasetExpanded ? (
-          <div className="builder-dataset">
-            <div className="builder-dataset__heading">
-              <DataBase size={20} aria-hidden="true" />
-              <div>
-                <strong>{datasetTitle}</strong>
-                <small>
-                  {resultIsStale
-                    ? "Stale · rerun the visible query before saving"
-                    : currentDataset
-                      ? "Saved · review exact execution evidence"
-                      : "Draft · review and save the current result"}
-                </small>
-              </div>
-              <Tag
-                type={
-                  resultIsStale ? "warm-gray" : currentDataset ? "green" : "blue"
-                }
-              >
-                {datasetState}
-              </Tag>
-              <Button
-                type="button"
-                kind="ghost"
-                size="sm"
-                aria-expanded
-                onClick={() => setDatasetExpanded(false)}
-              >
-                Minimize
-              </Button>
-              <Button
-                type="button"
-                kind="tertiary"
-                size="sm"
-                disabled={disabled}
-                aria-label="Review dataset draft"
-                onClick={(event) => {
-                  setReturnFocusTarget(event.currentTarget as HTMLElement);
-                  openPanel("dataset", currentDataset?.versionId);
-                }}
-              >
-                {currentDataset ? "Review" : "Save as dataset"}
-              </Button>
-            </div>
-            <ExecutionResult
-              session={session}
-              sql={sql}
-              parameters={parameters}
-              compact
-              pageSize={10}
-            />
-          </div>
-        ) : (
-        <button
-          type="button"
-          className="builder-artifact-tile"
-          disabled={disabled}
-          onClick={(event) => {
-            setReturnFocusTarget(event.currentTarget);
-            setDatasetExpanded(true);
-          }}
-          aria-label="Review dataset draft"
-          aria-expanded={false}
-        >
+        <button type="button" className="builder-artifact-tile" disabled={disabled}
+          onClick={() => openPanel("dataset", currentDataset?.versionId)}
+          aria-label="Review results">
           <DataBase size={20} aria-hidden="true" />
-          <span>
-            <strong>{currentDataset ? entityTitle(currentDataset, "Saved Dataset") : `Dataset from Query v${executionVersionOrdinal}`}</strong>
-            <small>
-              {resultIsStale
-                ? "Stale · rerun the visible query before saving"
-                : currentDataset
-                  ? "Saved · review exact execution evidence"
-                  : "Draft · review and save the current result"}
-            </small>
-          </span>
-          <Tag type={resultIsStale ? "warm-gray" : currentDataset ? "green" : "blue"}>
-            {datasetState}
-          </Tag>
+          <span><strong>{datasetTitle}</strong><small>{execution.result?.rowCount.returned ?? 0} rows · {resultIsStale ? "Your query has changed" : "Review the result and save your query"}</small></span>
+          <Tag type={resultIsStale ? "warm-gray" : currentDataset ? "green" : "cool-gray"}>{datasetState}</Tag>
         </button>
-        )}
         {currentDataset && (
           <button
             type="button"
@@ -810,7 +745,7 @@ export const DashboardPublishPanel = ({
         <Button type="button" onClick={() => onNavigate("ask")}>New from question</Button>
       </header>
       {datasets.length === 0 ? (
-        <p className="builder-empty-note">No Datasets saved yet.</p>
+        <p className="builder-empty-note">No saved queries yet. Start with a question in Explore, get results, then save your query.</p>
       ) : (
         <div className="builder-table-wrap">
           <table>
@@ -878,7 +813,7 @@ export const DashboardPublishPanel = ({
         </Button>
       </header>
       {widgets.length === 0 ? (
-        <p className="builder-empty-note">No Widgets saved yet.</p>
+        <p className="builder-empty-note">No charts or tables saved yet. Choose a saved query to create one.</p>
       ) : (
         <div className="builder-widget-grid">
           {widgets.map((widget) => (
@@ -1000,7 +935,7 @@ export const DashboardPublishPanel = ({
       {activeSection === "dashboards" && renderDashboards()}
 
       {loading && activeSection !== "ask" && <p role="status">Loading library…</p>}
-      {error && (
+      {error && !panel && (
         <InlineNotification
           kind="error"
           lowContrast
@@ -1029,11 +964,11 @@ export const DashboardPublishPanel = ({
             <header className="builder-review__header">
               <div>
                 <p className="eyebrow">
-                  {panel === "dataset" ? "Dataset" : panel === "widget" ? "Widget" : "Dashboard"}
+                  {panel === "dataset" ? "Query result" : panel === "widget" ? "Chart or table" : "Dashboard"}
                 </p>
                 <h2>
                   {panel === "dataset"
-                    ? reviewedDataset ? "Review saved Dataset" : "Review Dataset draft"
+                    ? reviewedDataset ? "Review saved query" : "Review results"
                     : panel === "widget"
                       ? "Review Widget draft"
                       : "Create Dashboard"}
@@ -1051,93 +986,119 @@ export const DashboardPublishPanel = ({
             </header>
 
             <div className="builder-review__body">
+              {error && (
+                <InlineNotification
+                  kind="error"
+                  lowContrast
+                  hideCloseButton
+                  title="Could not complete the action"
+                  subtitle={error}
+                />
+              )}
               {panel === "dataset" && reviewedSession && reviewedExecution && (
                 <>
                   <TextInput
                     id="builder-dataset-title"
-                    labelText="Dataset name"
+                    labelText="Query name"
                     value={datasetTitle}
-                    disabled={busy || Boolean(reviewedDataset)}
-                    placeholder={`Dataset from Query v${reviewedVersion?.ordinal ?? "?"}`}
+                    disabled={busy || Boolean(reviewedDataset) || !canSaveReviewedResult}
+                    placeholder="Give this query a name"
                     onChange={(event) => setDatasetTitle(event.currentTarget.value)}
                   />
-                  {resultIsStale && (
+                  {!reviewedDataset && !canSaveReviewedResult && (
                     <InlineNotification
                       kind="warning"
                       lowContrast
                       hideCloseButton
-                      title="Result is stale"
-                      subtitle="The visible editor changed after this run. Close this panel, rerun the query, and review the new result."
+                      title="Earlier result"
+                      subtitle="Your current query differs from this result. You can inspect it here; run the current query before saving new work."
                     />
                   )}
-                  <dl className="builder-review__metrics">
-                    <div><dt>Exact query</dt><dd>Query v{reviewedVersion?.ordinal ?? "?"}</dd></div>
-                    <div><dt>Execution</dt><dd>Run {reviewedExecution.ordinal}</dd></div>
-                    <div><dt>Source</dt><dd>{reviewedSession.dataSourceId ?? "OpenELIS"}</dd></div>
-                    <div><dt>Status</dt><dd>{reviewedExecution.status}</dd></div>
-                    <div><dt>Catalog</dt><dd>{reviewedSession.catalogVersion ?? "Unknown"}</dd></div>
-                    <div><dt>Profile</dt><dd>{profileLabel}</dd></div>
-                    {roleModels && Object.entries(roleModels)
-                      .filter((entry): entry is [string, string] => typeof entry[1] === "string")
-                      .sort(([left], [right]) => left.localeCompare(right))
-                      .map(([role, model]) => (
-                        <div key={role}><dt>{role.replaceAll("_", " ")}</dt><dd>{model}</dd></div>
-                      ))}
-                    {catalystTraceId && <div><dt>Catalyst trace</dt><dd>{catalystTraceId}</dd></div>}
-                    {hubTraceId && <div><dt>Hub trace</dt><dd>{hubTraceId}</dd></div>}
-                    <div>
-                      <dt>Database diagnostic</dt>
-                      <dd>
-                        {reviewedExecution.databaseDiagnostic?.message ??
-                          (reviewedExecution.status === "succeeded"
-                            ? "None — run succeeded"
-                            : "Unavailable")}
-                      </dd>
-                    </div>
-                  </dl>
-                  <section className="builder-review__evidence" aria-labelledby="dataset-parameters-title">
-                    <h3 id="dataset-parameters-title">Typed parameters</h3>
-                    {reviewedExecution.query.parameters.length === 0 ? (
-                      <p>No bound parameters.</p>
-                    ) : (
-                      <dl>
-                        {reviewedExecution.query.parameters.map((parameter) => (
-                          <div key={parameter.name}>
-                            <dt>:{parameter.name}</dt>
-                            <dd>{parameter.type}</dd>
-                            <dd>{displayParameterValue(parameter.value)}</dd>
-                          </div>
-                        ))}
-                      </dl>
-                    )}
-                  </section>
-                  <section className="builder-review__evidence" aria-labelledby="dataset-findings-title">
-                    <h3 id="dataset-findings-title">Validation findings</h3>
-                    {!reviewedValidation || reviewedValidation.findings.length === 0 ? (
-                      <p>No validation findings recorded for this exact query.</p>
-                    ) : (
-                      <ul>
-                        {reviewedValidation.findings.map((finding) => (
-                          <li key={finding.findingId}>
-                            <strong>{finding.ruleCode}</strong> — {finding.message}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </section>
+                  {reviewedExecution.result && <p>{reviewedExecution.result.rowCount.returned} {reviewedExecution.result.rowCount.returned === 1 ? "row" : "rows"} · {reviewedExecution.result.columns.length} {reviewedExecution.result.columns.length === 1 ? "column" : "columns"}</p>}
+                  {reviewedValidation && reviewedValidation.findings.length > 0 && (
+                    <p role="status">This query has {reviewedValidation.findings.length} advisory {reviewedValidation.findings.length === 1 ? "finding" : "findings"}. Review them in Technical details before using the results.</p>
+                  )}
+                  <p>Database diagnostic: {reviewedExecution.databaseDiagnostic?.message ?? "None — query completed successfully."}</p>
+                  <p>Limits: up to {reviewedExecution.maxRows.toLocaleString()} rows and {reviewedExecution.statementTimeoutMs / 1000} seconds per run.</p>
                   <ExecutionResult
                     session={reviewedSession}
-                    sql={reviewedDataset ? reviewedExecution.query.sql : sql}
-                    parameters={
-                      reviewedDataset ? reviewedExecution.query.parameters : parameters
-                    }
+                    sql={reviewedExecution.query.sql}
+                    parameters={reviewedExecution.query.parameters}
                     executionOverride={reviewedExecution}
-                    immutableSnapshot={Boolean(reviewedDataset)}
+                    immutableSnapshot
+                    compact
                     pageSize={25}
                   />
-                  <details className="builder-review__sql">
-                    <summary>Query v{reviewedVersion?.ordinal ?? "?"} SQL snapshot</summary>
-                    <pre>{reviewedExecution.query.sql}</pre>
+                  <details className="builder-review__technical" open={advancedMode}>
+                    <summary>Technical details</summary>
+                    {!reviewedDataset && reviewedSession.executions.filter((run) => run.status === "succeeded").length > 1 && (
+                      <Select id="review-recorded-result" labelText="Recorded result" value={reviewedExecution.executionId}
+                        onChange={(event) => openPanel("dataset", undefined, event.currentTarget.value)}>
+                        {reviewedSession.executions.filter((run) => run.status === "succeeded").map((run) => (
+                          <SelectItem key={run.executionId} value={run.executionId}
+                            text={`Run ${run.ordinal} · ${dateLabel(run.completedAt)}`} />
+                        ))}
+                      </Select>
+                    )}
+                    <dl className="builder-review__metrics">
+                      <div><dt>Exact query</dt><dd>Query v{reviewedVersion?.ordinal ?? "?"}</dd></div>
+                      <div><dt>Execution</dt><dd>Run {reviewedExecution.ordinal}</dd></div>
+                      <div><dt>Source</dt><dd>{reviewedSession.dataSourceId ?? "Unknown source"}</dd></div>
+                      <div><dt>Status</dt><dd>{reviewedExecution.status}</dd></div>
+                      <div><dt>Catalog</dt><dd>{reviewedSession.catalogVersion ?? "Unknown"}</dd></div>
+                      <div><dt>Profile</dt><dd>{profileLabel}</dd></div>
+                      {roleModels && Object.entries(roleModels)
+                        .filter((entry): entry is [string, string] => typeof entry[1] === "string")
+                        .sort(([left], [right]) => left.localeCompare(right))
+                        .map(([role, model]) => (
+                          <div key={role}><dt>{role.replaceAll("_", " ")}</dt><dd>{model}</dd></div>
+                        ))}
+                      {catalystTraceId && <div><dt>Catalyst trace</dt><dd>{catalystTraceId}</dd></div>}
+                      {hubTraceId && <div><dt>Hub trace</dt><dd>{hubTraceId}</dd></div>}
+                      <div>
+                        <dt>Database diagnostic</dt>
+                        <dd>
+                          {reviewedExecution.databaseDiagnostic?.message ??
+                            (reviewedExecution.status === "succeeded"
+                              ? "None — run succeeded"
+                              : "Unavailable")}
+                        </dd>
+                      </div>
+                    </dl>
+                    <section className="builder-review__evidence" aria-labelledby="dataset-parameters-title">
+                      <h3 id="dataset-parameters-title">Typed parameters</h3>
+                      {reviewedExecution.query.parameters.length === 0 ? (
+                        <p>No bound parameters.</p>
+                      ) : (
+                        <dl>
+                          {reviewedExecution.query.parameters.map((parameter) => (
+                            <div key={parameter.name}>
+                              <dt>:{parameter.name}</dt>
+                              <dd>{parameter.type}</dd>
+                              <dd>{displayParameterValue(parameter.value)}</dd>
+                            </div>
+                          ))}
+                        </dl>
+                      )}
+                    </section>
+                    <section className="builder-review__evidence" aria-labelledby="dataset-findings-title">
+                      <h3 id="dataset-findings-title">Validation findings</h3>
+                      {!reviewedValidation || reviewedValidation.findings.length === 0 ? (
+                        <p>No validation findings recorded for this exact query.</p>
+                      ) : (
+                        <ul>
+                          {reviewedValidation.findings.map((finding) => (
+                            <li key={finding.findingId}>
+                              <strong>{finding.ruleCode}</strong> — {finding.message}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </section>
+                    <details className="builder-review__sql">
+                      <summary>Query v{reviewedVersion?.ordinal ?? "?"} SQL snapshot</summary>
+                      <pre>{reviewedExecution.query.sql}</pre>
+                    </details>
                   </details>
                 </>
               )}
@@ -1268,20 +1229,19 @@ export const DashboardPublishPanel = ({
                     disabled={busy}
                     onClick={() => openPanel("widget", reviewedDataset.versionId)}
                   >
-                    Build a widget from this Dataset
+                    Create a chart or table
                   </Button>
                 ) : (
                   <Button
                     type="button"
                     disabled={
                       busy ||
-                      resultIsStale ||
-                      !reviewedExecution ||
+                      !canSaveReviewedResult ||
                       datasetEvidenceLoading
                     }
                     onClick={() => void saveDataset()}
                   >
-                    {busy ? "Saving…" : "Save Dataset"}
+                    {busy ? "Saving…" : "Save query"}
                   </Button>
                 ))}
               {panel === "widget" && (

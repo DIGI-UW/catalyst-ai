@@ -229,8 +229,27 @@ afterEach(() => {
 });
 
 describe("TurnNotebook", () => {
+  it("keeps result rows in the shared review and technical detail behind disclosure", async () => {
+    const user = userEvent.setup();
+    const onReviewResult = vi.fn();
+    const run = { ...failedExecution, status: "succeeded" as const,
+      result: { columns: [{ ordinal: 1, name: "value", databaseType: "int4", typeOid: 23, logicalType: "integer" }],
+        rows: [[{ type: "integer" as const, value: 49 }]],
+        rowCount: { returned: 1, truncated: false, truncationReason: null } } };
+    render(<TurnNotebook {...defaultProps} turns={[{ ...followupTurn, execution: run }]}
+      onReviewResult={onReviewResult} />);
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.getByText("Results ready")).toBeVisible();
+    const sql = document.querySelector(".query-turn__sql")!;
+    expect(sql).not.toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Review results" }));
+    expect(onReviewResult).toHaveBeenCalledWith(run.executionId);
+    await user.click(screen.getByText("Technical details", { exact: true }));
+    expect(sql).toBeVisible();
+  });
+
   it("gives every turn a stable run counter and an addressable anchor", () => {
-    render(<TurnNotebook {...defaultProps} />);
+    render(<TurnNotebook {...defaultProps} advancedMode />);
 
     const cells = document.querySelectorAll(".query-turn");
     expect(cells).toHaveLength(2);
@@ -345,7 +364,7 @@ describe("TurnNotebook", () => {
   });
 
   it("shows the selected version's immutable SQL and names its author in the cell", () => {
-    render(<TurnNotebook {...defaultProps} />);
+    render(<TurnNotebook {...defaultProps} advancedMode />);
 
     const latest = screen.getByRole("region", { name: /query turn 2/i });
     expect(latest.querySelector("pre")?.textContent).toBe(reviewerVersion.sql);
@@ -364,6 +383,7 @@ describe("TurnNotebook", () => {
     render(<TurnNotebook {...defaultProps} onOpenDetails={onOpenDetails} />);
 
     const latest = screen.getByRole("region", { name: /query turn 2/i });
+    await user.click(within(latest).getByText("Technical details", { exact: true }));
     await user.click(within(latest).getByRole("button", { name: "details" }));
     expect(onOpenDetails).toHaveBeenCalledWith(followupTurn.turnId);
 
@@ -532,7 +552,7 @@ describe("TurnNotebook", () => {
       />,
     );
     const active = document.querySelector(".query-turn--active")!;
-    expect(active.textContent).toMatch(/Provisional draft — differs from \[3\]/);
+    expect(active.textContent).toMatch(/You have edited the query/);
 
     view.rerender(
       <TurnNotebook
@@ -540,7 +560,7 @@ describe("TurnNotebook", () => {
         activeCell={<div data-testid="editor" />}
       />,
     );
-    expect(screen.queryByText(/Provisional draft/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/You have edited the query/)).not.toBeInTheDocument();
   });
 
   it("gives a hand-edited cell a compact diff line against its parent", () => {
@@ -579,7 +599,7 @@ describe("TurnNotebook", () => {
 
     render(
       <TurnNotebook
-        {...defaultProps}
+        {...defaultProps} advancedMode
         session={sessionWithHuman}
         turns={[initialTurn, followupTurn, humanTurn]}
       />,
@@ -625,7 +645,7 @@ describe("TurnNotebook", () => {
     };
     render(
       <TurnNotebook
-        {...defaultProps}
+        {...defaultProps} advancedMode
         session={
           {
             ...session,
@@ -762,7 +782,7 @@ describe("TurnNotebook", () => {
     };
     render(
       <TurnNotebook
-        {...defaultProps}
+        {...defaultProps} advancedMode
         turns={[initialTurn, failed]}
         baseVersion={modelVersion}
         onOpenDetails={onOpenDetails}
