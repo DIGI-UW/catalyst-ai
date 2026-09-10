@@ -381,6 +381,15 @@ class DashboardBuilder:
         with self._lock:
             self._connection.execute("BEGIN IMMEDIATE")
             try:
+                existing = self._connection.execute(
+                    "SELECT version_id FROM catalyst_dashboard_entities "
+                    "WHERE kind = ? AND configuration_digest = ? "
+                    "AND (? IS NULL OR logical_id = ?) ORDER BY ordinal DESC LIMIT 1",
+                    (kind, digest, logical_id, logical_id),
+                ).fetchone()
+                if existing is not None:
+                    self._connection.execute("COMMIT")
+                    return self._entity(kind, str(existing["version_id"]))
                 row = self._connection.execute(
                     "SELECT COALESCE(MAX(ordinal), 0) + 1 AS next_ordinal "
                     "FROM catalyst_dashboard_entities WHERE kind = ? AND logical_id = ?",
@@ -531,6 +540,7 @@ class DashboardBuilder:
         dataset_version_id: str,
         title: str,
         presentation_kind: str | None = None,
+        base_version_id: str | None = None,
     ) -> dict[str, Any]:
         dataset = self._entity("dataset", dataset_version_id)
         row_count = int(dataset.configuration.get("rowCount", {}).get("returned", 0))
@@ -552,13 +562,37 @@ class DashboardBuilder:
             "columns": dataset.configuration["columns"],
             "bindings": bindings,
         }
-        return self._append("widget", configuration).as_dict()
+        base = self._entity("widget", base_version_id) if base_version_id else None
+        return self._append(
+            "widget", configuration, logical_id=base.logical_id if base else None
+        ).as_dict()
 
     def save_dashboard(
-        self, *, title: str, widget_version_ids: Sequence[str]
+        self,
+        *,
+        title: str,
+        widget_version_ids: Sequence[str],
+        widget_widths: dict[str, int] | None = None,
+        base_version_id: str | None = None,
     ) -> dict[str, Any]:
         if not widget_version_ids:
             raise DashboardBuilderError("A dashboard needs at least one saved widget.")
+        if len(set(widget_version_ids)) != len(widget_version_ids):
+            raise DashboardBuilderError(
+                "Each chart may appear only once in a dashboard."
+            )
+        if widget_widths is not None and (
+            not isinstance(widget_widths, dict)
+            or any(
+                version_id not in widget_version_ids
+                or type(width) is not int
+                or width not in (4, 6, 12)
+                for version_id, width in widget_widths.items()
+            )
+        ):
+            raise DashboardBuilderError(
+                "Chart widths must be 4, 6 or 12 columns and refer to a selected chart."
+            )
         widgets = [
             self._entity("widget", version_id) for version_id in widget_version_ids
         ]
@@ -566,30 +600,31 @@ class DashboardBuilder:
             self._entity("dataset", item.configuration["datasetVersionId"])
             for item in widgets
         ]
-        sources = {
-            (
-                item.configuration["source"]["dataSourceId"],
-                item.configuration["source"]["catalogVersion"],
-            )
-            for item in datasets
-        }
+        sources = {item.configuration["source"]["dataSourceId"] for item in datasets}
         if len(sources) != 1:
-            raise DashboardBuilderError(
-                "A dashboard cannot mix data sources or catalog versions."
-            )
+            raise DashboardBuilderError("A dashboard cannot mix data sources.")
+        catalogs = {item.configuration["source"]["catalogVersion"] for item in datasets}
         configuration = {
             "title": title.strip() or "Catalyst dashboard",
             "widgets": [
                 {
                     "versionId": item.version_id,
                     "configurationDigest": item.configuration_digest,
+                    **(
+                        {"width": widget_widths.get(item.version_id, 12)}
+                        if widget_widths is not None
+                        else {}
+                    ),
                 }
                 for item in widgets
             ],
             "dataSourceId": datasets[0].configuration["source"]["dataSourceId"],
-            "catalogVersion": datasets[0].configuration["source"]["catalogVersion"],
+            **({"catalogVersion": next(iter(catalogs))} if len(catalogs) == 1 else {}),
         }
-        return self._append("dashboard", configuration).as_dict()
+        base = self._entity("dashboard", base_version_id) if base_version_id else None
+        return self._append(
+            "dashboard", configuration, logical_id=base.logical_id if base else None
+        ).as_dict()
 
     def _native_assets(
         self, dashboard: BuilderEntity
@@ -695,6 +730,8 @@ class DashboardBuilder:
                 "children": chart_positions,
             },
         }
+        row_width = 12
+        row_id = ""
         for index, widget in enumerate(widgets):
             chart_uuid = _uuid5(f"chart:{widget.version_id}")
             chart_uuids[widget.version_id] = chart_uuid
@@ -716,16 +753,21 @@ class DashboardBuilder:
                 "dataset_uuid": dataset_uuid,
             }
             members[f"charts/{chart_uuid}.yaml"] = _json(chart).encode("utf-8")
-            row_id = f"ROW-{index}"
             chart_id = f"CHART-{index}"
-            chart_positions.append(row_id)
-            position[row_id] = {
-                "id": row_id,
-                "type": "ROW",
-                "parents": ["GRID_ID"],
-                "children": [chart_id],
-                "meta": {"background": "BACKGROUND_TRANSPARENT"},
-            }
+            width = dashboard.configuration["widgets"][index].get("width", 12)
+            if row_width + width > 12:
+                row_id = f"ROW-{len(chart_positions)}"
+                chart_positions.append(row_id)
+                position[row_id] = {
+                    "id": row_id,
+                    "type": "ROW",
+                    "parents": ["GRID_ID"],
+                    "children": [],
+                    "meta": {"background": "BACKGROUND_TRANSPARENT"},
+                }
+                row_width = 0
+            position[row_id]["children"].append(chart_id)
+            row_width += width
             position[chart_id] = {
                 "id": chart_id,
                 "type": "CHART",
@@ -737,7 +779,7 @@ class DashboardBuilder:
                     "chartId": index,
                     "uuid": chart_uuid,
                     "sliceName": widget.configuration["title"],
-                    "width": 12,
+                    "width": width,
                     "height": 50,
                 },
             }

@@ -142,16 +142,16 @@ test("plain-language question to a published Superset dashboard", async ({
     dataset: string,
     visualization: string,
   ) => {
-    await page.getByRole("button", { name: "New Widget" }).click();
-    await type(page.getByRole("textbox", { name: "Widget name" }), name);
+    await page.getByRole("button", { name: "New chart or table" }).click();
+    await type(page.getByRole("textbox", { name: "Chart name" }), name);
     await page
-      .getByRole("combobox", { name: "Reads Dataset" })
+      .getByRole("combobox", { name: "Saved query" })
       .selectOption({ label: dataset });
     await page
       .getByRole("combobox", { name: "Visualization" })
       .selectOption({ label: visualization });
     await dwell(2_000);
-    await page.getByRole("button", { name: "Save Widget" }).click();
+    await page.getByRole("button", { name: "Save chart or table" }).click();
     await expect(page.getByRole("heading", { name })).toBeVisible();
     await dwell(1_500);
   };

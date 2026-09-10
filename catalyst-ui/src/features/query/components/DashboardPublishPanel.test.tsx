@@ -124,6 +124,46 @@ const makeApi = (withSavedArtifacts = false) => ({
 }) as unknown as CatalystApi;
 
 describe("Dashboard Builder supervised promotion", () => {
+  it("reviews a saved chart and submits a new immutable version", async () => {
+    const user = userEvent.setup();
+    const api = makeApi(true);
+    render(<DashboardPublishPanel api={api} session={session} sql={queryVersion.sql}
+      parameters={[]} activeSection="widgets" onNavigate={vi.fn()} />);
+    await user.click(await screen.findByRole("button", { name: "Review Count KPI" }));
+    const panel = screen.getByRole("dialog", { name: "Review panel" });
+    expect(within(panel).getByLabelText("Visualization")).toHaveValue("big_number");
+    await user.clear(within(panel).getByLabelText("Chart name"));
+    await user.type(within(panel).getByLabelText("Chart name"), "Renamed KPI");
+    await user.click(within(panel).getByRole("button", { name: "Save new chart version" }));
+    expect(api.saveDashboardWidget).toHaveBeenCalledWith({
+      datasetVersionId: "dataset-v1", title: "Renamed KPI", presentationKind: "big_number", baseVersionId: "widget-v1",
+    });
+    expect(savedWidget.configuration.title).toBe("Count KPI");
+  });
+
+  it("restores a Dashboard arrangement and saves changed order and widths as a new version", async () => {
+    const user = userEvent.setup();
+    const api = makeApi(true);
+    vi.mocked(api.listDashboardWidgets!).mockResolvedValue(collection("widget", [savedWidget, olderWidget]));
+    vi.mocked(api.saveDashboard!).mockImplementation(async input => ({ ...savedDashboard, versionId: "dashboard-v2", ordinal: 2,
+      configuration: { ...savedDashboard.configuration, widgets: input.widgetVersionIds.map(versionId => ({versionId, width: input.widgetWidths?.[versionId]})) } }));
+    render(<DashboardPublishPanel api={api} session={session} sql={queryVersion.sql}
+      parameters={[]} activeSection="dashboards" onNavigate={vi.fn()} />);
+    await user.click(await screen.findByRole("button", { name: "Review and arrange Laboratory dashboard" }));
+    const panel = screen.getByRole("dialog", { name: "Review panel" });
+    expect(within(panel).getByRole("checkbox", { name: "Count KPI" })).toBeChecked();
+    await user.click(within(panel).getByRole("checkbox", { name: "Older table" }));
+    await user.click(within(panel).getByRole("button", { name: "Move Older table earlier" }));
+    await user.selectOptions(within(panel).getByLabelText("Width of Count KPI"), "6");
+    await user.selectOptions(within(panel).getByLabelText("Width of Older table"), "6");
+    await user.click(within(panel).getByRole("button", { name: "Save new Dashboard version" }));
+    expect(api.saveDashboard).toHaveBeenCalledWith({title: "Laboratory dashboard", widgetVersionIds: [olderWidget.versionId, savedWidget.versionId],
+      widgetWidths: { [olderWidget.versionId]: 6, [savedWidget.versionId]: 6 }, baseVersionId: savedDashboard.versionId});
+    await user.click(screen.getAllByRole("button", { name: "Review and arrange Laboratory dashboard" })[0]!);
+    expect(within(screen.getByRole("dialog", {name: "Review panel"})).getByLabelText("Width of Count KPI")).toHaveValue("6");
+    expect(savedDashboard.configuration.widgets).toEqual([{versionId: "widget-v1"}]);
+  });
+
   it("reviews and explicitly saves a Dataset before creating a Widget", async () => {
     const user = userEvent.setup();
     const api = makeApi();
@@ -152,8 +192,8 @@ describe("Dashboard Builder supervised promotion", () => {
 
     await user.click(screen.getByRole("button", { name: "Create a chart or table" }));
     await user.selectOptions(screen.getByLabelText("Visualization"), "big_number");
-    await user.type(screen.getByLabelText("Widget name"), "Count KPI");
-    await user.click(screen.getByRole("button", { name: "Save Widget" }));
+    await user.type(screen.getByLabelText("Chart name"), "Count KPI");
+    await user.click(screen.getByRole("button", { name: "Save chart or table" }));
 
     expect(api.saveDashboardWidget).toHaveBeenCalledWith({
       datasetVersionId: "dataset-v1",
@@ -283,7 +323,7 @@ describe("Dashboard Builder supervised promotion", () => {
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
     await user.click(within(card).getByRole("button", { name: "Create chart or table" }));
     const review = screen.getByRole("dialog", { name: "Review panel" });
-    expect(within(review).getByLabelText("Reads Dataset")).toHaveValue(savedDataset.versionId);
+    expect(within(review).getByLabelText("Saved query")).toHaveValue(savedDataset.versionId);
   });
 
   it("opens a saved Dataset from the library in the same evidence panel", async () => {
@@ -506,7 +546,7 @@ describe("Dashboard Builder supervised promotion", () => {
     );
 
     await screen.findByRole("heading", { name: "Charts and tables" });
-    await user.click(screen.getByRole("button", { name: "New Widget" }));
+    await user.click(screen.getByRole("button", { name: "New chart or table" }));
     const dialog = screen.getByRole("dialog", { name: "Review panel" });
     expect(within(dialog).getByText("Suggested: Big number")).toBeVisible();
     expect(within(dialog).getByText(/Time-series line requires a temporal and numeric column/i)).toBeVisible();
@@ -516,7 +556,7 @@ describe("Dashboard Builder supervised promotion", () => {
 
     await user.selectOptions(within(dialog).getByLabelText("Visualization"), "table");
     expect(within(dialog).getByText("Columns: value")).toBeVisible();
-    await user.click(within(dialog).getByRole("button", { name: "Save Widget" }));
+    await user.click(within(dialog).getByRole("button", { name: "Save chart or table" }));
     expect(api.saveDashboardWidget).toHaveBeenCalledWith({
       datasetVersionId: "dataset-v1",
       presentationKind: "table",
@@ -547,6 +587,7 @@ describe("Dashboard Builder supervised promotion", () => {
 
     expect(api.saveDashboard).toHaveBeenCalledWith({
       widgetVersionIds: ["widget-v1", "widget-v2"],
+      widgetWidths: { "widget-v1": 12, "widget-v2": 12 },
     });
   });
 
@@ -883,4 +924,31 @@ it("keeps saved SQL accessible and reusable when historical execution evidence i
   await user.click(within(dialog).getByRole("button", { name: "Start from this SQL" }));
   expect(reuse).toHaveBeenCalledWith(dataset);
   expect(api.saveDashboardDataset).not.toHaveBeenCalled();
+});
+
+it("retains a saved chart when Dashboard placement fails and retries without another chart version", async () => {
+  const user = userEvent.setup();
+  const api = makeApi(true);
+  const newChart = { ...savedWidget, id: "chart-2", versionId: "chart-2-v1",
+    configuration: { ...savedWidget.configuration, title: "Daily count" } };
+  vi.mocked(api.saveDashboardWidget!).mockResolvedValue(newChart);
+  vi.mocked(api.saveDashboard!).mockRejectedValueOnce(new Error("Placement connection interrupted"))
+    .mockResolvedValueOnce({ ...savedDashboard, ordinal: 2, versionId: "dashboard-v2" });
+  render(<DashboardPublishPanel api={api} session={session} sql={queryVersion.sql} parameters={[]}
+    activeSection="widgets" onNavigate={vi.fn()} />);
+  await user.click(await screen.findByRole("button", { name: "New chart or table" }));
+  const dialog = screen.getByRole("dialog");
+  await user.type(within(dialog).getByLabelText("Chart name"), "Daily count");
+  await user.selectOptions(within(dialog).getByLabelText("Add to Dashboard"), "dashboard-v1");
+  await user.click(within(dialog).getByRole("button", { name: "Save chart and add" }));
+  expect(await within(dialog).findByText("Placement connection interrupted")).toBeVisible();
+  expect(within(dialog).getByLabelText("Chart name")).toHaveValue("Daily count");
+  expect(within(dialog).getByLabelText("Add to Dashboard")).toHaveValue("dashboard-v1");
+  await user.click(within(dialog).getByRole("button", { name: "Add to Dashboard" }));
+  expect(await screen.findByText(/Daily count.*saved and added to Laboratory dashboard/)).toBeVisible();
+  expect(api.saveDashboardWidget).toHaveBeenCalledTimes(1);
+  expect(api.saveDashboard).toHaveBeenCalledTimes(2);
+  expect(api.saveDashboard).toHaveBeenLastCalledWith({ baseVersionId: "dashboard-v1", title: "Laboratory dashboard",
+    widgetVersionIds: ["widget-v1", "chart-2-v1"], widgetWidths: {"widget-v1":12,"chart-2-v1":12} });
+  expect(savedDashboard.configuration.widgets).toEqual([{versionId:"widget-v1"}]);
 });

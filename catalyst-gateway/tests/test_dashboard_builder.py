@@ -469,3 +469,214 @@ def test_native_bundle_maps_saved_result_schema_to_superset_metrics(
     assert proportion["params"]["stack"] == "Stack"
     assert proportion["params"]["contributionMode"] == "row"
     assert all("aggregation" not in item for item in publication["manifest"]["widgets"])
+
+
+def test_saved_arrangement_versions_keep_identity_and_render_order(
+    tmp_path: Path,
+) -> None:
+    workbench = _Workbench()
+    builder = DashboardBuilder(
+        tmp_path / "state.sqlite3", workbench=workbench, outbox=tmp_path / "outbox"
+    )
+    dataset = builder.save_dataset(
+        session_id=workbench.session_id,
+        execution_id=workbench.execution_id,
+        title="Results",
+    )
+    first = builder.save_widget(dataset_version_id=dataset["versionId"], title="Table")
+    second = builder.save_widget(
+        dataset_version_id=dataset["versionId"],
+        title="Trend",
+        presentation_kind="time_series_line",
+    )
+    original = builder.save_dashboard(
+        title="Operations", widget_version_ids=[first["versionId"], second["versionId"]]
+    )
+    request = dict(
+        title="Operations",
+        widget_version_ids=[second["versionId"], first["versionId"]],
+        widget_widths={first["versionId"]: 6, second["versionId"]: 6},
+    )
+    arranged = builder.save_dashboard(**request, base_version_id=original["versionId"])
+    assert arranged["id"] == original["id"]
+    assert arranged["ordinal"] == 2
+    assert arranged["versionId"] != original["versionId"]
+    assert (
+        next(
+            item
+            for item in builder.list("dashboard")
+            if item["versionId"] == arranged["versionId"]
+        )
+        == arranged
+    )
+    assert (
+        next(
+            item
+            for item in builder.list("dashboard")
+            if item["versionId"] == original["versionId"]
+        )
+        == original
+    )
+    assert (
+        builder.save_dashboard(**request, base_version_id=arranged["versionId"])
+        == arranged
+    )
+    published = builder.publish(arranged["versionId"])
+    assert (
+        published["manifest"]["dashboardSlug"]
+        == builder.publish(original["versionId"])["manifest"]["dashboardSlug"]
+    )
+    with zipfile.ZipFile(
+        tmp_path / "outbox" / published["pointer"]["bundle"]["fileName"]
+    ) as archive:
+        path = next(name for name in archive.namelist() if "/dashboards/" in name)
+        layout = json.loads(archive.read(path))["position"]
+    rows = layout["GRID_ID"]["children"]
+    assert len(rows) == 1
+    charts = [layout[key]["meta"] for key in layout[rows[0]]["children"]]
+    assert [item["sliceName"] for item in charts] == ["Trend", "Table"]
+    assert [item["width"] for item in charts] == [6, 6]
+    assert (
+        builder.publish(arranged["versionId"])["pointer"]["bundle"]
+        == published["pointer"]["bundle"]
+    )
+
+
+def test_same_source_schema_refresh_composes_but_another_source_does_not(
+    tmp_path: Path,
+) -> None:
+    workbench = _Workbench()
+    builder = DashboardBuilder(
+        tmp_path / "state.sqlite3", workbench=workbench, outbox=tmp_path / "outbox"
+    )
+    first = builder.save_dataset(
+        session_id=workbench.session_id,
+        execution_id=workbench.execution_id,
+        title="Earlier result",
+    )
+    recorded = workbench.get_session(workbench.session_id)
+    recorded["catalogVersion"] = "analytics-v2"
+    workbench.get_session = lambda _session_id: recorded
+    later = builder.save_dataset(
+        session_id=workbench.session_id,
+        execution_id=workbench.execution_id,
+        title="Later result",
+    )
+    first_widget = builder.save_widget(
+        dataset_version_id=first["versionId"], title="Earlier chart"
+    )
+    later_widget = builder.save_widget(
+        dataset_version_id=later["versionId"], title="Later chart"
+    )
+    dashboard = builder.save_dashboard(
+        title="Both results",
+        widget_version_ids=[first_widget["versionId"], later_widget["versionId"]],
+    )
+    publication = builder.publish(dashboard["versionId"])
+    assert {
+        item["source"]["catalogVersion"] for item in publication["manifest"]["datasets"]
+    } == {"analytics-v1", "analytics-v2"}
+    recorded["provenance"]["dataSourceId"] = "another-source"
+    other = builder.save_dataset(
+        session_id=workbench.session_id,
+        execution_id=workbench.execution_id,
+        title="Other source",
+    )
+    other_widget = builder.save_widget(
+        dataset_version_id=other["versionId"], title="Other chart"
+    )
+    with pytest.raises(DashboardBuilderError, match="cannot mix data sources"):
+        builder.save_dashboard(
+            title="Mixed sources",
+            widget_version_ids=[first_widget["versionId"], other_widget["versionId"]],
+        )
+
+
+def test_save_is_idempotent_and_chart_edits_preserve_the_previous_version(
+    tmp_path: Path,
+) -> None:
+    workbench = _Workbench()
+    builder = DashboardBuilder(
+        tmp_path / "state.sqlite3", workbench=workbench, outbox=tmp_path / "outbox"
+    )
+    request = dict(
+        session_id=workbench.session_id,
+        execution_id=workbench.execution_id,
+        title="Saved query",
+    )
+    dataset = builder.save_dataset(**request)
+    assert builder.save_dataset(**request) == dataset
+    widget = builder.save_widget(dataset_version_id=dataset["versionId"], title="Table")
+    changed = builder.save_widget(
+        dataset_version_id=dataset["versionId"],
+        title="Trend",
+        presentation_kind="time_series_line",
+        base_version_id=widget["versionId"],
+    )
+    assert changed["id"] == widget["id"]
+    assert changed["ordinal"] == 2
+    assert changed["versionId"] != widget["versionId"]
+    assert (
+        next(
+            item
+            for item in builder.list("widget")
+            if item["versionId"] == widget["versionId"]
+        )
+        == widget
+    )
+
+
+def test_public_save_route_keeps_layout_and_rejects_invalid_widths(
+    tmp_path: Path,
+) -> None:
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from src.catalyst.dashboard_routes import install_dashboard_routes
+
+    workbench = _Workbench()
+    builder = DashboardBuilder(
+        tmp_path / "state.sqlite3", workbench=workbench, outbox=tmp_path / "outbox"
+    )
+    dataset = builder.save_dataset(
+        session_id=workbench.session_id,
+        execution_id=workbench.execution_id,
+        title="Results",
+    )
+    app = FastAPI()
+    install_dashboard_routes(app, builder)
+    client = TestClient(app)
+    chart = client.post(
+        "/v1/catalyst/dashboard-builder/widgets",
+        json={"datasetVersionId": dataset["versionId"], "title": "Result table"},
+    )
+    assert chart.status_code == 201
+    chart_id = chart.json()["versionId"]
+    endpoint = "/v1/catalyst/dashboard-builder/dashboards"
+    created = client.post(
+        endpoint,
+        json={
+            "title": "Overview",
+            "widgetVersionIds": [chart_id],
+            "widgetWidths": {chart_id: 6},
+        },
+    )
+    assert created.status_code == 201
+    updated = client.post(
+        endpoint,
+        json={
+            "title": "Overview",
+            "widgetVersionIds": [chart_id],
+            "widgetWidths": {chart_id: 12},
+            "baseVersionId": created.json()["versionId"],
+        },
+    )
+    assert updated.status_code == 201
+    assert updated.json()["id"] == created.json()["id"]
+    assert updated.json()["ordinal"] == 2
+    assert updated.json()["configuration"]["widgets"][0]["width"] == 12
+    for widths in [{chart_id: 0}, {chart_id: True}, {"unknown-chart": 6}, []]:
+        rejected = client.post(
+            endpoint, json={"widgetVersionIds": [chart_id], "widgetWidths": widths}
+        )
+        assert rejected.status_code == 422
+    assert len(client.get(endpoint).json()["items"]) == 2
