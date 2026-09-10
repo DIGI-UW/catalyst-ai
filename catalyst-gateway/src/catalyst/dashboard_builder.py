@@ -473,7 +473,13 @@ class DashboardBuilder:
         query = execution.get("query") or {}
         timeline = self.workbench.list_turns(session_id)
         source_turn_id = str(timeline["currentTurnId"])
-        dialect = (session.get("provenance") or {}).get("dialect")
+        provenance = session.get("provenance") or {}
+        data_source_id = provenance.get("dataSourceId") or session.get("dataSourceId")
+        if not isinstance(data_source_id, str) or not data_source_id.strip():
+            raise DashboardBuilderError(
+                "The query's data source was not recorded. Run it in a new session before saving."
+            )
+        dialect = provenance.get("dialect")
         configuration = {
             "title": title.strip() or f"Dataset from Query v{current['ordinal']}",
             "source": {
@@ -482,7 +488,7 @@ class DashboardBuilder:
                 "queryVersionId": current["versionId"],
                 "queryDigest": current["queryDigest"],
                 "executionId": execution_id,
-                "dataSourceId": session.get("dataSourceId") or "openelis",
+                "dataSourceId": data_source_id,
                 **({"dialect": dialect} if dialect else {}),
                 "catalogVersion": session.get("catalogVersion") or "unknown",
                 "resultSchemaDigest": canonical_sha256(columns),

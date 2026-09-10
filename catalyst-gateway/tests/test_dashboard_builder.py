@@ -74,9 +74,8 @@ class _Workbench:
         }
         return {
             "sessionId": self.session_id,
-            "dataSourceId": "openelis",
             "catalogVersion": "analytics-v1",
-            "provenance": {"dialect": "spark"},
+            "provenance": {"dataSourceId": "openelis", "dialect": "spark"},
             "currentVersion": version,
             "executions": [
                 {
@@ -107,6 +106,26 @@ class _Workbench:
     def list_turns(self, session_id: str):
         assert session_id == self.session_id
         return {"currentTurnId": self.turn_id}
+
+
+def test_save_without_recorded_source_does_not_guess_a_connection(
+    tmp_path: Path,
+) -> None:
+    workbench = _Workbench()
+    session = workbench.get_session(workbench.session_id)
+    session["provenance"].pop("dataSourceId")
+    workbench.get_session = lambda _session_id: session
+    builder = DashboardBuilder(
+        tmp_path / "state.sqlite3", workbench=workbench, outbox=tmp_path / "outbox"
+    )
+
+    with pytest.raises(DashboardBuilderError, match="data source was not recorded"):
+        builder.save_dataset(
+            session_id=workbench.session_id,
+            execution_id=workbench.execution_id,
+            title="Unknown source",
+        )
+    assert builder.list("dataset") == []
 
 
 def test_compile_parameterized_sql_preserves_typed_literals() -> None:
