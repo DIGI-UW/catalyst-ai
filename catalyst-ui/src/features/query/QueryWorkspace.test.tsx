@@ -3,7 +3,6 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { QueryWorkspace } from "./QueryWorkspace";
 import type { CatalystApi } from "./api";
-import { RAIL_DEFAULT_WIDTH } from "./components/workbenchRailSupport";
 import type {
   WorkbenchExecution,
   WorkbenchQueryVersion,
@@ -218,57 +217,75 @@ const openSessionMenu = async (user: ReturnType<typeof userEvent.setup>) => {
 
 
 describe("Dashboard Builder Ask shell", () => {
-  it("puts sections, the session and the catalog in one resizable rail", async () => {
+  it("groups saved work and retains the question across navigation", async () => {
+    const user = userEvent.setup();
+    const client = api();
+    render(<QueryWorkspace api={client} />);
+    const primary = screen.getByRole("navigation", { name: "Primary" });
+    expect(within(primary).getByRole("button", { name: "Explore" })).toHaveAttribute("aria-current", "page");
+    const input = screen.getByLabelText("Your question");
+    await user.type(input, "Visits by month\nInclude missing dates");
+    await user.click(within(primary).getByRole("button", { name: "Saved work" }));
+    const saved = screen.getByRole("navigation", { name: "Saved work" });
+    for (const name of ["Saved queries", "Charts and tables", "Dashboards"]) {
+      expect(within(saved).getByRole("button", { name })).toBeVisible();
+    }
+    await user.click(within(saved).getByRole("button", { name: "Charts and tables" }));
+    await user.click(within(primary).getByRole("button", { name: "Explore" }));
+    expect(screen.getByLabelText("Your question")).toBe(input);
+    expect(input).toHaveValue("Visits by month\nInclude missing dates");
+    await user.click(within(primary).getByRole("button", { name: "Saved work" }));
+    expect(within(saved).getByRole("button", { name: "Charts and tables" })).toHaveAttribute("aria-current", "page");
+    expect(client.createWorkbenchSession).not.toHaveBeenCalled();
+  });
+
+  it("opens and closes complete data browsing while retaining the draft", async () => {
     const user = userEvent.setup();
     render(<QueryWorkspace api={api()} />);
-
-    const rail = screen.getByRole("complementary", { name: "Catalyst" });
-    const sections = within(rail).getByRole("navigation", { name: "Sections" });
-    for (const name of ["Workbench", "Datasets", "Widgets", "Dashboards"]) {
-      expect(within(sections).getByRole("button", { name })).toBeVisible();
-    }
-    expect(screen.queryByText(/example questions/i)).not.toBeInTheDocument();
-    await waitFor(() => expect(screen.getByLabelText("Your question")).toHaveFocus());
-
-    // DATA and TURNS are mutually exclusive: whichever is open owns the
-    // rail's free height, so neither can paint over the section nav.
-    const data = within(rail).getByRole("button", { name: /^DATA/ });
-    const turns = within(rail).getByRole("button", { name: /^TURNS/ });
-    expect(turns).toHaveAttribute("aria-expanded", "true");
+    await user.type(screen.getByLabelText("Your question"), "Find recent tests");
+    const data = screen.getByRole("button", { name: "What data is available?" });
     expect(data).toHaveAttribute("aria-expanded", "false");
-
     await user.click(data);
-    expect(data).toHaveAttribute("aria-expanded", "true");
-    expect(turns).toHaveAttribute("aria-expanded", "false");
-    expect(await within(rail).findByLabelText("Filter columns")).toBeVisible();
-
-    // Closing the open section falls back to the thread, never to an empty rail.
+    expect(await screen.findByLabelText("Filter columns")).toBeVisible();
     await user.click(data);
-    expect(turns).toHaveAttribute("aria-expanded", "true");
+    expect(data).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByLabelText("Your question")).toHaveValue("Find recent tests");
   });
 
-  it("resizes the rail from the keyboard and clamps it to the viewport", async () => {
+  it("keeps SQL, profile and question state when Advanced mode changes", async () => {
     const user = userEvent.setup();
-    render(<QueryWorkspace api={api()} />);
-
-    const handle = screen.getByRole("separator", { name: "Resize sidebar" });
-    expect(handle).toHaveAttribute("aria-valuenow", String(RAIL_DEFAULT_WIDTH));
-
-    handle.focus();
-    await user.keyboard("{ArrowRight}");
-    expect(handle).toHaveAttribute(
-      "aria-valuenow",
-      String(RAIL_DEFAULT_WIDTH + 32),
-    );
-
-    // 200px is the floor however far left it is dragged.
-    for (let index = 0; index < 5; index += 1) {
-      await user.keyboard("{ArrowLeft}");
-    }
-    expect(handle).toHaveAttribute("aria-valuenow", "200");
+    const client = api();
+    const options = await client.getQueryOptions!();
+    vi.mocked(client.getQueryOptions!).mockResolvedValue({
+      ...options,
+      profiles: [...options.profiles, { ...options.profiles[0]!, id: "alternate-query", label: "Alternate query" }],
+    });
+    render(<QueryWorkspace api={client} />);
+    await user.type(screen.getByLabelText("Your question"), session.question);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    const editor = await screen.findByRole("textbox", { name: "SQL query" });
+    expect(editor).not.toBeVisible();
+    await user.click(screen.getByText("View options"));
+    await user.click(screen.getByRole("checkbox", { name: /Advanced mode/ }));
+    expect(editor).toBeVisible();
+    await user.type(screen.getByRole("textbox", { name: "Ask a follow-up" }), "Keep the unfinished question");
+    const profile = screen.getByRole<HTMLSelectElement>("combobox", { name: "Model profile" });
+    expect(profile).toBeVisible();
+    await user.selectOptions(profile, "alternate-query");
+    await user.click(editor);
+    await user.keyboard("{Control>}{End}{/Control}");
+    await user.paste(" ORDER BY test_name");
+    const editedSql = editor.textContent;
+    await user.click(screen.getByRole("checkbox", { name: /Advanced mode/ }));
+    await user.click(screen.getByRole("checkbox", { name: /Advanced mode/ }));
+    expect(screen.getByRole("textbox", { name: "SQL query" })).toBe(editor);
+    expect(editor.textContent).toBe(editedSql);
+    expect(screen.getByRole("textbox", { name: "Ask a follow-up" })).toHaveValue("Keep the unfinished question");
+    expect(screen.getByRole("combobox", { name: "Model profile" })).toHaveValue("alternate-query");
+    expect(client.executeWorkbenchVersion).not.toHaveBeenCalled();
   });
 
-  it("keeps one active SQL editor and puts session management in the rail", async () => {
+  it("keeps one active SQL editor and puts session management in the header", async () => {
     const client = api();
     const user = userEvent.setup();
     render(<QueryWorkspace api={client} />);
@@ -276,15 +293,17 @@ describe("Dashboard Builder Ask shell", () => {
     await user.type(screen.getByLabelText("Your question"), session.question);
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
-    expect(await screen.findByRole("textbox", { name: "SQL query" })).toBeVisible();
+    await screen.findByRole("textbox", { name: "SQL query" });
+    await user.click(screen.getByText("View or edit SQL"));
+    expect(screen.getByRole("textbox", { name: "SQL query" })).toBeVisible();
     expect(screen.getAllByRole("textbox", { name: "SQL query" })).toHaveLength(1);
     // Session management lives in one place: the rail's session control.
     expect(screen.queryByRole("button", { name: "New session" })).not.toBeInTheDocument();
     await openSessionMenu(user);
     expect(
-      screen.getAllByRole("menuitem", { name: /New session/ }),
+      screen.getAllByRole("button", { name: /New session/ }),
     ).toHaveLength(1);
-    const composer = screen.getByRole("region", { name: /refine \[\d+\]/i });
+    const composer = screen.getByRole("region", { name: "Ask a follow-up" });
     expect(composer).toHaveClass("turn-composer");
     await waitFor(() => expect(screen.getByRole("textbox", { name: "SQL query" })).toBeVisible());
   });
@@ -329,9 +348,9 @@ describe("Dashboard Builder Ask shell", () => {
     // A session is grounded in one catalog, so a pasted or stale
     // `?dataSource=` must not retarget it — the catalog it reads, the URL it
     // advertises and the source its next turn targets all follow the session.
-    const rail = await screen.findByRole("complementary", { name: "Catalyst" });
+    const rail = await screen.findByRole("banner", { name: "Workspace navigation" });
     await waitFor(() =>
-      expect(within(rail).getByText("OpenELIS laboratory")).toBeVisible(),
+      expect(within(rail).getByText("Using OpenELIS laboratory")).toBeVisible(),
     );
     await waitFor(() =>
       expect(new URL(window.location.href).searchParams.get("dataSource")).toBe(
@@ -373,24 +392,25 @@ describe("Dashboard Builder Ask shell", () => {
     const user = userEvent.setup();
     render(<QueryWorkspace api={client} />);
 
-    const rail = screen.getByRole("complementary", { name: "Catalyst" });
+    const rail = screen.getByRole("banner", { name: "Workspace navigation" });
     // The source a question will target is readable without opening anything.
     await waitFor(() =>
-      expect(within(rail).getByText("OpenELIS laboratory")).toBeVisible(),
+      expect(within(rail).getByText("Using OpenELIS laboratory")).toBeVisible(),
     );
     // It is a session property, so it is not offered beside the model
     // profile, which is a per-turn choice with a different lifetime.
     expect(screen.queryByLabelText("Data source")).not.toBeInTheDocument();
+    await user.click(screen.getByText("Query settings"));
     expect(screen.getByLabelText("Model profile")).toBeVisible();
 
     await user.click(within(rail).getByRole("button", { name: /^Session:/ }));
     expect(
-      screen.getByRole("menuitem", { name: /Turnaround time, Q2/ }),
+      screen.getByRole("button", { name: /Turnaround time, Q2/ }),
     ).toHaveTextContent("OpenMRS HIV/ART · 5 turns");
 
-    await user.click(screen.getByRole("menuitem", { name: /New session/ }));
+    await user.click(screen.getByRole("button", { name: /New session/ }));
     expect(
-      screen.getByText(/A session is grounded in one catalog/),
+      screen.getByText(/Changing data starts a new session/),
     ).toBeVisible();
     await user.selectOptions(
       screen.getByLabelText("Data source"),
@@ -400,7 +420,7 @@ describe("Dashboard Builder Ask shell", () => {
     await user.click(screen.getByRole("button", { name: "Start session" }));
 
     await waitFor(() =>
-      expect(within(rail).getByText("OpenMRS HIV/ART")).toBeVisible(),
+      expect(within(rail).getByText("Using OpenMRS HIV/ART")).toBeVisible(),
     );
 
     // The name and source chosen in the rail are what the session is opened
@@ -441,9 +461,9 @@ describe("Dashboard Builder Ask shell", () => {
     );
     render(<QueryWorkspace api={client} />);
 
-    const rail = await screen.findByRole("complementary", { name: "Catalyst" });
+    const rail = await screen.findByRole("banner", { name: "Workspace navigation" });
     await user.click(within(rail).getByRole("button", { name: /^Session:/ }));
-    await user.click(screen.getByRole("menuitem", { name: "Rename session" }));
+    await user.click(screen.getByRole("button", { name: "Rename session" }));
 
     // Editing happens in the rail itself, not in another window.
     const field = screen.getByLabelText("Session name");
@@ -599,7 +619,7 @@ describe("Dashboard Builder Ask shell", () => {
     await user.click(screen.getByRole("textbox", { name: "SQL query" }));
     await user.keyboard("{Control>}{End}{/Control}");
     await user.paste(" AND med_display IS NOT NULL");
-    await user.click(screen.getByRole("button", { name: "Run query" }));
+    await user.click(screen.getByRole("button", { name: "Get results" }));
 
     // A failure is a result. It gets the attention, in the cell that produced
     // it, rather than leaving the editor in the way of reading it.
@@ -634,18 +654,18 @@ describe("Dashboard Builder Ask shell", () => {
     });
     expect(title).toBeVisible();
     const header = title.closest("header")!;
-    expect(within(header).getByText("Workbench")).toBeVisible();
+    expect(within(header).getByText("Explore")).toBeVisible();
 
-    const rail = screen.getByRole("complementary", { name: "Catalyst" });
-    const sections = within(rail).getByRole("navigation", { name: "Sections" });
+    const rail = screen.getByRole("banner", { name: "Workspace navigation" });
+    const sections = within(rail).getByRole("navigation", { name: "Primary" });
     // The label is text, not just an accessible name on an icon.
     expect(
-      within(sections).getByRole("button", { name: "Workbench" }),
-    ).toHaveTextContent("Workbench");
+      within(sections).getByRole("button", { name: "Explore" }),
+    ).toHaveTextContent("Explore");
 
-    await user.click(within(sections).getByRole("button", { name: "Datasets" }));
+    await user.click(within(sections).getByRole("button", { name: "Saved work" }));
     expect(
-      screen.getByRole("heading", { level: 1, name: "Datasets" }),
+      screen.getByRole("heading", { level: 1, name: "Saved queries" }),
     ).toBeVisible();
     expect(
       screen.queryByRole("heading", { level: 1, name: session.name! }),
@@ -1052,7 +1072,8 @@ describe("Dashboard Builder Ask shell", () => {
     ).toEqual(["turn-1", "turn-2", "turn-3"]);
   });
 
-  it("shows what can be asked about, at full width, before anything is asked", () => {
+  it("keeps complete schema browsing available without a technical landing grid", async () => {
+    const user = userEvent.setup();
     // Earlier tests leave an active session in storage, and a session with
     // work in it replaces this screen entirely.
     window.localStorage.clear();
@@ -1081,18 +1102,10 @@ describe("Dashboard Builder Ask shell", () => {
     });
     render(<QueryWorkspace api={client} />);
 
-    // The empty screen's job is to answer "what is in here?". It used to show
-    // one relation name and a count in a 34rem card, with the rest behind a
-    // rail section you had to know about.
-    return waitFor(() => {
-      const cards = document.querySelectorAll(".workbench-catalog__relation");
-      expect(cards.length).toBeGreaterThan(0);
-      // Each names its relation and shows some of its columns, so the screen
-      // is browsable rather than a pointer to somewhere else.
-      expect(cards[0]!.querySelector(".workbench-catalog__columns code")).not.toBeNull();
-      expect(
-        document.querySelector(".workbench-empty")?.className,
-      ).toContain("workbench-empty");
-    });
+    expect(screen.getByRole("heading", { name: "What would you like to find out?" })).toBeVisible();
+    expect(document.querySelector(".workbench-catalog__relation")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "What data is available?" }));
+    expect(await screen.findByLabelText("Filter columns")).toBeVisible();
+    expect(screen.getByLabelText("Your question")).toBeVisible();
   });
 });

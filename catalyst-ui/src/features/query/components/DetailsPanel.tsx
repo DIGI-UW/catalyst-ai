@@ -33,9 +33,7 @@ interface DetailsPanelProps {
   tab: DetailsTab;
   developerMode: boolean;
   stacked: boolean;
-  railWidth: number;
   onTabChange: (tab: DetailsTab) => void;
-  onDeveloperModeChange: (developerMode: boolean) => void;
   onClose: () => void;
 }
 
@@ -132,13 +130,11 @@ const EvidenceTab = ({
   loading,
   error,
   developerMode,
-  onDeveloperModeChange,
 }: {
   evidence: WorkbenchGenerationEvidence | null;
   loading: boolean;
   error: string | null;
   developerMode: boolean;
-  onDeveloperModeChange: (developerMode: boolean) => void;
 }) => (
   <div className="details-panel__stack">
     <p className="details-panel__note">
@@ -224,14 +220,7 @@ const EvidenceTab = ({
         )}
       </>
     )}
-    <label className="details-panel__developer">
-      <input
-        type="checkbox"
-        checked={developerMode}
-        onChange={(event) => onDeveloperModeChange(event.currentTarget.checked)}
-      />
-      Developer mode — show ids and digests inline everywhere
-    </label>
+
   </div>
 );
 
@@ -323,9 +312,7 @@ export const DetailsPanel = ({
   tab,
   developerMode,
   stacked,
-  railWidth,
   onTabChange,
-  onDeveloperModeChange,
   onClose,
 }: DetailsPanelProps) => {
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -353,7 +340,6 @@ export const DetailsPanel = ({
         type="button"
         className="details-panel__scrim"
         aria-label="Close details"
-        style={stacked ? undefined : { left: `${railWidth}px` }}
         onClick={onClose}
       />
       <aside
@@ -362,7 +348,7 @@ export const DetailsPanel = ({
         style={
           stacked
             ? undefined
-            : { width: `min(28rem, calc(100vw - ${railWidth + 80}px))` }
+            : { width: "min(28rem, calc(100vw - 80px))" }
         }
       >
         <div className="details-panel__header">
@@ -415,7 +401,6 @@ export const DetailsPanel = ({
               loading={evidenceLoading}
               error={evidenceError}
               developerMode={developerMode}
-              onDeveloperModeChange={onDeveloperModeChange}
             />
           )}
           {tab === "provenance" && (

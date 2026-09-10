@@ -571,7 +571,14 @@ const openSessionMenu = async (user: ReturnType<typeof userEvent.setup>) => {
 
 const openNewSessionForm = async (user: ReturnType<typeof userEvent.setup>) => {
   await openSessionMenu(user);
-  await user.click(screen.getByRole("menuitem", { name: /New session/ }));
+  await user.click(screen.getByRole("button", { name: /New session/ }));
+};
+
+const enableAdvancedMode = async () => {
+  const user = userEvent.setup();
+  await user.click(screen.getByText("View options", { exact: true }));
+  await user.click(screen.getByRole("checkbox", { name: /Advanced mode/ }));
+  await user.click(screen.getByText("View options", { exact: true }));
 };
 
 describe("Catalyst query workflow", () => {
@@ -613,7 +620,7 @@ describe("Catalyst query workflow", () => {
     expect(screen.getByLabelText("Model profile")).toBeDisabled();
     expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "Ask a question" }));
-    expect(screen.getByRole("heading", { name: "Workbench" })).toHaveFocus();
+    expect(screen.getByRole("heading", { name: "What would you like to find out?" })).toHaveFocus();
     expect(screen.getByLabelText("Your question")).toBeDisabled();
     expect(screen.getByLabelText("Generated SQL")).toHaveTextContent(
       "SELECT collected_on, result_value FROM analytics.vw_viral_load_results WHERE result_value >= :minimum_result",
@@ -708,7 +715,7 @@ describe("Catalyst query workflow", () => {
     render(<App api={api} />);
 
     const user = userEvent.setup();
-    await user.click(await screen.findByRole("button", { name: /^DATA/ }));
+    await user.click(await screen.findByRole("button", { name: "What data is available?" }));
     await user.click(
       await screen.findByText("Preview available laboratory records"),
     );
@@ -730,6 +737,7 @@ describe("Catalyst query workflow", () => {
     expect(screen.getByLabelText("Model profile")).toHaveValue(
       "catalyst-query-gemma-e4b",
     );
+    await user.click(screen.getByText("Query settings", { exact: true }));
     const profileSelector = screen.getByLabelText("Model profile");
     /*
      * The option carries the profile's prose label only. It used to append the
@@ -758,7 +766,7 @@ describe("Catalyst query workflow", () => {
       }),
     ).not.toBeInTheDocument();
 
-    // Record preview is a native disclosure inside the rail's DATA section;
+    // Record preview is an explicit disclosure inside the data browser;
     // it keeps its filter state across close and reopen.
     const records = screen
       .getByText("Preview available laboratory records")
@@ -791,6 +799,7 @@ describe("Catalyst query workflow", () => {
     api.createWorkbenchVersion = vi.fn();
     api.executeWorkbenchVersion = vi.fn();
     render(<App api={api} />);
+    await enableAdvancedMode();
 
     expect(await screen.findByLabelText("Model profile")).toBeEnabled();
     const user = await askQuestion();
@@ -805,14 +814,14 @@ describe("Catalyst query workflow", () => {
     );
     expect(api.submitQuestion).not.toHaveBeenCalled();
     expect(
-      await screen.findByRole("heading", { name: "New draft" }),
+      await screen.findByRole("heading", { name: "Query draft" }),
     ).toBeVisible();
     expect(screen.getByRole("textbox", { name: "SQL query" })).toBeVisible();
     // Findings never block a run: the workbench stays usable while the
     // Details panel carries why the model output was rejected.
-    expect(screen.getByRole("button", { name: "Run query" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /^(Run query|Get results)$/ })).toBeEnabled();
 
-    await user.click(screen.getByRole("button", { name: /^Details/ }));
+    await user.click(screen.getByRole("button", { name: "Technical details" }));
     const details = screen.getByRole("complementary", { name: "Details" });
     expect(within(details).getByText("policy.unit_not_grounded")).toBeVisible();
     expect(within(details).getByText(/validation is advisory/i)).toBeVisible();
@@ -824,9 +833,10 @@ describe("Catalyst query workflow", () => {
     api.createWorkbenchVersion = vi.fn();
     api.executeWorkbenchVersion = vi.fn();
     render(<App api={api} />);
+    await enableAdvancedMode();
 
     const user = await askQuestion();
-    expect(await screen.findByRole("heading", { name: "New draft" })).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "Query draft" })).toBeVisible();
     expect(localStorage.getItem("catalyst.workbench.activeSessionId")).toBe(
       workbenchSession.sessionId,
     );
@@ -839,9 +849,9 @@ describe("Catalyst query workflow", () => {
     // Clearing the editor does not clear the session: its identity is still
     // on the banner and its immutable versions are still in Details.
     expect(
-      screen.getByText(`Session ${workbenchSession.sessionId.slice(0, 8)}`),
+      screen.getByRole("button", { name: /^Session:/ }),
     ).toBeVisible();
-    await user.click(screen.getByRole("button", { name: /^Details/ }));
+    await user.click(screen.getByRole("button", { name: "Technical details" }));
     await user.click(screen.getByRole("tab", { name: "Versions" }));
     expect(
       within(screen.getByRole("complementary", { name: "Details" })).getByText(
@@ -870,15 +880,16 @@ describe("Catalyst query workflow", () => {
     api.createWorkbenchVersion = vi.fn();
     api.executeWorkbenchVersion = vi.fn();
     render(<App api={api} />);
+    await enableAdvancedMode();
 
     expect(await screen.findByLabelText("Model profile")).toBeEnabled();
     const user = await askQuestion();
-    expect(await screen.findByRole("heading", { name: "New draft" })).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "Query draft" })).toBeVisible();
 
     await openNewSessionForm(user);
     await user.click(screen.getByRole("button", { name: "Start session" }));
 
-    expect(screen.queryByRole("heading", { name: "New draft" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Query draft" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("Your question")).toHaveValue("");
     await waitFor(() => expect(screen.getByLabelText("Your question")).toHaveFocus());
     expect(screen.getByLabelText("Model profile")).toHaveValue(
@@ -904,7 +915,7 @@ describe("Catalyst query workflow", () => {
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(
-      await screen.findByRole("heading", { name: /^Refine \[\d+\]$/ }),
+      await screen.findByRole("textbox", { name: "Ask a follow-up" }),
     ).toBeVisible();
     expect(screen.queryByLabelText("Question")).not.toBeInTheDocument();
     expect(document.querySelectorAll("textarea:not([disabled])")).toHaveLength(1);
@@ -982,6 +993,7 @@ describe("Catalyst query workflow", () => {
       .mockResolvedValueOnce(successorTimeline);
     const user = userEvent.setup();
     render(<App api={api} />);
+    await enableAdvancedMode();
 
     await user.type(screen.getByLabelText("Your question"), QUESTION);
     await user.click(screen.getByRole("button", { name: "Continue" }));
@@ -1013,7 +1025,7 @@ describe("Catalyst query workflow", () => {
     await user.type(screen.getByLabelText("Your question"), QUESTION);
     await user.click(screen.getByRole("button", { name: "Continue" }));
     expect(
-      await screen.findByRole("heading", { name: /^Refine \[\d+\]$/ }),
+      await screen.findByRole("textbox", { name: "Ask a follow-up" }),
     ).toBeVisible();
 
     const minimum = screen.getByLabelText("Parameter 2 value");
@@ -1094,6 +1106,7 @@ describe("Catalyst query workflow", () => {
     const api = makeNotebookApi();
     const user = userEvent.setup();
     render(<App api={api} />);
+    await enableAdvancedMode();
 
     await user.type(screen.getByLabelText("Your question"), QUESTION);
     await user.click(screen.getByRole("button", { name: "Continue" }));
@@ -1126,6 +1139,7 @@ describe("Catalyst query workflow", () => {
     const api = makeNotebookApi();
     const user = userEvent.setup();
     render(<App api={api} />);
+    await enableAdvancedMode();
 
     await user.type(screen.getByLabelText("Your question"), QUESTION);
     await user.click(screen.getByRole("button", { name: "Continue" }));
@@ -1176,6 +1190,7 @@ describe("Catalyst query workflow", () => {
     });
     const user = userEvent.setup();
     render(<App api={api} />);
+    await enableAdvancedMode();
 
     await user.type(screen.getByLabelText("Your question"), QUESTION);
     await user.click(screen.getByRole("button", { name: "Continue" }));
@@ -1221,6 +1236,7 @@ describe("Catalyst query workflow", () => {
     });
     const user = userEvent.setup();
     render(<App api={api} />);
+    await enableAdvancedMode();
 
     await user.type(screen.getByLabelText("Your question"), QUESTION);
     await user.click(screen.getByRole("button", { name: "Continue" }));
@@ -1251,6 +1267,7 @@ describe("Catalyst query workflow", () => {
     );
     const user = userEvent.setup();
     render(<App api={api} />);
+    await enableAdvancedMode();
 
     await user.type(screen.getByLabelText("Your question"), QUESTION);
     await user.click(screen.getByRole("button", { name: "Continue" }));
@@ -1282,6 +1299,7 @@ describe("Catalyst query workflow", () => {
     );
     const user = userEvent.setup();
     render(<App api={api} />);
+    await enableAdvancedMode();
 
     await user.type(screen.getByLabelText("Your question"), QUESTION);
     await user.click(screen.getByRole("button", { name: "Continue" }));
@@ -1294,7 +1312,7 @@ describe("Catalyst query workflow", () => {
     await user.click(screen.getByRole("textbox", { name: "SQL query" }));
     await user.keyboard("{Control>}{End}{/Control}");
     await user.paste(" AND 1 = 1");
-    await user.click(screen.getByRole("button", { name: "Run query" }));
+    await user.click(screen.getByRole("button", { name: /^(Run query|Get results)$/ }));
 
     await waitFor(() => expect(api.createWorkbenchVersion).toHaveBeenCalledOnce());
     expect(instruction).toBeDisabled();
@@ -1368,12 +1386,13 @@ describe("Catalyst query workflow", () => {
     const api = makeNotebookApi();
     const user = userEvent.setup();
     render(<App api={api} />);
+    await enableAdvancedMode();
 
     expect(await screen.findByLabelText("Model profile")).toBeEnabled();
     await user.type(screen.getByLabelText("Your question"), QUESTION);
     await user.click(screen.getByRole("button", { name: "Continue" }));
     expect(
-      await screen.findByRole("heading", { name: /^Refine \[\d+\]$/ }),
+      await screen.findByRole("textbox", { name: "Ask a follow-up" }),
     ).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Clear draft" }));
@@ -1402,6 +1421,7 @@ describe("Catalyst query workflow", () => {
     );
     const user = userEvent.setup();
     render(<App api={api} />);
+    await enableAdvancedMode();
 
     await waitFor(() =>
       expect(api.getWorkbenchSession).toHaveBeenCalledWith(
@@ -1425,7 +1445,7 @@ describe("Catalyst query workflow", () => {
     ).toHaveAttribute("aria-expanded", "true");
     expect(document.getElementById("turn-1")).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: /^Refine \[\d+\]$/ }),
+      screen.getByRole("textbox", { name: "Ask a follow-up" }),
     ).toBeVisible();
     showsQuery(
       screen.getByRole("textbox", { name: "SQL query" }),
@@ -1513,9 +1533,10 @@ describe("Catalyst query workflow", () => {
     );
     const user = userEvent.setup();
     render(<App api={api} />);
+    await enableAdvancedMode();
 
     expect(
-      await screen.findByRole("heading", { name: "New draft" }),
+      await screen.findByRole("heading", { name: "Query draft" }),
     ).toBeVisible();
     await openNewSessionForm(user);
     await user.click(screen.getByRole("button", { name: "Start session" }));
@@ -1565,6 +1586,7 @@ describe("Catalyst query workflow", () => {
     );
     const user = userEvent.setup();
     render(<App api={api} />);
+    await enableAdvancedMode();
 
     expect(
       await screen.findByText(/Generated by Legacy same-family profile/),
@@ -1607,6 +1629,7 @@ describe("Catalyst query workflow", () => {
     );
     api.executeWorkbenchVersion = vi.fn();
     render(<App api={api} />);
+    await enableAdvancedMode();
 
     await user.type(screen.getByLabelText("Your question"), QUESTION);
     await user.click(screen.getByRole("button", { name: "Continue" }));
@@ -1622,7 +1645,7 @@ describe("Catalyst query workflow", () => {
     expect(screen.getByLabelText("Parameter 2 value")).toHaveValue("1000");
     await user.type(screen.getByLabelText("Parameter 1 name"), "test_name");
     await user.type(screen.getByLabelText("Parameter 2 name"), "threshold");
-    await user.click(screen.getByRole("button", { name: "Run query" }));
+    await user.click(screen.getByRole("button", { name: /^(Run query|Get results)$/ }));
 
     await waitFor(() =>
       expect(api.createWorkbenchVersion).toHaveBeenCalledWith(
@@ -1658,6 +1681,7 @@ describe("Catalyst query workflow", () => {
     );
 
     render(<App api={api} />);
+    await enableAdvancedMode();
 
     expect(await screen.findByText("Unresolved model draft")).toBeVisible();
     // The editor is CodeMirror and mounts in an effect, so it can lag the
@@ -1680,6 +1704,7 @@ describe("Catalyst query workflow", () => {
     api.createWorkbenchVersion = vi.fn();
     api.executeWorkbenchVersion = vi.fn();
     render(<App api={api} />);
+    await enableAdvancedMode();
 
     await user.type(screen.getByLabelText("Your question"), QUESTION);
     await user.click(screen.getByRole("button", { name: "Continue" }));
@@ -1707,7 +1732,7 @@ describe("Catalyst query workflow", () => {
     const parameterName = await screen.findByLabelText("Parameter 2 name");
     await user.clear(parameterName);
     await user.type(parameterName, "threshold");
-    await user.click(screen.getByRole("button", { name: "Run query" }));
+    await user.click(screen.getByRole("button", { name: /^(Run query|Get results)$/ }));
 
     await waitFor(() =>
       expect(api.createWorkbenchVersion).toHaveBeenCalledWith(
@@ -1750,7 +1775,7 @@ describe("Catalyst query workflow", () => {
 
     await user.type(screen.getByLabelText("Your question"), QUESTION);
     await user.click(screen.getByRole("button", { name: "Continue" }));
-    await user.click(await screen.findByRole("button", { name: "Run query" }));
+    await user.click(await screen.findByRole("button", { name: /^(Run query|Get results)$/ }));
 
     // Running a query nobody rewrote is not authoring one. Every version this
     // endpoint creates is recorded as hand-authored by the gateway, so saving
@@ -1777,6 +1802,7 @@ describe("Catalyst query workflow", () => {
       failedWorkbenchExecution,
     );
     render(<App api={api} />);
+    await enableAdvancedMode();
 
     await user.type(screen.getByLabelText("Your question"), QUESTION);
     await user.click(screen.getByRole("button", { name: "Continue" }));
@@ -1786,7 +1812,7 @@ describe("Catalyst query workflow", () => {
     await user.click(editor);
     await user.keyboard("{Control>}{End}{/Control}");
     await user.paste(" LIMIT 5");
-    await user.click(await screen.findByRole("button", { name: "Run query" }));
+    await user.click(await screen.findByRole("button", { name: /^(Run query|Get results)$/ }));
 
     expect(api.createWorkbenchVersion).toHaveBeenCalledWith(
       workbenchSession.sessionId,
@@ -1811,7 +1837,7 @@ describe("Catalyst query workflow", () => {
     expect(diagnostic).not.toBeNull();
     expect(within(diagnostic as HTMLElement).getByText("SQLSTATE")).toBeVisible();
     expect(within(diagnostic as HTMLElement).getByText("42703")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Run query" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /^(Run query|Get results)$/ })).toBeEnabled();
   });
 
   it("restores the active server workbench session after a refresh", async () => {
@@ -1836,13 +1862,14 @@ describe("Catalyst query workflow", () => {
     );
 
     render(<App api={api} />);
+    await enableAdvancedMode();
 
     expect(api.getWorkbenchSession).toHaveBeenCalledWith(
       restoredSession.sessionId,
       expect.any(AbortSignal),
     );
     expect(
-      await screen.findByRole("heading", { name: "New draft" }),
+      await screen.findByRole("heading", { name: "Query draft" }),
     ).toBeVisible();
     expect(screen.queryByLabelText("Question")).not.toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "SQL query" })).toHaveTextContent(
@@ -2123,16 +2150,16 @@ describe("Catalyst query workflow", () => {
 
     expect(await screen.findByLabelText("Model profile")).toBeEnabled();
     // One registered source is nothing to choose between, so it is reported
-    // in the rail rather than offered as a switch.
+    // in the header rather than offered as a switch.
     expect(screen.queryByLabelText("Data source")).not.toBeInTheDocument();
     expect(
-      within(screen.getByRole("complementary", { name: "Catalyst" })).getByText(
-        "OpenELIS Laboratory",
+      within(screen.getByRole("banner", { name: "Workspace navigation" })).getByText(
+        "Using OpenELIS Laboratory",
       ),
     ).toBeVisible();
   });
 
-  it("offers the source only when creating a session, and filters unavailable ones", async () => {
+  it("offers sources when creating a session and disables unavailable ones", async () => {
     const api = makeNotebookApi();
     api.getDataSources = vi.fn().mockResolvedValue({
       contractVersion: "catalyst.data-sources.v1",
@@ -2150,8 +2177,8 @@ describe("Catalyst query workflow", () => {
     const switcher = await screen.findByLabelText("Data source");
     expect(switcher).toHaveValue("openelis");
     expect(
-      within(switcher).queryByRole("option", { name: "Not yet provisioned" }),
-    ).not.toBeInTheDocument();
+      within(switcher).getByRole("option", { name: "Not yet provisioned (unavailable)" }),
+    ).toBeDisabled();
     expect(
       within(switcher).getByRole("option", { name: "OpenMRS HIV/ART program" }),
     ).toBeInTheDocument();
@@ -2257,7 +2284,7 @@ describe("Catalyst query workflow", () => {
       undefined,
     );
 
-    await screen.findByRole("heading", { name: /^Refine \[\d+\]$/ });
+    await screen.findByRole("textbox", { name: "Ask a follow-up" });
     await user.type(
       screen.getByRole("textbox", { name: "Ask a follow-up" }),
       "Only include released results",

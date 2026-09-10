@@ -29,6 +29,8 @@ const PARAMETER_TYPES: readonly ParameterType[] = [
 ];
 
 interface WorkbenchPanelProps {
+  advancedMode?: boolean;
+  revealSql?: boolean;
   session: WorkbenchSession;
   sql: string;
   parameters: BoundParameter[];
@@ -555,6 +557,8 @@ export const ExecutionResult = ({
 };
 
 export const WorkbenchPanel = ({
+  advancedMode = false,
+  revealSql = false,
   session,
   sql,
   parameters,
@@ -598,7 +602,7 @@ export const WorkbenchPanel = ({
           Editing does not change the current version — saving appends a new
           one — so this names what the draft is based on, not what it is.
         */}
-        <h2 id="workbench-title">New draft</h2>
+        <h2 id="workbench-title">{advancedMode ? "Query draft" : "Ready to get your results"}</h2>
       </div>
 
       {error && (
@@ -630,6 +634,8 @@ export const WorkbenchPanel = ({
         />
       )}
 
+      <details className="workbench-sql-disclosure" open={advancedMode || revealSql}>
+        <summary>View or edit SQL</summary>
       <div className="workbench-editor">
         <SqlEditor
           label="SQL query"
@@ -679,20 +685,6 @@ export const WorkbenchPanel = ({
             {closeDiscardsEdits ? "Discard edits and close" : "Close editor"}
           </Button>
         )}
-        {/*
-          One button, because there was only ever one intent. Running saves the
-          editor as an immutable version and checks it on the way, so a separate
-          "save and check" only ever produced a version with no result to show
-          for it — and, pressed before Run, produced two.
-        */}
-        <Button
-          type="button"
-          disabled={actionsDisabled}
-          aria-busy={busy === "running"}
-          onClick={onRun}
-        >
-          {busy === "running" ? "Running…" : "Run query"}
-        </Button>
         {checkOutcome ? (
           <p className="workbench-actions__outcome" role="status">
             <span data-status={checkOutcome.status}>
@@ -722,6 +714,24 @@ export const WorkbenchPanel = ({
         disabled={busy !== null}
         onChange={onParametersChange}
       />
+      </details>
+      <div className="workbench-run">
+        {/*
+          One button, because there was only ever one intent. Running saves the
+          editor as an immutable version and checks it on the way, so a separate
+          "save and check" only ever produced a version with no result to show
+          for it — and, pressed before Run, produced two.
+        */}
+        <Button
+          type="button"
+          disabled={actionsDisabled}
+          aria-busy={busy === "running"}
+          onClick={onRun}
+        >
+          {busy === "running" ? "Getting results…" : advancedMode ? "Run query" : "Get results"}
+        </Button>
+        <p>Runs this query against the selected data source. Nothing is saved to Saved work until you choose to save it.</p>
+      </div>
       {showExecutionResult && (
         <ExecutionResult session={session} sql={sql} parameters={parameters} />
       )}

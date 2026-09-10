@@ -5,6 +5,22 @@ execution → typed table workflow. The UI always calls the same-origin
 `/v1/catalyst` API; the production Nginx image proxies that path to
 `catalyst-gateway:8000`, so browser CORS configuration is not required.
 
+## Using the workspace
+
+Start in **Explore** to write a question, then choose **Get results** when the
+prepared query is ready to run. **Saved work** groups Saved queries, Charts and
+tables, and Dashboards. The source/session control opens existing sessions or
+starts a new one with another source.
+
+**View options** contains System/Light/Dark appearance and **Advanced mode**.
+Advanced mode exposes SQL and query settings across the workspace; switching
+presentation retains drafts and results. In the simple view, **Query settings**
+and **View or edit SQL** keep those controls available when needed.
+
+The [approved design](../docs/specs/staff-workbench-ux/index.html) is the visual
+reference. Current iteration and deployment status lives in the harness
+[Feature 008 task register](https://github.com/pmanko/clinical-ai-validation-harness/blob/main/specs/008-catalyst-query-workbench/tasks.md).
+
 ## Local commands
 
 ```bash

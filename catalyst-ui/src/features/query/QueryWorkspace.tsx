@@ -4,7 +4,6 @@ import {
   useCallback,
   useEffect,
   useRef,
-  type CSSProperties,
 } from "react";
 import type { CatalystApi } from "./api";
 import { catalystApi } from "./api";
@@ -22,13 +21,12 @@ import {
   type NotebookTurn,
 } from "./components/TurnNotebook";
 import { WorkbenchPanel } from "./components/WorkbenchPanel";
-import { WorkbenchRail } from "./components/WorkbenchRail";
+import { WorkbenchHeader } from "./components/WorkbenchHeader";
 import {
-  clampRailWidth,
-  RAIL_STACK_BREAKPOINT,
-  type RailSection,
-  type RailTurn,
-} from "./components/workbenchRailSupport";
+  NARROW_WORKSPACE_BREAKPOINT,
+  type WorkspaceSection,
+  type WorkspaceTurn,
+} from "./components/workbenchShellSupport";
 import {
   editorContentMatchesVersion,
   editorExpectedColumns,
@@ -389,15 +387,12 @@ const latestExecutionFailed = (session: WorkbenchSession) =>
   [...session.executions].sort((left, right) => right.ordinal - left.ordinal)[0]
     ?.status === "failed";
 
-const railLayoutFromBrowserState = (
+const workspaceSectionFromBrowserState = (
   browserState: Record<string, unknown>,
-): { width: number | null; section: RailSection | null } => {
-  const width = browserState.railWidth;
+): WorkspaceSection | null => {
+  // Retain the stored disclosure key used by existing sessions.
   const section = browserState.railSection;
-  return {
-    width: typeof width === "number" && Number.isFinite(width) ? width : null,
-    section: section === "data" || section === "turns" ? section : null,
-  };
+  return section === "data" || section === "turns" ? section : null;
 };
 
 const createIdempotencyKey = () => {
@@ -557,11 +552,10 @@ export const QueryWorkspace = ({
 }: QueryWorkspaceProps) => {
   const {
     activeSection,
+    savedWorkSection,
     setActiveSection,
-    railWidth,
-    setRailWidth,
-    railSection,
-    setRailSection,
+    workspaceSection,
+    setWorkspaceSection,
     activeTurnOrdinal,
     setActiveTurnOrdinal,
     sessionMenu,
@@ -576,8 +570,8 @@ export const QueryWorkspace = ({
     setDetailsOpen,
     detailsTab,
     setDetailsTab,
-    developerMode,
-    setDeveloperMode,
+    advancedMode,
+    setAdvancedMode,
     viewportWidth,
   } = useWorkbenchShell();
   // A run asks for the cell that will carry its result; the cell is only in
@@ -657,7 +651,7 @@ export const QueryWorkspace = ({
     invalidate: invalidateGenerationEvidence,
   } = useGenerationEvidence(api);
   // Everything it takes to make a stored session the one on screen. Restore
-  // on load and picking one from the rail menu are the same operation.
+  // on load and picking one from the session menu are the same operation.
   // Stable across renders: the restore effect depends on it, and useState
   // setters are already stable, so `api` is its only real dependency.
   const adoptWorkbenchSession = useCallback((session: WorkbenchSession) => {
@@ -675,11 +669,7 @@ export const QueryWorkspace = ({
         ? session.browserState.sqlWrapLines
         : true,
     );
-    const layout = railLayoutFromBrowserState(session.browserState);
-    if (layout.width !== null) {
-      setRailWidth(clampRailWidth(layout.width, window.innerWidth));
-    }
-    if (layout.section !== null) setRailSection(layout.section);
+    setWorkspaceSection(workspaceSectionFromBrowserState(session.browserState));
     setWorkbenchTimeline(null);
     setDetailsOpen(false);
     setDetailsTurnId(null);
@@ -698,8 +688,7 @@ export const QueryWorkspace = ({
     setFollowupError,
     setProfileId,
     setQuestion,
-    setRailSection,
-    setRailWidth,
+    setWorkspaceSection,
     setWorkbenchParameters,
     setWorkbenchError,
     setWorkbenchSession,
@@ -891,7 +880,7 @@ export const QueryWorkspace = ({
       rememberActiveWorkbenchSession(session.sessionId);
       adoptWorkbenchSession(session);
       setDraftSessionName("");
-      setRailSection("data");
+      setWorkspaceSection("data");
     } catch (error) {
       setWorkbenchError(messageFromError(error));
     }
@@ -1132,9 +1121,15 @@ export const QueryWorkspace = ({
           turn.resultingCurrentVersion.versionId
       ) {
         setWorkbenchAnnouncement(
-          "The next query is ready. The SQL editor now contains it.",
+          advancedMode || editorOpen
+            ? "The next query is ready. The SQL editor now contains it."
+            : "The next query is ready. Choose Get results when you are ready to run it.",
         );
-        setSqlEditorFocusRequestId((requestId) => requestId + 1);
+        if (advancedMode || editorOpen) {
+          setSqlEditorFocusRequestId((requestId) => requestId + 1);
+        } else {
+          requestAnimationFrame(() => document.getElementById("catalyst-followup")?.focus());
+        }
       }
       if (turn.status === "failed") {
         // A turn that comes back failed is not an error to throw, so it used
@@ -1162,9 +1157,7 @@ export const QueryWorkspace = ({
     }
   };
 
-  // Layout the analyst chose — rail width, which rail section is open, whether
-  // SQL wraps — is theirs, not the browser's, so it rides on the session
-  // rather than on this tab.
+  // Schema/history disclosure and SQL wrapping remain session preferences.
   const persistBrowserState = (patch: Record<string, unknown>) => {
     if (!workbenchSession || !api.updateWorkbenchBrowserState) return;
     const sessionId = workbenchSession.sessionId;
@@ -1228,7 +1221,7 @@ export const QueryWorkspace = ({
       ?.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
-  const railStacked = viewportWidth < RAIL_STACK_BREAKPOINT;
+  const narrowWorkspace = viewportWidth < NARROW_WORKSPACE_BREAKPOINT;
 
   const activeDataSourceLabel =
     dataSources?.dataSources.find(
@@ -1236,21 +1229,12 @@ export const QueryWorkspace = ({
     )?.label ??
     (effectiveDataSourceId || null);
 
-  // Enough of the catalog to know what can be asked about, with the rail as
-  // the way to the rest of it.
-  // Every relation, biggest first: the empty screen's job is to show what can
-  // be asked about, and a single summary line could not do that.
-  const catalogRelations = (workbenchCatalog?.schemas ?? [])
-    .flatMap((schema) => schema.views)
-    .slice()
-    .sort((left, right) => right.columns.length - left.columns.length);
-
   const catalogRelationCount = (workbenchCatalog?.schemas ?? []).reduce(
     (total, schema) => total + schema.views.length,
     0,
   );
 
-  const railTurns: RailTurn[] = activeNotebookTurns.map((turn) => ({
+  const workspaceTurns: WorkspaceTurn[] = activeNotebookTurns.map((turn) => ({
     ordinal: turn.ordinal,
     instruction: turn.instruction,
     status:
@@ -1262,17 +1246,10 @@ export const QueryWorkspace = ({
     current: Boolean(turn.current),
   }));
 
-  const changeRailSection = (section: RailSection) => {
-    // The two sections are mutually exclusive, and closing the open one leaves
-    // the rail with nothing but its headers, so a second click on the open
-    // section falls back to the thread rather than to an empty rail.
-    const next: RailSection = section === railSection ? "turns" : section;
-    setRailSection(next);
+  const changeWorkspaceSection = (section: WorkspaceSection) => {
+    const next: WorkspaceSection | null = section === workspaceSection ? null : section;
+    setWorkspaceSection(next);
     persistBrowserState({ railSection: next });
-  };
-
-  const persistRailWidth = (width: number) => {
-    persistBrowserState({ railWidth: width });
   };
 
   const openDetails = (turnId: string | null, tab: DetailsTab = "validation") => {
@@ -1391,6 +1368,8 @@ export const QueryWorkspace = ({
   // there is a thread to sit in, and stands alone when there is not.
   const workbenchPanel = sessionHasWork && workbenchSession ? (
 <WorkbenchPanel
+          advancedMode={advancedMode}
+          revealSql={editorOpen}
           session={workbenchSession}
           sql={workbenchSql}
           parameters={workbenchParameters}
@@ -1448,18 +1427,9 @@ export const QueryWorkspace = ({
 
   return (
     <div
-      className={`dashboard-builder-shell${railStacked ? " dashboard-builder-shell--stacked" : ""}`}
-      style={
-        railStacked
-          ? undefined
-          : ({ "--dashboard-nav-width": `${railWidth}px` } as CSSProperties)
-      }
+      className={`dashboard-builder-shell${narrowWorkspace ? " dashboard-builder-shell--stacked" : ""}${advancedMode ? " dashboard-builder-shell--advanced" : ""}`}
     >
-      <WorkbenchRail
-        width={railWidth}
-        stacked={railStacked}
-        onWidthChange={setRailWidth}
-        onWidthCommit={persistRailWidth}
+      <WorkbenchHeader
         sessionName={
           workbenchSession
             ? (workbenchSession.name ?? "").trim() ||
@@ -1481,10 +1451,10 @@ export const QueryWorkspace = ({
         onDraftDataSourceChange={setDataSourceId}
         onStartSession={startNewSession}
         newSessionDisabled={followupBusy || workbenchBusy !== null}
-        openSection={railSection}
-        onOpenSectionChange={changeRailSection}
+        openSection={workspaceSection}
+        onOpenSectionChange={changeWorkspaceSection}
         relationCount={catalogRelationCount}
-        turns={railTurns}
+        turns={workspaceTurns}
         activeTurnOrdinal={activeTurnOrdinal}
         onSelectTurn={selectTurn}
         onOpenDetails={
@@ -1500,7 +1470,10 @@ export const QueryWorkspace = ({
         detailsOpen={detailsOpen}
         themePreference={themePreference}
         onThemePreferenceChange={onThemePreferenceChange ?? (() => undefined)}
+        advancedMode={advancedMode}
+        onAdvancedModeChange={setAdvancedMode}
         activeSection={activeSection}
+        savedWorkSection={savedWorkSection}
         onSectionChange={setActiveSection}
       >
         <DatasetBrowser
@@ -1509,114 +1482,31 @@ export const QueryWorkspace = ({
           catalogLoadingFailed={workbenchCatalogFailed}
           dataSourceId={effectiveDataSourceId || undefined}
         />
-      </WorkbenchRail>
+      </WorkbenchHeader>
 
       <main
         className={`app-shell${hasQueryDock && activeSection === "ask" ? " app-shell--with-query-dock" : ""}`}
       >
         <section hidden={activeSection !== "ask"} aria-labelledby="question-title">
-          {/*
-            Datasets, Widgets and Dashboards each state where you are; this
-            screen said nothing, so the one you spend the most time in was the
-            one that never named itself. The eyebrow names the section — the
-            same word the nav uses — and the heading names the session, which
-            is the thing on screen.
-          */}
-          <header className="workbench-header">
-            <div className="workbench-header__label">
-              {workbenchSession && <p className="eyebrow">Workbench</p>}
-              {workbenchSession && (
-                // Beside the heading that names the same session, rather than
-                // floating in a strip that no longer exists.
-                <span className="dashboard-session-meta">
-                  Session {workbenchSession.sessionId.slice(0, 8)}
-                  {workbenchTimeline
-                    ? ` · ${workbenchTimeline.turns.length} turn${
-                        workbenchTimeline.turns.length === 1 ? "" : "s"
-                      }`
-                    : ""}
-                </span>
-              )}
-            </div>
+          <header className={`workbench-header${!sessionHasWork ? " workbench-header--welcome" : ""}`}>
+            <p className="eyebrow">{sessionHasWork ? "Explore" : "Explore your data"}</p>
             <h1 id="question-title" tabIndex={-1}>
-              {workbenchSession
-                ? (workbenchSession.name ?? "").trim() ||
-                  workbenchSession.question.trim() ||
-                  "New session"
-                : "Workbench"}
+              {sessionHasWork
+                ? (workbenchSession?.name ?? "").trim() || workbenchSession?.question || "Your question"
+                : "What would you like to find out?"}
             </h1>
+            {!sessionHasWork && <>
+              <p>Start with a question, in your own words.</p>
+              <p className="workbench-empty__note">Review the prepared query, then choose when to get results.</p>
+            </>}
+            {advancedMode && workbenchSession && <p className="dashboard-session-meta">
+              Session {workbenchSession.sessionId} · {activeDataSourceLabel}
+            </p>}
           </header>
-
-      {!sessionHasWork && state.kind !== "submitting" && (
-        /*
-          The rail names the product and the composer holds the question, so
-          this says only what neither can: what a session is for, and that
-          nothing leaves it without review.
-        */
-        <div className="workbench-empty">
-          <p className="workbench-empty__lead">
-            Ask a question about {activeDataSourceLabel ?? "the connected data"}.
-          </p>
-          <p className="workbench-empty__note">
-            Catalyst writes SQL you can read and edit, runs it, and keeps every
-            version. Nothing is saved until you review it.
-          </p>
-
-          {catalogRelations.length > 0 && (
-            <section
-              className="workbench-catalog"
-              aria-labelledby="workbench-catalog-title"
-            >
-              <header className="workbench-catalog__heading">
-                <h2 id="workbench-catalog-title">
-                  {catalogRelations.length} relations you can query
-                </h2>
-                <button
-                  type="button"
-                  className="workbench-catalog__all"
-                  onClick={() => changeRailSection("data")}
-                >
-                  Browse columns in DATA →
-                </button>
-              </header>
-              <ul className="workbench-catalog__grid">
-                {catalogRelations.map((view) => (
-                  <li key={view.qualifiedName}>
-                    <button
-                      type="button"
-                      className="workbench-catalog__relation"
-                      onClick={() => changeRailSection("data")}
-                    >
-                      <span className="workbench-catalog__name">
-                        <code>{view.qualifiedName}</code>
-                      </span>
-                      <span className="workbench-catalog__count">
-                        {view.columns.length} columns
-                      </span>
-                      {view.grain && (
-                        <span className="workbench-catalog__grain">
-                          {view.grain}
-                        </span>
-                      )}
-                      <span className="workbench-catalog__columns">
-                        {view.columns.slice(0, 6).map((column) => (
-                          <code key={column.name}>{column.name}</code>
-                        ))}
-                        {view.columns.length > 6 && (
-                          <em>+{view.columns.length - 6} more</em>
-                        )}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-        </div>
-      )}
 
       {!sessionHasWork && (
         <QuestionForm
+          advancedMode={advancedMode}
           question={question}
           busy={state.kind === "submitting"}
           retry={state.kind === "error"}
@@ -1651,6 +1541,7 @@ export const QueryWorkspace = ({
             used to sit here was unstyled, unexplained, and confused every
             reader of the page, so the surface shipped without it. */}
         <TurnNotebook
+          advancedMode={advancedMode}
           turns={activeNotebookTurns}
           session={workbenchSession}
           baseVersion={workbenchSession.currentVersion}
@@ -1679,10 +1570,9 @@ export const QueryWorkspace = ({
           onEditAttempt={editRetainedAttempt}
           onSaveDataset={() => openDatasetReview.current?.()}
           activeCell={
-            showEditor ? (
-              workbenchPanel
-            ) : (
-              <div className="query-turn__next">
+            <>
+              <div hidden={!showEditor && !advancedMode}>{workbenchPanel}</div>
+              <div hidden={showEditor || advancedMode} className="query-turn__next">
                 <p>
                   {latestExecutionFailed(workbenchSession)
                     ? "That run failed. The diagnostic is above — fix the query by hand, or say what to change below."
@@ -1697,7 +1587,7 @@ export const QueryWorkspace = ({
                   Edit query
                 </Button>
               </div>
-            )
+            </>
           }
         />
         </>
@@ -1796,11 +1686,9 @@ export const QueryWorkspace = ({
             }
             evidenceError={generationEvidenceError}
             tab={detailsTab}
-            developerMode={developerMode}
-            stacked={railStacked}
-            railWidth={railWidth}
+            developerMode={advancedMode}
+            stacked={narrowWorkspace}
             onTabChange={setDetailsTab}
-            onDeveloperModeChange={setDeveloperMode}
             onClose={() => {
               setDetailsOpen(false);
               setDetailsTurnId(null);

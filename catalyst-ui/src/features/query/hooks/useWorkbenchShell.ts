@@ -1,29 +1,20 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { DetailsTab } from "../components/DetailsPanel";
-import {
-  RAIL_DEFAULT_WIDTH,
-  type RailSection,
-} from "../components/workbenchRailSupport";
+import type { WorkspaceSection } from "../components/workbenchShellSupport";
 import type {
   DashboardBuilderSection,
   WorkbenchSessionSummary,
 } from "../types";
 
-/**
- * The workspace shell: which section is active, the rail's geometry, the
- * session menu, the details panel, and the viewport — everything about the
- * furniture, nothing about the data on it.
- *
- * One of five hooks extracted from QueryWorkspace. The setters are returned
- * as-is: workflows that cross clusters (adopting a session restores rail
- * layout, starting one returns to "ask") stay in the component, which is the
- * composer; this hook owns where the state lives.
- */
+// Presentation preferences share one lifetime across all workspace sections.
 export const useWorkbenchShell = () => {
-  const [activeSection, setActiveSection] =
-    useState<DashboardBuilderSection>("ask");
-  const [railWidth, setRailWidth] = useState(RAIL_DEFAULT_WIDTH);
-  const [railSection, setRailSection] = useState<RailSection>("turns");
+  const [activeSection, updateActiveSection] = useState<DashboardBuilderSection>("ask");
+  const [savedWorkSection, setSavedWorkSection] = useState<DashboardBuilderSection>("datasets");
+  const setActiveSection = useCallback((section: DashboardBuilderSection) => {
+    updateActiveSection(section);
+    if (section !== "ask") setSavedWorkSection(section);
+  }, []);
+  const [workspaceSection, setWorkspaceSection] = useState<WorkspaceSection | null>(null);
   const [activeTurnOrdinal, setActiveTurnOrdinal] = useState<number | null>(
     null,
   );
@@ -40,7 +31,7 @@ export const useWorkbenchShell = () => {
   // versions, and they must stay reachable.
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [detailsTab, setDetailsTab] = useState<DetailsTab>("validation");
-  const [developerMode, setDeveloperMode] = useState(false);
+  const [advancedMode, setAdvancedMode] = useState(false);
   const [viewportWidth, setViewportWidth] = useState(() =>
     typeof window === "undefined" ? 1440 : window.innerWidth,
   );
@@ -53,11 +44,10 @@ export const useWorkbenchShell = () => {
 
   return {
     activeSection,
+    savedWorkSection,
     setActiveSection,
-    railWidth,
-    setRailWidth,
-    railSection,
-    setRailSection,
+    workspaceSection,
+    setWorkspaceSection,
     activeTurnOrdinal,
     setActiveTurnOrdinal,
     sessionMenu,
@@ -72,8 +62,8 @@ export const useWorkbenchShell = () => {
     setDetailsOpen,
     detailsTab,
     setDetailsTab,
-    developerMode,
-    setDeveloperMode,
+    advancedMode,
+    setAdvancedMode,
     viewportWidth,
   };
 };

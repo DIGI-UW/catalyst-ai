@@ -803,9 +803,9 @@ export const DashboardPublishPanel = ({
     <section className="builder-library" aria-labelledby="datasets-title">
       <header className="builder-library__header">
         <div>
-          <p className="eyebrow">Library</p>
-          <h1 id="datasets-title">Datasets</h1>
-          <p>Saved governed query results. One Dataset can support many Widgets.</p>
+          <p className="eyebrow">Saved work</p>
+          <h1 id="datasets-title">Saved queries</h1>
+          <p>Queries you have saved for reuse in charts, tables and dashboards.</p>
         </div>
         <Button type="button" onClick={() => onNavigate("ask")}>New from question</Button>
       </header>
@@ -862,8 +862,8 @@ export const DashboardPublishPanel = ({
     <section className="builder-library" aria-labelledby="widgets-title">
       <header className="builder-library__header">
         <div>
-          <p className="eyebrow">Library</p>
-          <h1 id="widgets-title">Widgets</h1>
+          <p className="eyebrow">Saved work</p>
+          <h1 id="widgets-title">Charts and tables</h1>
           <p>Saved chart definitions backed by immutable Dataset versions.</p>
         </div>
         <Button
@@ -910,7 +910,7 @@ export const DashboardPublishPanel = ({
     <section className="builder-library" aria-labelledby="dashboards-title">
       <header className="builder-library__header">
         <div>
-          <p className="eyebrow">Library</p>
+          <p className="eyebrow">Saved work</p>
           <h1 id="dashboards-title">Dashboards</h1>
           <p>Reviewed Widget collections ready for deterministic Superset import.</p>
         </div>

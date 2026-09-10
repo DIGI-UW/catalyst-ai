@@ -186,7 +186,9 @@ const catalog: WorkbenchEditorCatalog = {
   ],
 };
 
+// Existing analyst operations remain available in Advanced mode.
 const defaultProps = {
+  advancedMode: true,
   sql: SQL,
   parameters: [parameter],
   editorCatalog: catalog,
@@ -219,11 +221,30 @@ const ControlledParameterPanel = ({
 };
 
 describe("WorkbenchPanel", () => {
+  it("discloses SQL without executing and keeps the editor through mode changes", async () => {
+    const user = userEvent.setup();
+    const onRun = vi.fn();
+    const current = makeSession();
+    const { rerender } = render(<WorkbenchPanel {...defaultProps} session={current} advancedMode={false} onRun={onRun} />);
+    const editor = screen.getByRole("textbox", { name: "SQL query" });
+    expect(editor).not.toBeVisible();
+    expect(screen.getByRole("button", { name: "Get results" })).toBeEnabled();
+    await user.click(screen.getByText("View or edit SQL"));
+    expect(editor).toBeVisible();
+    expect(onRun).not.toHaveBeenCalled();
+    rerender(<WorkbenchPanel {...defaultProps} session={current} onRun={onRun} />);
+    expect(screen.getByRole("textbox", { name: "SQL query" })).toBe(editor);
+    expect(screen.getByLabelText("Parameter 1 value")).toHaveValue("1000");
+    rerender(<WorkbenchPanel {...defaultProps} session={current} advancedMode={false} onRun={onRun} />);
+    expect(screen.getByRole("textbox", { name: "SQL query" })).toBe(editor);
+    expect(onRun).not.toHaveBeenCalled();
+  });
+
   it("disables actions only while busy or when SQL is empty", () => {
     const { rerender } = render(
       <WorkbenchPanel {...defaultProps} session={makeSession()} busy="running" />,
     );
-    expect(screen.getByRole("button", { name: "Running…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Getting results…" })).toBeDisabled();
 
     rerender(
       <WorkbenchPanel {...defaultProps} session={makeSession()} sql="   " />,
