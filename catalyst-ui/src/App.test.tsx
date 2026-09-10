@@ -547,8 +547,8 @@ const failedWorkbenchExecution: WorkbenchExecution = {
 
 const askQuestion = async () => {
   const user = userEvent.setup();
-  await user.type(screen.getByLabelText("Question"), QUESTION);
-  await user.click(screen.getByRole("button", { name: "Generate query" }));
+  await user.type(screen.getByLabelText("Your question"), QUESTION);
+  await user.click(screen.getByRole("button", { name: "Continue" }));
   return user;
 };
 
@@ -583,7 +583,7 @@ describe("Catalyst query workflow", () => {
     // models, a read-only database identity and an explicit Run, none of
     // which this screen can bypass; the one it can demonstrate is that
     // nothing is generated until a question exists.
-    expect(screen.getByRole("button", { name: "Generate query" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
   });
 
   it("keeps the Ask OpenELIS input directly focusable", async () => {
@@ -592,7 +592,7 @@ describe("Catalyst query workflow", () => {
 
     await user.click(screen.getByRole("button", { name: "Ask a question" }));
 
-    expect(screen.getByLabelText("Question")).toHaveFocus();
+    expect(screen.getByLabelText("Your question")).toHaveFocus();
   });
 
   it("submits a question and presents the authoritative preview", async () => {
@@ -609,12 +609,12 @@ describe("Catalyst query workflow", () => {
       "catalyst-query-gemma-e4b",
     );
     expect(await screen.findByRole("heading", { name: "Review query" })).toBeVisible();
-    expect(screen.getByLabelText("Question")).toBeDisabled();
+    expect(screen.getByLabelText("Your question")).toBeDisabled();
     expect(screen.getByLabelText("Model profile")).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Generate query" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "Ask a question" }));
     expect(screen.getByRole("heading", { name: "Workbench" })).toHaveFocus();
-    expect(screen.getByLabelText("Question")).toBeDisabled();
+    expect(screen.getByLabelText("Your question")).toBeDisabled();
     expect(screen.getByLabelText("Generated SQL")).toHaveTextContent(
       "SELECT collected_on, result_value FROM analytics.vw_viral_load_results WHERE result_value >= :minimum_result",
     );
@@ -723,7 +723,7 @@ describe("Catalyst query workflow", () => {
     ).not.toBeInTheDocument();
     // Source-neutral: the workbench is not laboratory-only, and this composer
     // is shown for whichever catalog the session is grounded in.
-    expect(screen.getByLabelText("Question")).toHaveAttribute(
+    expect(screen.getByLabelText("Your question")).toHaveAttribute(
       "placeholder",
       "Describe the data you want to explore",
     );
@@ -773,10 +773,10 @@ describe("Catalyst query workflow", () => {
     expect(records).toHaveAttribute("open");
     expect(patientFilter).toHaveValue("patient-123");
     await user.type(
-      screen.getByLabelText("Question"),
+      screen.getByLabelText("Your question"),
       "Show viral load results since 2026-01-01",
     );
-    await user.click(screen.getByRole("button", { name: "Generate query" }));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
     expect(api.submitQuestion).toHaveBeenCalledWith(
       "Show viral load results since 2026-01-01",
       "catalyst-query-gemma-e4b",
@@ -879,8 +879,8 @@ describe("Catalyst query workflow", () => {
     await user.click(screen.getByRole("button", { name: "Start session" }));
 
     expect(screen.queryByRole("heading", { name: "New draft" })).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Question")).toHaveValue("");
-    await waitFor(() => expect(screen.getByLabelText("Question")).toHaveFocus());
+    expect(screen.getByLabelText("Your question")).toHaveValue("");
+    await waitFor(() => expect(screen.getByLabelText("Your question")).toHaveFocus());
     expect(screen.getByLabelText("Model profile")).toHaveValue(
       "catalyst-query-gemma-e4b",
     );
@@ -900,8 +900,8 @@ describe("Catalyst query workflow", () => {
     expect(await screen.findByLabelText("Model profile")).toHaveValue(
       notebookQueryOptions.defaultProfileId,
     );
-    await user.type(screen.getByLabelText("Question"), QUESTION);
-    await user.click(screen.getByRole("button", { name: "Generate query" }));
+    await user.type(screen.getByLabelText("Your question"), QUESTION);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(
       await screen.findByRole("heading", { name: /^Refine \[\d+\]$/ }),
@@ -915,11 +915,11 @@ describe("Catalyst query workflow", () => {
     ).not.toBeInTheDocument();
     expect(document.querySelector(".turn-composer__stale")).toBeNull();
     await user.type(
-      screen.getByRole("textbox", { name: "Follow-up instruction" }),
+      screen.getByRole("textbox", { name: "Ask a follow-up" }),
       "Only include released results",
     );
     await user.click(
-      screen.getByRole("button", { name: "Generate next query" }),
+      screen.getByRole("button", { name: "Continue" }),
     );
 
     await waitFor(() => expect(api.createWorkbenchTurn).toHaveBeenCalledOnce());
@@ -983,15 +983,15 @@ describe("Catalyst query workflow", () => {
     const user = userEvent.setup();
     render(<App api={api} />);
 
-    await user.type(screen.getByLabelText("Question"), QUESTION);
-    await user.click(screen.getByRole("button", { name: "Generate query" }));
+    await user.type(screen.getByLabelText("Your question"), QUESTION);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
     const editor = await screen.findByRole("textbox", { name: "SQL query" });
     await user.type(
-      screen.getByRole("textbox", { name: "Follow-up instruction" }),
+      screen.getByRole("textbox", { name: "Ask a follow-up" }),
       "Only include released results",
     );
     await user.click(
-      screen.getByRole("button", { name: "Generate next query" }),
+      screen.getByRole("button", { name: "Continue" }),
     );
 
     expect(
@@ -1010,8 +1010,8 @@ describe("Catalyst query workflow", () => {
     render(<App api={api} />);
 
     expect(await screen.findByLabelText("Model profile")).toBeEnabled();
-    await user.type(screen.getByLabelText("Question"), QUESTION);
-    await user.click(screen.getByRole("button", { name: "Generate query" }));
+    await user.type(screen.getByLabelText("Your question"), QUESTION);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
     expect(
       await screen.findByRole("heading", { name: /^Refine \[\d+\]$/ }),
     ).toBeVisible();
@@ -1020,11 +1020,11 @@ describe("Catalyst query workflow", () => {
     await user.clear(minimum);
     await user.type(minimum, "2500");
     await user.type(
-      screen.getByRole("textbox", { name: "Follow-up instruction" }),
+      screen.getByRole("textbox", { name: "Ask a follow-up" }),
       "Keep the same shape and use the edited threshold",
     );
     await user.click(
-      screen.getByRole("button", { name: "Generate next query" }),
+      screen.getByRole("button", { name: "Continue" }),
     );
 
     await waitFor(() => expect(api.createWorkbenchTurn).toHaveBeenCalledOnce());
@@ -1055,7 +1055,7 @@ describe("Catalyst query workflow", () => {
 
   it("reports a failed follow-up in the composer that submitted it", async () => {
     // The only error surface was inside the editor card, and a completed run
-    // closes the editor -- so a failed "Generate next query" produced no
+    // closes the editor -- so a failed "Continue" produced no
     // visible change at all. An action reports where it was taken.
     const api = makeNotebookApi();
     api.createWorkbenchTurn = vi
@@ -1064,15 +1064,15 @@ describe("Catalyst query workflow", () => {
     const user = userEvent.setup();
     render(<App api={api} />);
 
-    await user.type(screen.getByLabelText("Question"), QUESTION);
-    await user.click(screen.getByRole("button", { name: "Generate query" }));
-    await screen.findByRole("textbox", { name: "Follow-up instruction" });
+    await user.type(screen.getByLabelText("Your question"), QUESTION);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await screen.findByRole("textbox", { name: "Ask a follow-up" });
     await user.type(
-      screen.getByRole("textbox", { name: "Follow-up instruction" }),
+      screen.getByRole("textbox", { name: "Ask a follow-up" }),
       "Collapse to one row per patient",
     );
     await user.click(
-      screen.getByRole("button", { name: "Generate next query" }),
+      screen.getByRole("button", { name: "Continue" }),
     );
 
     const composer = document.getElementById("refine-openelis")!;
@@ -1095,15 +1095,15 @@ describe("Catalyst query workflow", () => {
     const user = userEvent.setup();
     render(<App api={api} />);
 
-    await user.type(screen.getByLabelText("Question"), QUESTION);
-    await user.click(screen.getByRole("button", { name: "Generate query" }));
+    await user.type(screen.getByLabelText("Your question"), QUESTION);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
     await screen.findByRole("textbox", { name: "SQL query" });
     await user.type(
-      screen.getByRole("textbox", { name: "Follow-up instruction" }),
+      screen.getByRole("textbox", { name: "Ask a follow-up" }),
       "Collapse to one row per patient",
     );
     await user.click(
-      screen.getByRole("button", { name: "Generate next query" }),
+      screen.getByRole("button", { name: "Continue" }),
     );
 
     await waitFor(() => expect(api.createWorkbenchTurn).toHaveBeenCalledOnce());
@@ -1127,18 +1127,18 @@ describe("Catalyst query workflow", () => {
     const user = userEvent.setup();
     render(<App api={api} />);
 
-    await user.type(screen.getByLabelText("Question"), QUESTION);
-    await user.click(screen.getByRole("button", { name: "Generate query" }));
+    await user.type(screen.getByLabelText("Your question"), QUESTION);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
     const editor = await screen.findByRole("textbox", { name: "SQL query" });
     await user.click(editor);
     await user.keyboard("{Control>}{End}{/Control}");
     await user.paste(" AND 1 = 1");
     await user.type(
-      screen.getByRole("textbox", { name: "Follow-up instruction" }),
+      screen.getByRole("textbox", { name: "Ask a follow-up" }),
       "Collapse to one row per patient",
     );
     await user.click(
-      screen.getByRole("button", { name: "Generate next query" }),
+      screen.getByRole("button", { name: "Continue" }),
     );
 
     await waitFor(() => expect(api.createWorkbenchTurn).toHaveBeenCalledOnce());
@@ -1177,16 +1177,16 @@ describe("Catalyst query workflow", () => {
     const user = userEvent.setup();
     render(<App api={api} />);
 
-    await user.type(screen.getByLabelText("Question"), QUESTION);
-    await user.click(screen.getByRole("button", { name: "Generate query" }));
+    await user.type(screen.getByLabelText("Your question"), QUESTION);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
     await screen.findByRole("textbox", { name: "SQL query" });
     await user.click(screen.getByRole("button", { name: "Format SQL" }));
     await user.type(
-      screen.getByRole("textbox", { name: "Follow-up instruction" }),
+      screen.getByRole("textbox", { name: "Ask a follow-up" }),
       "Keep the manually edited limit",
     );
     await user.click(
-      screen.getByRole("button", { name: "Generate next query" }),
+      screen.getByRole("button", { name: "Continue" }),
     );
 
     await waitFor(() => expect(api.createWorkbenchTurn).toHaveBeenCalledOnce());
@@ -1222,18 +1222,18 @@ describe("Catalyst query workflow", () => {
     const user = userEvent.setup();
     render(<App api={api} />);
 
-    await user.type(screen.getByLabelText("Question"), QUESTION);
-    await user.click(screen.getByRole("button", { name: "Generate query" }));
+    await user.type(screen.getByLabelText("Your question"), QUESTION);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
     const editor = await screen.findByRole("textbox", { name: "SQL query" });
     // A genuine change to the query, not a reflow of it.
     await user.click(editor);
     await user.keyboard(" AND 1 = 1");
     await user.type(
-      screen.getByRole("textbox", { name: "Follow-up instruction" }),
+      screen.getByRole("textbox", { name: "Ask a follow-up" }),
       "Keep the manually edited limit",
     );
     await user.click(
-      screen.getByRole("button", { name: "Generate next query" }),
+      screen.getByRole("button", { name: "Continue" }),
     );
 
     await waitFor(() => expect(api.createWorkbenchTurn).toHaveBeenCalledOnce());
@@ -1252,14 +1252,14 @@ describe("Catalyst query workflow", () => {
     const user = userEvent.setup();
     render(<App api={api} />);
 
-    await user.type(screen.getByLabelText("Question"), QUESTION);
-    await user.click(screen.getByRole("button", { name: "Generate query" }));
+    await user.type(screen.getByLabelText("Your question"), QUESTION);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
     await user.type(
-      await screen.findByRole("textbox", { name: "Follow-up instruction" }),
+      await screen.findByRole("textbox", { name: "Ask a follow-up" }),
       "Only include released results",
     );
     await user.click(
-      screen.getByRole("button", { name: "Generate next query" }),
+      screen.getByRole("button", { name: "Continue" }),
     );
 
     await waitFor(() => expect(api.createWorkbenchTurn).toHaveBeenCalledOnce());
@@ -1283,10 +1283,10 @@ describe("Catalyst query workflow", () => {
     const user = userEvent.setup();
     render(<App api={api} />);
 
-    await user.type(screen.getByLabelText("Question"), QUESTION);
-    await user.click(screen.getByRole("button", { name: "Generate query" }));
+    await user.type(screen.getByLabelText("Your question"), QUESTION);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
     const instruction = await screen.findByRole("textbox", {
-      name: "Follow-up instruction",
+      name: "Ask a follow-up",
     });
     await user.type(instruction, "Only include released results");
     // An edit, so the run really does have a version to save — an unchanged
@@ -1300,7 +1300,7 @@ describe("Catalyst query workflow", () => {
     expect(instruction).toBeDisabled();
     expect(screen.getByRole("combobox", { name: "Model profile" })).toBeDisabled();
     const generate = screen.getByRole("button", {
-      name: "Generate next query",
+      name: "Continue",
     });
     expect(generate).toBeDisabled();
     fireEvent.submit(generate.closest("form")!);
@@ -1337,16 +1337,16 @@ describe("Catalyst query workflow", () => {
     render(<App api={api} />);
 
     expect(await screen.findByLabelText("Model profile")).toBeEnabled();
-    await user.type(screen.getByLabelText("Question"), QUESTION);
-    await user.click(screen.getByRole("button", { name: "Generate query" }));
+    await user.type(screen.getByLabelText("Your question"), QUESTION);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
     expect(await screen.findByText("Unresolved model draft")).toBeVisible();
 
     await user.type(
-      screen.getByRole("textbox", { name: "Follow-up instruction" }),
+      screen.getByRole("textbox", { name: "Ask a follow-up" }),
       "Repair the missing parameter names",
     );
     const generate = screen.getByRole("button", {
-      name: "Generate next query",
+      name: "Continue",
     });
     expect(generate).toBeEnabled();
     await user.click(generate);
@@ -1370,15 +1370,15 @@ describe("Catalyst query workflow", () => {
     render(<App api={api} />);
 
     expect(await screen.findByLabelText("Model profile")).toBeEnabled();
-    await user.type(screen.getByLabelText("Question"), QUESTION);
-    await user.click(screen.getByRole("button", { name: "Generate query" }));
+    await user.type(screen.getByLabelText("Your question"), QUESTION);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
     expect(
       await screen.findByRole("heading", { name: /^Refine \[\d+\]$/ }),
     ).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Clear draft" }));
     expect(
-      screen.getByRole("button", { name: "Generate next query" }),
+      screen.getByRole("button", { name: "Continue" }),
     ).toBeDisabled();
     expect(api.createWorkbenchTurn).not.toHaveBeenCalled();
 
@@ -1389,8 +1389,8 @@ describe("Catalyst query workflow", () => {
     );
     expect(screen.getByLabelText("Parameter 2 value")).toHaveValue("1000");
     expect(
-      screen.getByRole("button", { name: "Generate next query" }),
-    ).toBeEnabled();
+      screen.getByRole("button", { name: "Continue" }),
+    ).toBeDisabled();
     expect(api.createWorkbenchVersion).not.toHaveBeenCalled();
   });
 
@@ -1441,10 +1441,10 @@ describe("Catalyst query workflow", () => {
     await user.click(screen.getByRole("button", { name: "Start session" }));
     expect(screen.queryByRole("button", { name: /query turn 1/i }))
       .not.toBeInTheDocument();
-    expect(screen.queryByRole("textbox", { name: "Follow-up instruction" }))
+    expect(screen.queryByRole("textbox", { name: "Ask a follow-up" }))
       .not.toBeInTheDocument();
-    expect(screen.getByLabelText("Question")).toHaveValue("");
-    await waitFor(() => expect(screen.getByLabelText("Question")).toHaveFocus());
+    expect(screen.getByLabelText("Your question")).toHaveValue("");
+    await waitFor(() => expect(screen.getByLabelText("Your question")).toHaveFocus());
     // The new session is real and remembered, but nothing is in it yet.
     await waitFor(() =>
       expect(localStorage.getItem("catalyst.workbench.activeSessionId")).toBe(
@@ -1452,8 +1452,8 @@ describe("Catalyst query workflow", () => {
       ),
     );
 
-    await user.type(screen.getByLabelText("Question"), "Count creatinine results");
-    await user.click(screen.getByRole("button", { name: "Generate query" }));
+    await user.type(screen.getByLabelText("Your question"), "Count creatinine results");
+    await user.click(screen.getByRole("button", { name: "Continue" }));
     // The question seeds the session it was asked in, rather than opening a
     // second one: its source was already settled when it was created.
     await waitFor(() =>
@@ -1526,8 +1526,8 @@ describe("Catalyst query workflow", () => {
       name: "Model profile",
     });
     expect(profileSelector).toHaveValue("catalyst-query-gemma-e4b");
-    await user.type(screen.getByLabelText("Question"), "Count recent results");
-    await user.click(screen.getByRole("button", { name: "Generate query" }));
+    await user.type(screen.getByLabelText("Your question"), "Count recent results");
+    await user.click(screen.getByRole("button", { name: "Continue" }));
 
     await waitFor(() =>
       expect(api.askWorkbenchSessionQuestion).toHaveBeenCalledWith(
@@ -1582,11 +1582,11 @@ describe("Catalyst query workflow", () => {
     ).not.toBeInTheDocument();
 
     await user.type(
-      screen.getByRole("textbox", { name: "Follow-up instruction" }),
+      screen.getByRole("textbox", { name: "Ask a follow-up" }),
       "Only include released results",
     );
     await user.click(
-      screen.getByRole("button", { name: "Generate next query" }),
+      screen.getByRole("button", { name: "Continue" }),
     );
 
     await waitFor(() => expect(api.createWorkbenchTurn).toHaveBeenCalledOnce());
@@ -1608,8 +1608,8 @@ describe("Catalyst query workflow", () => {
     api.executeWorkbenchVersion = vi.fn();
     render(<App api={api} />);
 
-    await user.type(screen.getByLabelText("Question"), QUESTION);
-    await user.click(screen.getByRole("button", { name: "Generate query" }));
+    await user.type(screen.getByLabelText("Your question"), QUESTION);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(await screen.findByText("Unresolved model draft")).toBeVisible();
     showsQuery(
@@ -1681,8 +1681,8 @@ describe("Catalyst query workflow", () => {
     api.executeWorkbenchVersion = vi.fn();
     render(<App api={api} />);
 
-    await user.type(screen.getByLabelText("Question"), QUESTION);
-    await user.click(screen.getByRole("button", { name: "Generate query" }));
+    await user.type(screen.getByLabelText("Your question"), QUESTION);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
 
     showsQuery(
       await screen.findByRole("textbox", { name: "SQL query" }),
@@ -1702,8 +1702,8 @@ describe("Catalyst query workflow", () => {
     );
     render(<App api={api} />);
 
-    await user.type(screen.getByLabelText("Question"), QUESTION);
-    await user.click(screen.getByRole("button", { name: "Generate query" }));
+    await user.type(screen.getByLabelText("Your question"), QUESTION);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
     const parameterName = await screen.findByLabelText("Parameter 2 name");
     await user.clear(parameterName);
     await user.type(parameterName, "threshold");
@@ -1748,8 +1748,8 @@ describe("Catalyst query workflow", () => {
     });
     render(<App api={api} />);
 
-    await user.type(screen.getByLabelText("Question"), QUESTION);
-    await user.click(screen.getByRole("button", { name: "Generate query" }));
+    await user.type(screen.getByLabelText("Your question"), QUESTION);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
     await user.click(await screen.findByRole("button", { name: "Run query" }));
 
     // Running a query nobody rewrote is not authoring one. Every version this
@@ -1778,8 +1778,8 @@ describe("Catalyst query workflow", () => {
     );
     render(<App api={api} />);
 
-    await user.type(screen.getByLabelText("Question"), QUESTION);
-    await user.click(screen.getByRole("button", { name: "Generate query" }));
+    await user.type(screen.getByLabelText("Your question"), QUESTION);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
     const editor = await screen.findByRole("textbox", { name: "SQL query" });
     // A real edit, so there genuinely is a new version to persist: an
     // unchanged draft now runs the version it came from.
@@ -1914,8 +1914,8 @@ describe("Catalyst query workflow", () => {
     expect(screen.queryByLabelText("Model profile")).not.toBeInTheDocument();
 
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText("Question"), QUESTION);
-    expect(screen.getByRole("button", { name: "Generate query" })).toBeDisabled();
+    await user.type(screen.getByLabelText("Your question"), QUESTION);
+    expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
     expect(api.submitQuestion).not.toHaveBeenCalled();
   });
 
@@ -2014,11 +2014,11 @@ describe("Catalyst query workflow", () => {
     expect(within(provenance).getByText("hub-trace-456")).toBeVisible();
     expect(within(provenance).getByText("pipeline-run-77")).toBeVisible();
     expect(within(provenance).getByText("catalyst-query-gemma-e4b")).toBeVisible();
-    expect(screen.getByLabelText("Question")).toBeEnabled();
+    expect(screen.getByLabelText("Your question")).toBeEnabled();
     expect(screen.getByLabelText("Model profile")).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Generate query" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
     await user.click(screen.getByRole("button", { name: "Ask a question" }));
-    expect(screen.getByLabelText("Question")).toHaveFocus();
+    expect(screen.getByLabelText("Your question")).toHaveFocus();
   });
 
   it("polls the accepted execution until the table is ready", async () => {
@@ -2046,15 +2046,15 @@ describe("Catalyst query workflow", () => {
     expect(
       await screen.findByRole("heading", { name: "Query running" }),
     ).toBeVisible();
-    expect(screen.getByLabelText("Question")).toBeDisabled();
+    expect(screen.getByLabelText("Your question")).toBeDisabled();
     expect(screen.getByLabelText("Model profile")).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Generate query" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
     await waitFor(() => expect(api.pollExecution).toHaveBeenCalled());
     resolvePoll(table);
     expect(await screen.findByRole("region", { name: "Query results" })).toBeVisible();
-    expect(screen.getByLabelText("Question")).toBeEnabled();
+    expect(screen.getByLabelText("Your question")).toBeEnabled();
     expect(screen.getByLabelText("Model profile")).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Generate query" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
     expect(api.pollExecution).toHaveBeenCalledWith(
       preview.previewId,
       expect.any(String),
@@ -2079,7 +2079,7 @@ describe("Catalyst query workflow", () => {
     expect(await screen.findByRole("heading", { name: heading })).toBeVisible();
     expect(screen.getByText(`Execution ${status}.`)).toBeVisible();
     expect(screen.getByRole("button", { name: "Start a new query" })).toBeEnabled();
-    expect(screen.getByLabelText("Question")).toBeEnabled();
+    expect(screen.getByLabelText("Your question")).toBeEnabled();
   });
 
   it("surfaces request failures and allows a retry", async () => {
@@ -2095,7 +2095,7 @@ describe("Catalyst query workflow", () => {
       await screen.findByRole("heading", { name: "Request failed" }),
     ).toBeVisible();
     expect(screen.getByText("Gateway is unavailable.")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Generate query" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeEnabled();
   });
 
   it("trims a submitted question", async () => {
@@ -2104,8 +2104,8 @@ describe("Catalyst query workflow", () => {
     const user = userEvent.setup();
     render(<App api={api} />);
 
-    await user.type(screen.getByLabelText("Question"), `  ${QUESTION}  `);
-    await user.click(screen.getByRole("button", { name: "Generate query" }));
+    await user.type(screen.getByLabelText("Your question"), `  ${QUESTION}  `);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
 
     await waitFor(() => expect(api.submitQuestion).toHaveBeenCalledWith(QUESTION));
   });
@@ -2245,8 +2245,8 @@ describe("Catalyst query workflow", () => {
       ),
     );
 
-    await user.type(screen.getByLabelText("Question"), QUESTION);
-    await user.click(screen.getByRole("button", { name: "Generate query" }));
+    await user.type(screen.getByLabelText("Your question"), QUESTION);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
     await waitFor(() => expect(api.createWorkbenchSession).toHaveBeenCalledOnce());
     expect(api.createWorkbenchSession).toHaveBeenCalledWith(
       QUESTION,
@@ -2259,10 +2259,10 @@ describe("Catalyst query workflow", () => {
 
     await screen.findByRole("heading", { name: /^Refine \[\d+\]$/ });
     await user.type(
-      screen.getByRole("textbox", { name: "Follow-up instruction" }),
+      screen.getByRole("textbox", { name: "Ask a follow-up" }),
       "Only include released results",
     );
-    await user.click(screen.getByRole("button", { name: "Generate next query" }));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
 
     await waitFor(() => expect(api.createWorkbenchTurn).toHaveBeenCalledOnce());
     const [, request] = vi.mocked(api.createWorkbenchTurn).mock.calls[0]!;

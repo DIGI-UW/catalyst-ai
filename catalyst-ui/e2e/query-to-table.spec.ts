@@ -912,47 +912,11 @@ const tabTo = async (
 test.setTimeout(480_000);
 
 /**
- * The composer collapses as you scroll away from the newest turn, so the
- * profile select and the follow-up box are not always reachable. Which mode
- * it is in depends on scroll position and therefore on page height, which
- * differs between a laptop and CI — so bring it back deliberately rather
- * than hoping. Scrolling to the end is what a person does, and what the
- * state machine listens for.
- */
-/**
- * Bring the composer within reach the way a person would, and wait for the
- * thing every caller actually wants: somewhere to type.
- *
- * Scrolling toward now is the usual gesture, but it only works while there is
- * still something to scroll. Sitting at the bottom of a page barely taller
- * than the viewport, a scroll-to-bottom produces no travel, and the mode
- * reacts to travel — so the composer can sit collapsed with no scroll able to
- * open it. The lip is the affordance the design offers for exactly that, and
- * the unit tests call it the manual way back. Try both, and settle for
- * neither: assert on the textbox.
  */
 const openComposer = async (page: Page): Promise<void> => {
   const instruction = page.getByRole("textbox", {
-    name: "Follow-up instruction",
+    name: "Ask a follow-up",
   });
-  for (let attempt = 0; attempt < 12; attempt += 1) {
-    if (await instruction.isVisible().catch(() => false)) return;
-    await page.evaluate(
-      "window.scrollTo({ top: document.documentElement.scrollHeight })",
-    );
-    const lip = page.locator("#refine-openelis-toggle");
-    if (await lip.isVisible().catch(() => false)) {
-      await lip.click({ timeout: 2000 }).catch(() => undefined);
-    }
-    const jumpBack = page.locator(".turn-composer__restore");
-    if (
-      !(await instruction.isVisible().catch(() => false)) &&
-      (await jumpBack.isVisible().catch(() => false))
-    ) {
-      await jumpBack.click({ timeout: 2000 }).catch(() => undefined);
-    }
-    await page.waitForTimeout(250);
-  }
   await expect(instruction).toBeVisible();
 };
 
@@ -1002,8 +966,8 @@ test("question to iterative notebook to imported dashboard", async ({
 
   // ---------------------------------------------------- ask the question
   await expect(page.getByLabel("Model profile")).toBeEnabled();
-  await page.getByLabel("Question").fill(query);
-  await page.getByRole("button", { name: "Generate query" }).click();
+  await page.getByLabel("Your question").fill(query);
+  await page.getByRole("button", { name: "Continue" }).click();
 
   // The composer names the cell it refines, not a query version.
   await expect(page.getByRole("heading", { name: /^Refine \[1\]$/ }))
@@ -1015,8 +979,8 @@ test("question to iterative notebook to imported dashboard", async ({
   );
   await expect(page.getByRole("region", { name: "Iterative query notebook" }))
     .toBeVisible();
-  await expect(page.getByLabel("Question")).toHaveCount(0);
-  await expect(page.getByRole("textbox", { name: "Follow-up instruction" }))
+  await expect(page.getByLabel("Your question")).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: "Ask a follow-up" }))
     .toBeVisible();
   // Run state lives in the thread, not the composer: the fresh query's cell
   // says "not run" and the composer carries no grounding prose.
@@ -1115,10 +1079,10 @@ test("question to iterative notebook to imported dashboard", async ({
     await page.getByRole("combobox", { name: "Model profile" }).selectOption(
       revisionProfileId,
     );
-    await page.getByRole("textbox", { name: "Follow-up instruction" }).fill(
+    await page.getByRole("textbox", { name: "Ask a follow-up" }).fill(
       "Include the result unit in the current query",
     );
-    await page.getByRole("button", { name: "Generate next query" }).click();
+    await page.getByRole("button", { name: "Continue" }).click();
 
     await expect(page.getByRole("heading", { name: /^Refine \[\d+\]$/ }))
       .toBeVisible();
@@ -1287,10 +1251,15 @@ test("question to iterative notebook to imported dashboard", async ({
           .getComputedStyle(element).paddingLeft,
       )).toBe("0px");
       await expectNoHorizontalOverflow(`${width}px Workbench`);
-      // The composer is scroll-adaptive, so it is not always expanded — but it
-      // is always present and always one control away from being expanded.
+      // The composer and its explicit size control remain directly reachable.
       await expect(page.locator("#refine-openelis")).toBeVisible();
-      await expect(page.locator("#refine-openelis-toggle")).toHaveCount(1);
+      await expect(page.getByRole("textbox", { name: "Ask a follow-up" }))
+        .toBeVisible();
+      await expect(
+        page.locator("#refine-openelis").getByRole("button", {
+          name: /Expand|Restore/,
+        }),
+      ).toBeVisible();
 
       const stackedSections = page
         .getByRole("complementary", { name: "Catalyst" })

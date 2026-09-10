@@ -66,7 +66,7 @@ test.describe(`visual baseline (${theme})`, () => {
     await installBaselineApi(page, { empty: true });
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto("/");
-    await expect(page.getByLabel("Question")).toBeVisible();
+    await expect(page.getByLabel("Your question")).toBeVisible();
     await expect(page).toHaveScreenshot(`empty-session-${theme}.png`, {
       ...shot,
       fullPage: true,

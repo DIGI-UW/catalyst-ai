@@ -31,7 +31,7 @@ describe("QuestionForm", () => {
 
   it("keeps the question placeholder source-neutral", () => {
     renderForm();
-    expect(screen.getByLabelText("Question")).toHaveAttribute(
+    expect(screen.getByLabelText("Your question")).toHaveAttribute(
       "placeholder",
       "Describe the data you want to explore",
     );
@@ -39,9 +39,26 @@ describe("QuestionForm", () => {
 
   it("still renders the question input and submit affordance", () => {
     renderForm();
-    expect(screen.getByLabelText("Question")).toBeVisible();
+    expect(screen.getByLabelText("Your question")).toBeVisible();
     expect(
-      screen.getByRole("button", { name: "Generate query" }),
+      screen.getByRole("button", { name: "Continue" }),
     ).toBeInTheDocument();
+  });
+
+  it("offers retry without clearing the failed question", () => {
+    render(
+      <QuestionForm
+        question="Count recent results"
+        busy={false}
+        retry
+        onQuestionChange={noop}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText("Your question")).toHaveValue(
+      "Count recent results",
+    );
+    expect(screen.getByRole("button", { name: "Retry" })).toBeEnabled();
   });
 });

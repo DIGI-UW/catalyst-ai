@@ -14,12 +14,8 @@ const isCompactViewport = () =>
 const getComposerElements = () => {
   const followupInput = document.getElementById("catalyst-followup");
   const hasFollowup = followupInput instanceof HTMLTextAreaElement;
-  const followupIsHidden = hasFollowup && followupInput.closest("[hidden]") !== null;
-  const followupToggle = document.getElementById("refine-openelis-toggle");
   const target = hasFollowup
-    ? followupIsHidden
-      ? followupToggle
-      : followupInput
+    ? followupInput
     : document.getElementById("catalyst-question");
   const section = document.getElementById(
     hasFollowup ? "refine-openelis" : "ask-openelis",
