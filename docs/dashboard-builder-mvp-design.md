@@ -558,14 +558,17 @@ focus role; they do not override this palette.
 | `#8e6a00` | — | inline warning text |
 | `#e5e0df` / `#171414` | warm gray | demo pill (existing app) |
 
-**Type** — IBM Plex Sans (400/500/600) and IBM Plex Mono (400) for SQL, parameters, and identifiers.
+**Type** — Match the rendered approved staff mock with the system sans-serif
+stack (`-apple-system`, `BlinkMacSystemFont`, `Segoe UI`, `sans-serif`). Use
+IBM Plex Mono (400) for SQL, parameters, and identifiers. These current type
+roles supersede the earlier Carbon sizing quoted in individual screen examples.
 | Size | Use |
 | --- | --- |
-| `2rem` / 400 / `-0.025em` / 1.15 | page H1 |
-| `1.25rem` / 400 / `-0.025em` | panel title |
+| `2.125rem` / 550 / `-0.025em` / 1.2 | page H1; `2.5rem` on the first question, `1.75rem` on narrow screens |
+| `1.4375rem` / 550 / 1.3 | card and panel titles |
 | `1rem` / 600 | object names, KPI-adjacent |
-| `1rem` / 400 / 1.5 | composer input |
-| `0.875rem` / 400–600 / 1.5 | body, tiles, tables, buttons |
+| `1.0625rem` / 400 / 1.5 | composer input; labels use weight 500 |
+| `1rem` / 400 / 1.5 | body and primary buttons; `0.875rem` for tables and quiet actions |
 | `0.75rem` / 400–600 | meta, labels, pills, eyebrows (`0.08em`, uppercase) |
 | `2rem` / 600 / `-0.02em` | KPI value |
 
@@ -585,7 +588,7 @@ uses the theme focus role; gold is never a general border or focus color.
 
 No image assets. All icons are inline SVG on Carbon's 32×32 grid, drawn from `@carbon/icons-react`: WarningFilled, ChevronLeft, ChevronRight, Chat, DataTable, ChartLine (nav "Widgets" uses a chart glyph), Dashboard, Add, ArrowRight, Close, CheckmarkFilled, Launch. Replace the inline paths with the real icon components. Charts and thumbnails are hand-drawn SVG placeholders standing in for the production chart renderer.
 
-Fonts: IBM Plex Sans and IBM Plex Mono, loaded from Google Fonts in the prototype — use the app's existing `@ibm/plex` dependency instead.
+Fonts: use the system sans-serif stack above for the interface and the existing bundled IBM Plex Mono face for SQL.
 
 ## Prototype retirement
 

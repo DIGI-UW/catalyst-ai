@@ -482,6 +482,7 @@ class DashboardBuilder:
                 "queryDigest": current["queryDigest"],
                 "executionId": execution_id,
                 "dataSourceId": session.get("dataSourceId") or "openelis",
+                "dialect": (session.get("provenance") or {}).get("dialect"),
                 "catalogVersion": session.get("catalogVersion") or "unknown",
                 "resultSchemaDigest": canonical_sha256(columns),
                 "resultDigest": canonical_sha256(

@@ -3466,3 +3466,58 @@ def test_a_rejected_answer_on_an_answered_clarification_base_persists(
         f"{turn['turnId']}/generation-evidence"
     ).json()
     assert evidence.get("invocations"), "the writer's invocations must survive"
+
+
+def test_saved_query_draft_session_round_trips_without_generation_or_execution(
+    tmp_path: Path,
+) -> None:
+    hub = FakeHub(_ready_query())
+    client, analytics = _client(tmp_path, _ready_query(), hub=hub)
+    parameters = [
+        {"name": "since", "type": "date", "source": "human", "value": "2026-01-01"}
+    ]
+    browser_state = {
+        "sqlWrapLines": True,
+        "editorDraft": {
+            "baseVersionId": None,
+            "question": "",
+            "instruction": "",
+            "sql": "select test_name from analytics.lab_results where observed_at >= :since",
+            "parameters": parameters,
+            "editorOpen": True,
+        },
+        "savedQueryOrigin": {
+            "versionId": "saved-query-v2",
+            "title": "Saved tests",
+            "dataSourceId": "openelis",
+            "dialect": "fixture",
+            "previousSessionId": None,
+        },
+    }
+    response = client.post(
+        "/v1/catalyst/workbench/sessions",
+        json={
+            "contractVersion": "catalyst.workbench.session.request.v1",
+            "deploymentMode": "demo",
+            "question": "",
+            "name": "Saved tests",
+            "profileId": PROFILE_ID,
+            "browserState": browser_state,
+        },
+    )
+    assert response.status_code == 201, response.text
+    created = response.json()
+    restored = client.get(
+        f"/v1/catalyst/workbench/sessions/{created['sessionId']}"
+    ).json()
+    assert restored["browserState"] == browser_state
+    assert restored["provenance"]["dialect"] == "fixture"
+    assert restored["versions"] == []
+    assert restored["executions"] == []
+    turns = client.get(
+        f"/v1/catalyst/workbench/sessions/{created['sessionId']}/turns"
+    ).json()
+    assert turns["turns"] == []
+    assert analytics.manual_calls == []
+    assert hub.requests == []
+    assert _preview_count(tmp_path) == 0

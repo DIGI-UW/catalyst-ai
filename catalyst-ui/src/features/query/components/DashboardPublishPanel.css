@@ -76,8 +76,9 @@
 
 .builder-library__header h1 {
   margin: 0 0 0.5rem;
-  font-size: var(--cds-heading-05-font-size, 2rem);
-  font-weight: 400;
+  font-size: 2.125rem;
+  font-weight: 550;
+  line-height: 1.2;
   letter-spacing: -0.025em;
 }
 

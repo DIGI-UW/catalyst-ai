@@ -14,6 +14,7 @@ import type {
   DashboardPublication,
   WorkbenchSession,
 } from "../types";
+import { savedQueryDraft } from "../savedQueryDraft";
 import { ExecutionResult } from "./WorkbenchPanel";
 import "./DashboardPublishPanel.css";
 
@@ -29,6 +30,7 @@ interface DashboardPublishPanelProps {
   hostedInThread?: boolean;
   registerDatasetOpener?: (open: ((executionId?: string) => void) | null) => void;
   onNavigate: (section: DashboardBuilderSection) => void;
+  onReuseQuery?: (dataset: DashboardBuilderEntity) => void;
 }
 
 type ReviewPanel = "dataset" | "widget" | "dashboard" | null;
@@ -244,6 +246,7 @@ export const DashboardPublishPanel = ({
   registerDatasetOpener,
   disabled = false,
   onNavigate,
+  onReuseQuery,
 }: DashboardPublishPanelProps) => {
   const [datasets, setDatasets] = useState<DashboardBuilderEntity[]>([]);
   const [widgets, setWidgets] = useState<DashboardBuilderEntity[]>([]);
@@ -782,6 +785,9 @@ export const DashboardPublishPanel = ({
                       >
                         Review {entityTitle(dataset, "Dataset")}
                       </Button>
+                      {onReuseQuery && <Button type="button" kind="ghost" size="sm"
+                        disabled={disabled || busy || !savedQueryDraft(dataset)}
+                        onClick={() => onReuseQuery(dataset)}>Start from this SQL</Button>}
                     </td>
                   </tr>
                 );
@@ -1102,6 +1108,15 @@ export const DashboardPublishPanel = ({
                   </details>
                 </>
               )}
+              {panel === "dataset" && reviewedDataset && <details className="builder-review__sql">
+                <summary>Saved SQL and values</summary>
+                <pre>{String(reviewedDataset.configuration.parameterizedSql ?? "Saved SQL is unavailable.")}</pre>
+                <p>Source: {String(reviewedDatasetSource?.dataSourceId ?? "Unknown")} · Dialect: {String(reviewedDatasetSource?.dialect ?? "Not recorded")}</p>
+                <dl>{savedQueryDraft(reviewedDataset)?.parameters.map((parameter) => <div key={parameter.name}>
+                  <dt>:{parameter.name} ({parameter.type})</dt><dd>{displayParameterValue(parameter.value)}</dd>
+                </div>)}</dl>
+                <details><summary>Recorded execution SQL</summary><pre>{String(reviewedDataset.configuration.compiledSql ?? "Not recorded")}</pre></details>
+              </details>}
               {panel === "dataset" && datasetEvidenceLoading && (
                 <p role="status">Loading exact Dataset execution evidence…</p>
               )}
@@ -1111,7 +1126,7 @@ export const DashboardPublishPanel = ({
                   lowContrast
                   hideCloseButton
                   title="Execution evidence is unavailable in this session"
-                  subtitle="Return to the source query session to review its typed rows and exact execution evidence."
+                  subtitle="Historical rows and run details could not be loaded. The saved SQL and values remain available for reuse."
                 />
               )}
 
@@ -1244,6 +1259,9 @@ export const DashboardPublishPanel = ({
                     {busy ? "Saving…" : "Save query"}
                   </Button>
                 ))}
+              {panel === "dataset" && reviewedDataset && onReuseQuery && <Button type="button" kind="ghost"
+                disabled={disabled || busy || !savedQueryDraft(reviewedDataset)}
+                onClick={() => { setPanel(null); onReuseQuery(reviewedDataset); }}>Start from this SQL</Button>}
               {panel === "widget" && (
                 <Button
                   type="button"

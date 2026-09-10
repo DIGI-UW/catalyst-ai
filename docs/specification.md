@@ -96,6 +96,11 @@ purple is not used for body, navigation, or link text. A small OpenClinAI purple
 mark may use a tiny gold detail. Warning, error, and success colors retain their
 semantic meaning.
 
+Interface typography follows the rendered approved staff mock: system sans-serif
+text, medium-weight headings and labels, and the purple Catalyst mark with its
+small gold highlight. Carbon remains the control framework; its default type
+scale does not override the approved visual hierarchy. SQL retains IBM Plex Mono.
+
 ### Session creation
 
 The person selects one available source and one available model profile, asks a
@@ -227,7 +232,14 @@ executes SQL or changes the saved version. Preserve any ongoing draft; using a
 different source requires an explicit matching or new session. Compiled SQL
 remains the saved execution snapshot, not the editable source. Saved query
 configuration stays available when detailed originating execution evidence
-cannot be loaded; report the missing evidence separately.
+cannot be loaded; report the missing evidence separately. New saved queries
+record the session's declared dialect; older saves show when it was not recorded.
+The reuse flow confirms opening a new session on the saved source and preserves
+question, follow-up, SQL and typed values in the existing session browser state
+before switching. A failed save or session creation leaves the draft available
+for retry. The starting Dataset version remains visible, and Return to previous
+draft restores the preserved session. Creating the copy does not generate or run
+SQL; Run continues through the existing query-version execution path.
 
 ### Widget
 

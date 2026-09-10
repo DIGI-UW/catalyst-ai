@@ -277,6 +277,11 @@
         "dataSourceId": {
           "$ref": "#/$defs/nonEmpty"
         },
+        "dialect": {
+          "description": "SQL dialect recorded at session creation; absent or null for older saved queries.",
+          "type": ["string", "null"],
+          "minLength": 1
+        },
         "catalogVersion": {
           "$ref": "#/$defs/nonEmpty"
         },

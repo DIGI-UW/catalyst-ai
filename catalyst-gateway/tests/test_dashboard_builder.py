@@ -76,6 +76,7 @@ class _Workbench:
             "sessionId": self.session_id,
             "dataSourceId": "openelis",
             "catalogVersion": "analytics-v1",
+            "provenance": {"dialect": "spark"},
             "currentVersion": version,
             "executions": [
                 {
@@ -158,6 +159,7 @@ def test_saved_lineage_publishes_a_contract_valid_native_bundle(tmp_path: Path) 
         execution_id=workbench.execution_id,
         title="Monthly result values",
     )
+    assert dataset["configuration"]["source"]["dialect"] == "spark"
     widget = builder.save_widget(
         dataset_version_id=dataset["versionId"], title="Result trend"
     )
