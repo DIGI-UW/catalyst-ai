@@ -924,6 +924,10 @@ test("question to iterative notebook to imported dashboard", async ({
     testInfo.project.name === "deterministic" ||
     process.env.PLAYWRIGHT_USE_MOCK_API !== "false";
   const calls = useMockApi ? await installDeterministicApi(page) : null;
+  const executions: string[] = [];
+  page.on("request", request => {
+    if (request.method() === "POST" && new URL(request.url()).pathname.endsWith("/execute")) executions.push(request.url());
+  });
 
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/");
@@ -1009,7 +1013,9 @@ test("question to iterative notebook to imported dashboard", async ({
   // the way. There is no separate save action to press first.
   await expect(page.getByRole("button", { name: /Sav(e|ing) version/ }))
     .toHaveCount(0);
+  expect(executions).toHaveLength(0);
   await page.getByRole("button", { name: "Run query" }).click();
+  await expect.poll(() => executions.length).toBe(1);
 
   if (useMockApi) {
     await expect.poll(() => calls?.versionRequests.length).toBe(1);
