@@ -473,6 +473,7 @@ class DashboardBuilder:
         query = execution.get("query") or {}
         timeline = self.workbench.list_turns(session_id)
         source_turn_id = str(timeline["currentTurnId"])
+        dialect = (session.get("provenance") or {}).get("dialect")
         configuration = {
             "title": title.strip() or f"Dataset from Query v{current['ordinal']}",
             "source": {
@@ -482,7 +483,7 @@ class DashboardBuilder:
                 "queryDigest": current["queryDigest"],
                 "executionId": execution_id,
                 "dataSourceId": session.get("dataSourceId") or "openelis",
-                "dialect": (session.get("provenance") or {}).get("dialect"),
+                **({"dialect": dialect} if dialect else {}),
                 "catalogVersion": session.get("catalogVersion") or "unknown",
                 "resultSchemaDigest": canonical_sha256(columns),
                 "resultDigest": canonical_sha256(
