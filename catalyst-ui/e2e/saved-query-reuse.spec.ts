@@ -73,7 +73,7 @@ test("saved SQL opens explicitly, keeps typed values and the earlier draft, and 
   await page.getByLabel("Parameter 1 value").fill("2026-02-01");
   await page.getByText(/View options/).click();
   await page.getByRole("radio", { name: "Dark", exact: true }).check();
-  await page.getByRole("checkbox", { name: /Advanced mode/ }).check();
+  await page.getByText("Advanced mode", { exact: true }).click();
   await page.keyboard.press("Escape");
   await page.screenshot({ path: testInfo.outputPath("saved-sql-dark.png") });
   await page.setViewportSize({ width: 390, height: 720 });

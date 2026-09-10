@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from copy import deepcopy
+from dataclasses import replace
 import json
 from pathlib import Path
 import sqlite3
@@ -3521,3 +3522,38 @@ def test_saved_query_draft_session_round_trips_without_generation_or_execution(
     assert analytics.manual_calls == []
     assert hub.requests == []
     assert _preview_count(tmp_path) == 0
+
+
+@pytest.mark.parametrize("source_id", ["openelis-demo", "openmrs-hiv"])
+def test_saved_query_retains_the_real_store_session_source(
+    tmp_path: Path, source_id: str
+) -> None:
+    catalog = replace(_catalog(), data_source=source_id)
+    query = _ready_query()
+    query["target"]["dataSource"] = source_id
+    client, _ = _client(tmp_path, query, catalog=catalog)
+    session = _create_session(client)
+    version = session["currentVersion"]
+    assert session["dataSourceId"] == source_id
+    response = client.post(
+        f"/v1/catalyst/workbench/versions/{version['versionId']}/execute",
+        json={
+            "contractVersion": "catalyst.workbench.execute.request.v1",
+            "versionId": version["versionId"],
+            "queryDigest": version["queryDigest"],
+            "idempotencyKey": "saved-source-check",
+        },
+    )
+    assert response.status_code == 200, response.text
+    execution = response.json()
+    assert execution["status"] == "succeeded"
+    saved = client.post(
+        "/v1/catalyst/dashboard-builder/datasets",
+        json={
+            "sessionId": session["sessionId"],
+            "executionId": execution["executionId"],
+            "title": "Source identity check",
+        },
+    )
+    assert saved.status_code == 201, saved.text
+    assert saved.json()["configuration"]["source"]["dataSourceId"] == source_id

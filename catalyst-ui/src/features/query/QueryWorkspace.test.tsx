@@ -267,7 +267,7 @@ describe("Dashboard Builder Ask shell", () => {
     const editor = await screen.findByRole("textbox", { name: "SQL query" });
     expect(editor).not.toBeVisible();
     await user.click(screen.getByText("View options"));
-    await user.click(screen.getByRole("checkbox", { name: /Advanced mode/ }));
+    await user.click(screen.getByRole("switch", { name: /Advanced mode/ }));
     expect(editor).toBeVisible();
     await user.type(screen.getByRole("textbox", { name: "Ask a follow-up" }), "Keep the unfinished question");
     const profile = screen.getByRole<HTMLSelectElement>("combobox", { name: "Model profile" });
@@ -277,8 +277,8 @@ describe("Dashboard Builder Ask shell", () => {
     await user.keyboard("{Control>}{End}{/Control}");
     await user.paste(" ORDER BY test_name");
     const editedSql = editor.textContent;
-    await user.click(screen.getByRole("checkbox", { name: /Advanced mode/ }));
-    await user.click(screen.getByRole("checkbox", { name: /Advanced mode/ }));
+    await user.click(screen.getByRole("switch", { name: /Advanced mode/ }));
+    await user.click(screen.getByRole("switch", { name: /Advanced mode/ }));
     expect(screen.getByRole("textbox", { name: "SQL query" })).toBe(editor);
     expect(editor.textContent).toBe(editedSql);
     expect(screen.getByRole("textbox", { name: "Ask a follow-up" })).toHaveValue("Keep the unfinished question");

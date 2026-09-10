@@ -81,8 +81,8 @@ Dataset, Widget, and Dashboard domain names in APIs and evidence. Use a centered
 content surface instead of a permanent development-style sidebar.
 
 Complexity is hidden until requested and never discarded. **View options**
-contains Appearance and a visit-scoped, workspace-wide **Advanced mode** that
-defaults off. Switching it preserves the draft, editor selection, SQL,
+contains Appearance and an on/off switch for visit-scoped, workspace-wide
+**Advanced mode** that defaults off. Switching it preserves the draft, editor selection, SQL,
 parameters, source, query and execution identities, results, selected profile,
 and focus. The same individual capabilities remain reachable through named
 disclosures in the simple view. Query settings exposes profile selection;
@@ -224,6 +224,9 @@ It is not a source, warehouse, or restricted schema copy.
 - Each Dataset retains source, dialect, readable-schema reference, SQL,
   parameters, execution identity, typed shape, warnings, and recorded
   configuration.
+- Saving uses the source recorded with the originating session. If that identity
+  is missing, ask the person to run the query in a new session before saving;
+  never substitute a default connection.
 
 **Start from this SQL** in Saved queries loads the saved Dataset's exact
 parameterized SQL and typed parameter values into the single editor. It retains

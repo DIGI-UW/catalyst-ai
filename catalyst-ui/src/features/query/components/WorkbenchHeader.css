@@ -41,8 +41,10 @@
 .workbench-header-shell__view-menu legend { margin-bottom: 0.5rem; }
 .workbench-header-shell__view-menu fieldset label { margin-right: 0.75rem; }
 .workbench-header-shell__view-menu input { margin-right: 0.375rem; accent-color: var(--cds-button-primary); }
-.workbench-header-shell__advanced { display: flex; gap: 0.5rem; align-items: flex-start; }
-.workbench-header-shell__advanced input { margin-top: 0.25rem; }
+.workbench-header-shell__advanced { display: grid; gap: 0.5rem; }
+.workbench-header-shell__advanced .cds--toggle { --cds-support-success: var(--cds-button-primary); }
+.workbench-header-shell__advanced .cds--toggle__label-text { font-size: 0.875rem; font-weight: 500; color: var(--cds-text-primary); }
+
 .workbench-header-shell__tools,
 .workbench-header-shell__saved,
 .workbench-header-shell__turns { width: 100%; max-width: 58.75rem; margin: auto; padding: 0.25rem 2rem; }
