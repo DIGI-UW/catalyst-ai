@@ -315,12 +315,12 @@ check_ui() {
 }
 
 check_superset() {
-  SUPERSET_URL="http://localhost:${SUPERSET_PORT:-8088}" python3 - <<'PY'
+  SUPERSET_URL="http://localhost:${SUPERSET_PORT:-8088}${SUPERSET_APP_ROOT:-}" python3 - <<'PY'
 import json
 import os
 import urllib.request
 
-with urllib.request.urlopen(os.environ["SUPERSET_URL"] + "/health", timeout=5) as response:
+with urllib.request.urlopen(os.environ["SUPERSET_URL"].rstrip("/") + "/health", timeout=5) as response:
     body = response.read().decode("utf-8").strip()
 try:
     health = json.loads(body)

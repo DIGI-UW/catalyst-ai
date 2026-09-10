@@ -3,7 +3,9 @@ import os
 import re
 import subprocess
 import unittest
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from threading import Thread
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -511,6 +513,46 @@ class MvpScriptContractTests(unittest.TestCase):
         "MVP_EXTERNAL_PROFILE_ID",
         "MVP_PROFILE_ID",
     )
+
+    def test_superset_health_reaches_root_and_hosted_paths(self):
+        script = (ROOT / "scripts/mvp-health.sh").read_text()
+        body = script.split("check_superset() {\n", 1)[1].split("\n}\n", 1)[0]
+        command = "check_superset() {\n" + body + "\n}\ncheck_superset"
+        for prefix in ("", "/", "/catalyst-dashboards", "/catalyst-dashboards/"):
+            with self.subTest(prefix=prefix):
+                requested = []
+                expected = prefix.rstrip("/") + "/health"
+
+                class Handler(BaseHTTPRequestHandler):
+                    def do_GET(self):
+                        requested.append(self.path)
+                        self.send_response(200 if self.path == expected else 404)
+                        self.end_headers()
+                        self.wfile.write(b"OK")
+
+                    def log_message(self, *_args):
+                        pass
+
+                with HTTPServer(("127.0.0.1", 0), Handler) as server:
+                    thread = Thread(target=server.serve_forever, daemon=True)
+                    thread.start()
+                    try:
+                        completed = subprocess.run(
+                            ["bash", "-c", command],
+                            env={
+                                **os.environ,
+                                "SUPERSET_PORT": str(server.server_port),
+                                "SUPERSET_APP_ROOT": prefix,
+                            },
+                            capture_output=True,
+                            text=True,
+                            timeout=10,
+                        )
+                        self.assertEqual(completed.returncode, 0, completed.stderr)
+                        self.assertEqual(requested, [expected])
+                    finally:
+                        server.shutdown()
+                        thread.join()
 
     def _resolved_model_config(self, script_name, backend, **overrides):
         environment = os.environ.copy()
