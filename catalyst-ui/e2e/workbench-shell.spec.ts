@@ -41,7 +41,7 @@ test("Advanced mode retains edited SQL, selection, undo and follow-up without ex
   await installBaselineApi(page);
   const executions: string[] = [];
   page.on("request", request => {
-    if (request.method() === "POST" && request.url().endsWith("/executions")) executions.push(request.url());
+    if (request.method() === "POST" && new URL(request.url()).pathname.endsWith("/execute")) executions.push(request.url());
   });
   await page.goto("/");
   const followup = page.getByRole("textbox", { name: "Ask a follow-up" });

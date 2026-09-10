@@ -6,7 +6,7 @@ test("browse and draft together without retrieving rows or executing SQL", async
   const dataRequests: string[] = [];
   page.on("request", request => {
     const path = new URL(request.url()).pathname;
-    if (/\/dataset(?:\/rows)?$/.test(path) || path.endsWith("/executions")) dataRequests.push(path);
+    if (/\/dataset(?:\/rows)?$/.test(path) || (request.method() === "POST" && path.endsWith("/execute"))) dataRequests.push(path);
   });
   await page.goto("/");
   const draft = page.getByRole("textbox", { name: "Your question" });
