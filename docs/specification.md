@@ -204,8 +204,9 @@ startup or discard saved evidence.
 ## Dashboard Builder
 
 The binding interaction and visual contract is
-[dashboard-builder-mvp-design.md](dashboard-builder-mvp-design.md) and its
-populated binding 4c page.
+[dashboard-builder-mvp-design.md](dashboard-builder-mvp-design.md).
+The approved visual reference is the
+[staff Workbench preview](specs/staff-workbench-ux/index.html).
 
 A Dashboard Builder Dataset is an immutable saved query and execution artifact.
 It is not a source, warehouse, or restricted schema copy.
