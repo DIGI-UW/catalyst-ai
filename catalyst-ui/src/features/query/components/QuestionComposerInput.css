@@ -4,55 +4,55 @@
 
 .question-composer-input__heading {
   display: flex;
-  min-height: 2.25rem;
   align-items: center;
   justify-content: space-between;
-  padding: 0.375rem 1rem 0;
   gap: 1rem;
 }
 
 .question-composer-input__heading label {
   color: var(--cds-text-primary);
-  font-size: var(--cds-label-01-font-size, 0.75rem);
-  font-weight: 600;
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 500;
 }
 
 .question-composer-input__size {
   min-width: 3rem;
-  min-height: 2rem;
-  padding: 0 0.25rem;
+  min-height: 2.75rem;
+  padding: 0.5rem;
   border: 0;
   background: transparent;
   color: var(--cds-link-primary);
   font: inherit;
-  font-size: var(--cds-label-01-font-size, 0.75rem);
+  font-size: 0.875rem;
   cursor: pointer;
 }
 
 .question-composer-input__size:focus-visible {
   outline: 2px solid var(--cds-focus);
-  outline-offset: -2px;
+  outline-offset: 3px;
 }
 
 .question-composer-input > textarea {
   display: block;
   width: 100%;
-  height: 6rem;
+  height: 5.5rem;
   min-height: 4.5rem;
   max-height: min(40vh, 22.5rem);
-  padding: 0.625rem 1rem 0.875rem;
+  padding: 0.75rem 0;
   border: 0;
+  border-radius: 0.375rem;
   resize: vertical;
   background: var(--cds-layer-01);
   color: var(--cds-text-primary);
   font: inherit;
-  font-size: var(--cds-body-compact-02-font-size, 1rem);
+  font-size: 1.0625rem;
   line-height: 1.5;
 }
 
 .question-composer-input > textarea:focus-visible {
   outline: 2px solid var(--cds-focus);
-  outline-offset: -2px;
+  outline-offset: 3px;
 }
 
 .question-composer-input > textarea:disabled {
@@ -61,6 +61,15 @@
 }
 
 @media (max-width: 42rem) {
+  .question-composer-input__heading {
+    gap: 0.25rem;
+  }
+
+  .question-composer-input__size {
+    padding: 0.375rem;
+    font-size: 0.75rem;
+  }
+
   .question-composer-input > textarea {
     max-height: min(36vh, 17.5rem);
   }

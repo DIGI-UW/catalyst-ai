@@ -31,6 +31,7 @@ const PARAMETER_TYPES: readonly ParameterType[] = [
 interface WorkbenchPanelProps {
   advancedMode?: boolean;
   revealSql?: boolean;
+  onSqlDisclosureChange?: (open: boolean) => void;
   session: WorkbenchSession;
   sql: string;
   parameters: BoundParameter[];
@@ -560,6 +561,7 @@ export const ExecutionResult = ({
 export const WorkbenchPanel = ({
   advancedMode = false,
   revealSql = false,
+  onSqlDisclosureChange,
   session,
   sql,
   parameters,
@@ -635,7 +637,8 @@ export const WorkbenchPanel = ({
         />
       )}
 
-      <details className="workbench-sql-disclosure" open={advancedMode || revealSql}>
+      <details className="workbench-sql-disclosure" open={advancedMode || revealSql}
+        onToggle={(event) => onSqlDisclosureChange?.(event.currentTarget.open)}>
         <summary>View or edit SQL</summary>
       <div className="workbench-editor">
         <SqlEditor

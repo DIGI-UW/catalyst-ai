@@ -1,9 +1,10 @@
 import { Renew } from "@carbon/icons-react";
-import { Button, CodeSnippet, Tag } from "@carbon/react";
+import { Button, CodeSnippet, InlineNotification, Modal, Tag } from "@carbon/react";
 import {
   useCallback,
   useEffect,
   useRef,
+  useState,
 } from "react";
 import type { CatalystApi } from "./api";
 import { catalystApi } from "./api";
@@ -42,12 +43,14 @@ import {
   writeDataSourceIdToUrl,
 } from "./hooks/useWorkbenchSession";
 import { useWorkbenchShell } from "./hooks/useWorkbenchShell";
+import { savedQueryDraft, savedQueryOrigin, sessionDraft } from "./savedQueryDraft";
 import type { ThemePreference } from "./theme";
 import {
   isPreview,
   isTable,
   type BoundParameter,
   type DashboardBuilderSection,
+  type DashboardBuilderEntity,
   type CatalystExecutionOutcome,
   type CatalystQueryOutcome,
   type WorkbenchQueryVersion,
@@ -579,8 +582,10 @@ export const QueryWorkspace = ({
   // the document a render later, so the request waits here until it exists.
   const revealVersionId = useRef<string | null>(null);
   const revealTurnId = useRef<string | null>(null);
-  // The dashboard panel owns the review dialog; the cell that produced the
-  // result asks it to open.
+  const [reuseCandidate, setReuseCandidate] = useState<DashboardBuilderEntity | null>(null);
+  const [switchingSession, setSwitchingSession] = useState(false);
+  const [sessionSwitchError, setSessionSwitchError] = useState<string | null>(null);
+  // The result cell opens the shared review owned by the dashboard panel.
   const openDatasetReview = useRef<((executionId?: string) => void) | null>(null);
   const registerDatasetOpener = useCallback(
     (open: ((executionId?: string) => void) | null) => {
@@ -659,13 +664,16 @@ export const QueryWorkspace = ({
   // setters are already stable, so `api` is its only real dependency.
   const adoptWorkbenchSession = useCallback((session: WorkbenchSession) => {
     setWorkbenchSession(session);
-    setQuestion(session.question);
+    const preserved = sessionDraft(session);
+    setQuestion(preserved?.question ?? session.question);
+    setFollowupInstruction(preserved?.instruction ?? "");
+    setEditorOpen(preserved?.editorOpen ?? false);
     setProfileId(currentQueryProfileId(session));
     if (session.dataSourceId) setDataSourceId(session.dataSourceId);
     const draft = sessionEditorDraft(session);
-    setWorkbenchSql(draft ? editorReadySql(draft.sql) : "");
+    setWorkbenchSql(preserved?.sql ?? (draft ? editorReadySql(draft.sql) : ""));
     setWorkbenchParameters(
-      draft?.parameters.map((parameter) => ({ ...parameter })) ?? [],
+      structuredClone(preserved?.parameters ?? draft?.parameters ?? []),
     );
     setWorkbenchWrapLines(
       typeof session.browserState.sqlWrapLines === "boolean"
@@ -689,6 +697,8 @@ export const QueryWorkspace = ({
     setDetailsOpen,
     setDetailsTurnId,
     setFollowupError,
+    setFollowupInstruction,
+    setEditorOpen,
     setProfileId,
     setQuestion,
     setWorkspaceSection,
@@ -1187,7 +1197,8 @@ export const QueryWorkspace = ({
   // not yet an immutable version.
   const sessionHasWork = Boolean(
     workbenchSession &&
-      (workbenchSession.currentVersion !== null ||
+      (workbenchSql.trim().length > 0 ||
+        workbenchSession.currentVersion !== null ||
         workbenchSession.draftSeed != null ||
         (workbenchTimeline?.turns.length ?? 0) > 0),
   );
@@ -1337,17 +1348,83 @@ export const QueryWorkspace = ({
       .catch((error: unknown) => setWorkbenchError(messageFromError(error)));
   };
 
-  const openRecentSession = (sessionId: string) => {
-    setSessionMenu("closed");
-    if (sessionId === workbenchSession?.sessionId || !api.getWorkbenchSession) {
-      return;
+  // Store the editor separately from immutable query versions. Leaving a
+  // session must not author a version, ask a model, or execute its SQL.
+  const preserveCurrentDraft = async (): Promise<string | null> => {
+    const editorDraft = {
+      baseVersionId: workbenchSession?.currentVersionId ?? null,
+      question,
+      instruction: followupInstruction,
+      sql: workbenchSql,
+      parameters: structuredClone(workbenchParameters),
+      editorOpen,
+    };
+    const browserState = {
+      ...workbenchSession?.browserState,
+      editorDraft,
+      sqlWrapLines: workbenchWrapLines,
+    };
+    if (workbenchSession) {
+      if (!api.updateWorkbenchBrowserState) throw new Error("Your draft could not be preserved. Please try again.");
+      await api.updateWorkbenchBrowserState(workbenchSession.sessionId, browserState);
+      return workbenchSession.sessionId;
     }
-    void api.getWorkbenchSession(sessionId)
-      .then((session) => {
-        rememberActiveWorkbenchSession(session.sessionId);
-        adoptWorkbenchSession(session);
-      })
-      .catch((error: unknown) => setWorkbenchError(messageFromError(error)));
+    if (!question.trim() && !workbenchSql.trim() && !followupInstruction.trim()) return null;
+    if (!api.createWorkbenchSession) throw new Error("Your draft could not be preserved. Please try again.");
+    const preserved = await api.createWorkbenchSession("", selectedAvailableProfileId || undefined,
+      browserState, effectiveDataSourceId || undefined, undefined, question.trim().slice(0, 200) || "Unfinished question");
+    // Retain the new identity even if opening the requested saved query fails.
+    setWorkbenchSession(preserved);
+    rememberActiveWorkbenchSession(preserved.sessionId);
+    return preserved.sessionId;
+  };
+
+  const openRecentSession = async (sessionId: string) => {
+    if (switchingSession || followupBusy || workbenchBusy ||
+        sessionId === workbenchSession?.sessionId || !api.getWorkbenchSession) return;
+    setSwitchingSession(true);
+    setSessionSwitchError(null);
+    try {
+      await preserveCurrentDraft();
+      const session = await api.getWorkbenchSession(sessionId);
+      rememberActiveWorkbenchSession(session.sessionId);
+      adoptWorkbenchSession(session);
+      setSessionMenu("closed");
+      setActiveSection("ask");
+      setState({ kind: "idle" });
+    } catch (error) {
+      setSessionSwitchError(messageFromError(error));
+    } finally {
+      setSwitchingSession(false);
+    }
+  };
+
+  const startFromSavedSql = async () => {
+    const draft = reuseCandidate && savedQueryDraft(reuseCandidate);
+    if (!draft || !reuseCandidate || !api.createWorkbenchSession || switchingSession) return;
+    setSwitchingSession(true);
+    setSessionSwitchError(null);
+    try {
+      const previousSessionId = await preserveCurrentDraft();
+      const session = await api.createWorkbenchSession("", selectedAvailableProfileId || undefined, {
+        sqlWrapLines: workbenchWrapLines,
+        savedQueryOrigin: { versionId: reuseCandidate.versionId, title: draft.title,
+          dataSourceId: draft.sourceId, dialect: draft.dialect, previousSessionId },
+        editorDraft: { baseVersionId: null, question: "", instruction: "", sql: draft.sql,
+          parameters: draft.parameters, editorOpen: true },
+      }, draft.sourceId, undefined, draft.title.slice(0, 200));
+      rememberActiveWorkbenchSession(session.sessionId);
+      adoptWorkbenchSession(session);
+      setState({ kind: "idle" });
+      setActiveSection("ask");
+      setSessionMenu("closed");
+      setReuseCandidate(null);
+      setSqlEditorFocusRequestId((current) => current + 1);
+    } catch (error) {
+      setSessionSwitchError(messageFromError(error));
+    } finally {
+      setSwitchingSession(false);
+    }
   };
 
   const selectTurn = (ordinal: number) => {
@@ -1364,10 +1441,13 @@ export const QueryWorkspace = ({
     usesNotebook && workbenchSession && workbenchTimeline,
   );
   const hasQueryDock = hasRefineDock || workbenchSession === null;
-  // Declared here rather than below the panel: whether the notebook is on decides
-  // whether closing the editor has anywhere to go back to.
+  const startingQuery = savedQueryOrigin(workbenchSession);
+  const candidateDraft = reuseCandidate ? savedQueryDraft(reuseCandidate) : null;
+  const candidateSourceLabel = dataSources?.dataSources.find((source) => source.id === candidateDraft?.sourceId)?.label ?? candidateDraft?.sourceId;
+  const runActionLabel = advancedMode ? "Run query" : "Get results";
+
   const notebookShowing = Boolean(
-    usesNotebook && sessionHasWork && workbenchSession && workbenchTimeline,
+    usesNotebook && sessionHasWork && workbenchSession && workbenchTimeline && workbenchTimeline.turns.length > 0,
   );
 
   const currentVersionRan = Boolean(
@@ -1390,6 +1470,7 @@ export const QueryWorkspace = ({
 <WorkbenchPanel
           advancedMode={advancedMode}
           revealSql={editorOpen}
+          onSqlDisclosureChange={setEditorOpen}
           session={workbenchSession}
           sql={workbenchSql}
           parameters={workbenchParameters}
@@ -1450,6 +1531,7 @@ export const QueryWorkspace = ({
       className={`dashboard-builder-shell${dataBrowserOpen ? " dashboard-builder-shell--browsing" : ""}${narrowWorkspace ? " dashboard-builder-shell--stacked" : ""}${advancedMode ? " dashboard-builder-shell--advanced" : ""}`}
     >
       <WorkbenchHeader
+        inert={switchingSession}
         sessionName={
           workbenchSession
             ? (workbenchSession.name ?? "").trim() ||
@@ -1496,7 +1578,7 @@ export const QueryWorkspace = ({
         savedWorkSection={savedWorkSection}
         onSectionChange={navigateSection}
       />
-      <aside id="available-data-panel" aria-label="Available data" className="available-data-panel" hidden={!dataBrowserOpen}
+      <aside inert={switchingSession || undefined} id="available-data-panel" aria-label="Available data" className="available-data-panel" hidden={!dataBrowserOpen}
         onKeyDownCapture={(event) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeDataBrowser(); } }}>
         <header className="available-data-panel__header">
           <div><h2>Available data</h2><p>{activeDataSourceLabel ?? "Connected data"}</p>
@@ -1513,6 +1595,7 @@ export const QueryWorkspace = ({
       </aside>
 
       <main
+        inert={switchingSession || undefined}
         className={`app-shell${hasQueryDock && activeSection === "ask" ? " app-shell--with-query-dock" : ""}`}
       >
         <section hidden={activeSection !== "ask"} aria-labelledby="question-title">
@@ -1531,6 +1614,16 @@ export const QueryWorkspace = ({
               Session {workbenchSession.sessionId} · {activeDataSourceLabel}
             </p>}
           </header>
+          {startingQuery && <div className="saved-query-origin">
+            <p>Started from {startingQuery.title}. The saved query is unchanged; select {runActionLabel} when ready.</p>
+            <details><summary>Saved query reference</summary>
+              <p>Version {startingQuery.versionId} · {startingQuery.dataSourceId} · {startingQuery.dialect ?? "Original dialect not recorded"}</p>
+            </details>
+            {startingQuery.previousSessionId && <Button kind="ghost" size="sm"
+              onClick={() => void openRecentSession(startingQuery.previousSessionId!)}>
+              Return to previous draft
+            </Button>}
+          </div>}
 
       {!sessionHasWork && (
         <QuestionForm
@@ -1735,8 +1828,24 @@ export const QueryWorkspace = ({
           activeSection={activeSection}
           disabled={followupBusy || workbenchBusy !== null}
           onNavigate={navigateSection}
+          onReuseQuery={(dataset) => { setSessionSwitchError(null); setReuseCandidate(dataset); }}
         />
     </main>
+    {!reuseCandidate && sessionSwitchError && <InlineNotification kind="error" lowContrast hideCloseButton
+      title="Your question is still here" subtitle={sessionSwitchError} />}
+    {reuseCandidate && <Modal open modalHeading="Start from saved SQL"
+      primaryButtonText={switchingSession ? "Opening…" : "Keep my draft and start"}
+      secondaryButtonText="Cancel" primaryButtonDisabled={!candidateDraft || switchingSession}
+      preventCloseOnClickOutside
+      onRequestClose={() => { if (!switchingSession) setReuseCandidate(null); }}
+      onRequestSubmit={() => void startFromSavedSql()}>
+      <p>Open {candidateDraft?.title ?? "this saved query"} in a new question using {candidateSourceLabel ?? "its original data source"}.</p>
+      <p>Your current question and SQL will be kept. Nothing runs until you select {runActionLabel}.</p>
+      {candidateDraft && !candidateDraft.dialect && <p>The original SQL dialect was not recorded. Review it against the selected source before running.</p>}
+      {!candidateDraft && <p>The saved SQL, parameters or source are incomplete and cannot be loaded.</p>}
+      {sessionSwitchError && <InlineNotification kind="error" lowContrast hideCloseButton
+        title="Could not open saved query" subtitle={sessionSwitchError} />}
+    </Modal>}
     </div>
   );
 };

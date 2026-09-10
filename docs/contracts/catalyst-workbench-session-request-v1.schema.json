@@ -50,6 +50,80 @@
         "offset": {
           "type": "integer",
           "minimum": 0
+        },
+        "sqlWrapLines": {
+          "type": "boolean"
+        },
+        "editorDraft": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "baseVersionId",
+            "question",
+            "instruction",
+            "sql",
+            "parameters",
+            "editorOpen"
+          ],
+          "properties": {
+            "baseVersionId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "question": {
+              "type": "string"
+            },
+            "instruction": {
+              "type": "string"
+            },
+            "sql": {
+              "type": "string"
+            },
+            "parameters": {
+              "$ref": "catalyst-workbench-session-v1.schema.json#/$defs/draftSeed/properties/parameters"
+            },
+            "editorOpen": {
+              "type": "boolean"
+            }
+          }
+        },
+        "savedQueryOrigin": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "versionId",
+            "title",
+            "dataSourceId",
+            "dialect",
+            "previousSessionId"
+          ],
+          "properties": {
+            "versionId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "title": {
+              "type": "string"
+            },
+            "dataSourceId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "dialect": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "previousSessionId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
         }
       }
     },

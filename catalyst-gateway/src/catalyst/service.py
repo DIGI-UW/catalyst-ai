@@ -681,6 +681,7 @@ class CatalystService:
         provenance: dict[str, Any] = {
             "dataSourceId": bundle.source_id,
             "catalogContextSourceId": runtime_catalog.context_source_id,
+            "dialect": runtime_catalog.dialect,
             "catalystTraceId": catalyst_trace_id,
             "profileSnapshot": self._profile_snapshot(selected_profile),
             "datasetSnapshot": {

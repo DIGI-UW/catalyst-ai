@@ -327,7 +327,7 @@ const DATASET_OVERVIEW = {
 };
 
 /** A finished thread: one clean run, one failed run, one repaired run. */
-const buildSession = () => {
+export const buildSession = () => {
   const versions = [
     version(V1, 1, SQL1, "model", null),
     version(V2, 2, SQL2, "model", V1),

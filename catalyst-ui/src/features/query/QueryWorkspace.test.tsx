@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { QueryWorkspace } from "./QueryWorkspace";
 import type { CatalystApi } from "./api";
 import type {
+  DashboardBuilderEntity,
   WorkbenchExecution,
   WorkbenchQueryVersion,
   WorkbenchSession,
@@ -1107,5 +1108,110 @@ describe("Dashboard Builder Ask shell", () => {
     await user.click(screen.getByRole("button", { name: "What data is available?" }));
     expect(await screen.findByRole("searchbox", { name: "Search tables and fields" })).toBeVisible();
     expect(screen.getByLabelText("Your question")).toBeVisible();
+  });
+});
+
+const reusableQuery: DashboardBuilderEntity = {
+  id: "saved-count", versionId: "saved-count-v2", ordinal: 2,
+  configurationDigest: "d".repeat(64), createdAt: "2026-09-10T00:00:00Z",
+  configuration: {
+    title: "Registrations since date",
+    source: { dataSourceId: "openmrs", dialect: "spark", sessionId: "missing-history", executionId: "old-run" },
+    parameterizedSql: "select count(*) from patient WHERE registered >= :since",
+    compiledSql: "select count(*) from patient WHERE registered >= '2026-01-01'",
+    parameters: [{ name: "since", type: "date", value: "2026-01-01", source: "human" }],
+  },
+};
+
+const savedQueryApi = () => {
+  const client = api();
+  const sessions = new Map<string, WorkbenchSession>();
+  client.listDashboardDatasets = vi.fn().mockResolvedValue({ items: [reusableQuery] });
+  client.listDashboardWidgets = vi.fn().mockResolvedValue({ items: [] });
+  client.listDashboards = vi.fn().mockResolvedValue({ items: [] });
+  client.saveDashboardDataset = vi.fn();
+  client.saveDashboardWidget = vi.fn();
+  client.saveDashboard = vi.fn();
+  client.publishDashboard = vi.fn();
+  client.createWorkbenchSession = vi.fn().mockImplementation((question, profileId, browserState, dataSourceId, _signal, name) => {
+    const created = { ...session, sessionId: `copy-${sessions.size}`, question, profileId,
+      browserState, dataSourceId, name, currentVersionId: null, currentVersion: null, versions: [], executions: [] };
+    sessions.set(created.sessionId, structuredClone(created));
+    return Promise.resolve(structuredClone(created));
+  });
+  client.updateWorkbenchBrowserState = vi.fn().mockImplementation((id, browserState) => {
+    const saved = { ...sessions.get(id)!, browserState: structuredClone(browserState) };
+    sessions.set(id, saved);
+    return Promise.resolve(structuredClone(saved));
+  });
+  client.getWorkbenchSession = vi.fn().mockImplementation((id) => sessions.has(id)
+    ? Promise.resolve(structuredClone(sessions.get(id)!)) : Promise.reject(new Error("History unavailable")));
+  client.getWorkbenchTurns = vi.fn().mockImplementation((id) => Promise.resolve({ ...timeline,
+    sessionId: id, currentTurnId: null, currentVersion: null, turns: [] }));
+  return { client, sessions };
+};
+
+const showSavedQuery = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.click(within(screen.getByRole("navigation", { name: "Primary" })).getByRole("button", { name: "Saved work" }));
+  await screen.findByRole("button", { name: "Start from this SQL" });
+};
+
+describe("Saved SQL reuse", () => {
+  it("cancels without side effects, copies exact SQL and typed values to its source, and restores an unfinished question", async () => {
+    localStorage.clear();
+    const user = userEvent.setup();
+    const { client, sessions } = savedQueryApi();
+    const rendered = render(<QueryWorkspace api={client} />);
+    await user.type(screen.getByLabelText("Your question"), "Keep my unfinished question");
+    await showSavedQuery(user);
+    await user.click(screen.getByRole("button", { name: "Start from this SQL" }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(client.createWorkbenchSession).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Start from this SQL" }));
+    expect(screen.getByText(/using openmrs/)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Keep my draft and start" }));
+    const editor = await screen.findByRole("textbox", { name: "SQL query" });
+    expect(editor.textContent).toBe(reusableQuery.configuration.parameterizedSql);
+    expect(screen.getByDisplayValue("2026-01-01")).toBeVisible();
+    expect(client.createWorkbenchSession).toHaveBeenLastCalledWith("", "catalyst-query", expect.objectContaining({
+      savedQueryOrigin: expect.objectContaining({ versionId: "saved-count-v2", dataSourceId: "openmrs", dialect: "spark" }),
+    }), "openmrs", undefined, "Registrations since date");
+    expect(client.createWorkbenchVersion).not.toHaveBeenCalled();
+    expect(client.executeWorkbenchVersion).not.toHaveBeenCalled();
+    expect(client.createWorkbenchTurn).not.toHaveBeenCalled();
+    expect(client.submitQuestion).not.toHaveBeenCalled();
+    await user.click(editor);
+    await user.keyboard("{ControlOrMeta>}{End}{/ControlOrMeta}");
+    await user.paste(" -- edited");
+    await user.clear(screen.getByDisplayValue("2026-01-01"));
+    await user.type(screen.getByLabelText("Parameter 1 value"), "2026-02-01");
+    await user.click(screen.getByRole("button", { name: "Return to previous draft" }));
+    expect(await screen.findByLabelText("Your question")).toHaveValue("Keep my unfinished question");
+    expect(reusableQuery.configuration.parameterizedSql).not.toContain("edited");
+    expect(reusableQuery.configuration.parameters).toEqual([{ name: "since", type: "date", value: "2026-01-01", source: "human" }]);
+    const copy = sessions.get("copy-1")!;
+    expect((copy.browserState.editorDraft as { sql: string }).sql).toContain("edited");
+    rendered.unmount();
+    localStorage.setItem("catalyst.workbench.activeSessionId", "copy-1");
+    render(<QueryWorkspace api={client} />);
+    expect((await screen.findByRole("textbox", { name: "SQL query" })).textContent).toContain("edited");
+    expect(screen.getByDisplayValue("2026-02-01")).toBeVisible();
+  });
+
+  it("retains the question when saving its draft fails, and can retry without executing", async () => {
+    localStorage.clear();
+    const user = userEvent.setup();
+    const { client } = savedQueryApi();
+    vi.mocked(client.createWorkbenchSession!).mockRejectedValueOnce(new Error("Connection interrupted"));
+    render(<QueryWorkspace api={client} />);
+    await user.type(screen.getByLabelText("Your question"), "Unsaved question");
+    await showSavedQuery(user);
+    await user.click(screen.getByRole("button", { name: "Start from this SQL" }));
+    await user.click(screen.getByRole("button", { name: "Keep my draft and start" }));
+    expect(await screen.findByText("Connection interrupted")).toBeVisible();
+    expect(screen.getByLabelText("Your question")).toHaveValue("Unsaved question");
+    await user.click(screen.getByRole("button", { name: "Keep my draft and start" }));
+    expect(await screen.findByRole("textbox", { name: "SQL query" })).toBeVisible();
+    expect(client.executeWorkbenchVersion).not.toHaveBeenCalled();
   });
 });

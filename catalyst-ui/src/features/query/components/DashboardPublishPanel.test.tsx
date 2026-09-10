@@ -844,3 +844,27 @@ describe("Dashboard Builder supervised promotion", () => {
     expect(trigger).toHaveFocus();
   });
 });
+
+it("keeps saved SQL accessible and reusable when historical execution evidence is unavailable", async () => {
+  const user = userEvent.setup();
+  const api = makeApi(true);
+  const dataset = { ...savedDataset, configuration: { ...savedDataset.configuration,
+    parameterizedSql: "select count(*) from patient WHERE registered >= :since",
+    compiledSql: "select count(*) from patient WHERE registered >= '2026-01-01'",
+    parameters: [{ name: "since", type: "date", value: "2026-01-01", source: "human" }],
+  } };
+  vi.mocked(api.listDashboardDatasets!).mockResolvedValue(collection("dataset", [dataset]));
+  api.getWorkbenchSession = vi.fn().mockRejectedValue(new Error("History unavailable"));
+  const reuse = vi.fn();
+  render(<DashboardPublishPanel api={api} session={null} sql="" parameters={[]} activeSection="datasets"
+    onNavigate={vi.fn()} onReuseQuery={reuse} />);
+  await user.click(await screen.findByRole("button", { name: "Review Count result" }));
+  expect(await screen.findByText(/Historical rows and run details could not be loaded/)).toBeVisible();
+  await user.click(screen.getByText("Saved SQL and values"));
+  expect(screen.getByText(dataset.configuration.parameterizedSql)).toBeVisible();
+  expect(screen.getByText("2026-01-01")).toBeVisible();
+  const dialog = screen.getByRole("dialog");
+  await user.click(within(dialog).getByRole("button", { name: "Start from this SQL" }));
+  expect(reuse).toHaveBeenCalledWith(dataset);
+  expect(api.saveDashboardDataset).not.toHaveBeenCalled();
+});

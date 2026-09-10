@@ -5,6 +5,7 @@ import type { WorkspaceSection, WorkspaceTurn } from "./workbenchShellSupport";
 import "./WorkbenchHeader.css";
 
 interface WorkbenchHeaderProps {
+  inert?: boolean;
   sessionName: string | null;
   sessionSourceLabel: string | null;
   sessionMenu: "closed" | "list" | "new" | "rename";
@@ -38,6 +39,7 @@ interface WorkbenchHeaderProps {
 }
 
 export const WorkbenchHeader = ({
+  inert = false,
   sessionName,
   sessionSourceLabel,
   sessionMenu,
@@ -72,7 +74,7 @@ export const WorkbenchHeader = ({
   const dataOpen = openSection === "data";
   const turnsOpen = openSection === "turns";
   return (
-    <header className="workbench-header-shell" aria-label="Workspace navigation"
+    <header inert={inert || undefined} className="workbench-header-shell" aria-label="Workspace navigation"
       onKeyDown={(event) => {
         if (event.key === "Escape") {
           const disclosure = (event.target as HTMLElement).closest("details");
