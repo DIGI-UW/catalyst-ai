@@ -38,7 +38,7 @@ export const QuestionComposerInput = ({
   useLayoutEffect(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
-    if (visitHeight) textarea.style.height = `${visitHeight}px`;
+    if (visitHeight && !expanded) textarea.style.height = `${visitHeight}px`;
 
     const dock = textarea.closest<HTMLElement>("[data-query-composer-dock]");
     const recordMeasurements = () => {
