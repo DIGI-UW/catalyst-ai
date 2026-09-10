@@ -1,381 +1,293 @@
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { expect, test } from "@playwright/test";
+import { writeFileSync } from "node:fs";
+import { expect, test, type Locator } from "@playwright/test";
+import type {
+  DashboardBuilderEntity,
+  DashboardPublication,
+  WorkbenchExecution,
+} from "../src/features/query/types";
 import { DemoMilestones } from "./support/demo-milestones";
 import { runSupersetImport } from "./support/superset-import";
 
-/*
- * The full scenario, end to end, through the product's own dashboard path:
- * a plain-language laboratory question becomes checked SQL in the Catalyst
- * workbench, is refined in conversation, both results are saved as governed
- * Datasets, a table Widget and a grouped-bar Widget are built over them, a
- * Dashboard collects both and is published as a native Superset bundle, the
- * pinned importer brings it in, and the finished dashboard renders in
- * Superset — a table and a graph, from two English sentences.
- *
- * (An earlier draft of this demo hand-carried the SQL into Superset SQL Lab
- * and rebuilt the charts there by hand; see the demo issue log for the 20+
- * Superset quirks that cost. This is the path the product actually ships.)
- *
- * ONE spec, two modes — the same run either way; the Playwright project
- * picks it:
- *
- *   e2e (assertions, no video, no dwells):
- *     PLAYWRIGHT_LIVE=true PLAYWRIGHT_BASE_URL=http://127.0.0.1:13000 \
- *       CATALYST_HARNESS_DIR=<running harness checkout> \
- *       npx playwright test e2e/full-scenario-demo.spec.ts --project=deterministic
- *
- *   video (same steps, paced for camera):
- *     …same env… npx playwright test e2e/full-scenario-demo.spec.ts --project=demo-video
- *
- * Recording is not a different script with different steps — a demo that
- * diverges from the test stops being evidence that the product works. The
- * only difference is `dwell()`, a no-op outside the video project.
- */
-
+// One real journey per source. The video project adds readable holds to the
+// same assertions; it does not substitute responses or reset retained data.
+// Run with one worker: both sources share the operator's current outbox pointer.
+test.describe.configure({ mode: "serial" });
 test.setTimeout(1_800_000);
 
-const DETAIL_DATASET_BASE = "Viral load results since Jan 2026";
-const VOLUME_DATASET_BASE = "Result volumes by test";
-const TABLE_WIDGET_BASE = "Recent viral load results";
-const BAR_WIDGET_BASE = "Volumes by test";
-const DASHBOARD_BASE = "Laboratory results overview";
-
-type CohortFixture = {
-  expected: {
-    testTypes: number;
-    viralLoadResults: number;
-  };
-  terminology: { mappings: Array<{ test: string }> };
-};
-
-const cohortFixture = JSON.parse(
-  readFileSync(
-    resolve(
-      import.meta.dirname,
-      "..",
-      "..",
-      "analytics",
-      "openelis",
-      "catalyst-cohort-v1.json",
-    ),
-    "utf-8",
-  ),
-) as CohortFixture;
-const EXPECTED_TOP_GROUP = cohortFixture.terminology.mappings.find(
-  ({ test: testName }) => testName === "Viral Load",
-)?.test;
-const EXPECTED_TOP_GROUP_COUNT = cohortFixture.expected.viralLoadResults;
-const EXPECTED_GROUPS = cohortFixture.expected.testTypes;
-if (
-  !EXPECTED_TOP_GROUP ||
-  !Number.isInteger(EXPECTED_TOP_GROUP_COUNT) ||
-  !Number.isInteger(EXPECTED_GROUPS)
-) {
-  throw new Error("Catalyst cohort fixture does not define grouped result totals");
+for (const source of ["openelis", "openmrs-hiv"]) {
+  test(`${source}: question to saved work and a rendered Dashboard`, async ({ page }, info) => {
+    test.skip(process.env.PLAYWRIGHT_LIVE !== "true", "Requires the real stack and CATALYST_HARNESS_DIR.");
+    const filming = info.project.name === "demo-video";
+    const timing = new DemoMilestones(`full-scenario-${source}`);
+    const label = source === "openelis" ? "Laboratory" : "OpenMRS";
+    const runId = process.env.CATALYST_DEMO_RUN_ID?.trim() || randomUUID().slice(0, 8);
+    const queryTitle = `${label} patient counts · ${runId}`;
+    const dashboardTitle = `${label} overview · ${runId}`;
+    const chartTitles = [`${label} patient table · ${runId}`, `${label} patients by gender · ${runId}`];
+    const executions: WorkbenchExecution[] = [];
+    const evidence: unknown[] = [];
+    const pending: Promise<void>[] = [];
+    let executionRequests = 0;
+    page.on("request", request => {
+      if (request.method() === "POST" && new URL(request.url()).pathname.endsWith("/execute")) executionRequests++;
+    });
+    page.on("response", response => {
+      const request = response.request();
+      const path = new URL(response.url()).pathname;
+      if (request.method() === "POST" && path.startsWith("/v1/catalyst/")) {
+        pending.push(response.json().then(body => {
+          evidence.push({ path, status: response.status(), request: request.postDataJSON(), response: body });
+          if (path.endsWith("/execute") && response.ok()) executions.push(body as WorkbenchExecution);
+        }));
+      }
+    });
+    const dwell = async (ms: number) => { if (filming) await page.waitForTimeout(ms); };
+    const type = async (locator: Locator, text: string) => {
+      if (filming) await locator.pressSequentially(text, { delay: 55 });
+      else await locator.fill(text);
+    };
+    const panel = page.getByRole("dialog", { name: "Review panel" });
+    const library = async (name: string) => {
+      await page.getByRole("button", { name: "Saved work", exact: true }).click();
+      await page.getByRole("navigation", { name: "Saved work", exact: true })
+        .getByRole("button", { name, exact: true }).click();
+    };
+    const saveQuery = async (name: string): Promise<DashboardBuilderEntity> => {
+      await panel.getByLabel("Query name", { exact: true }).fill(name);
+      const response = page.waitForResponse(r => r.request().method() === "POST" && r.url().endsWith("/dashboard-builder/datasets"));
+      await panel.getByRole("button", { name: "Save query", exact: true }).click();
+      const saved = await response;
+      expect(saved.ok()).toBe(true);
+      const dataset = await saved.json() as DashboardBuilderEntity;
+      expect(dataset.configuration.source).toMatchObject({ dataSourceId: source });
+      await page.keyboard.press("Escape");
+      await expect(panel).not.toBeVisible();
+      return dataset;
+    };
+    const showResults = async (button: string, count: number): Promise<WorkbenchExecution> => {
+      const response = page.waitForResponse(r => r.request().method() === "POST" && r.url().endsWith("/execute"));
+      await page.getByRole("button", { name: button, exact: true }).click();
+      const completed = await response;
+      expect(completed.ok()).toBe(true);
+      const execution = await completed.json() as WorkbenchExecution;
+      expect(execution.status).toBe("succeeded");
+      expect(execution.result?.rows.length).toBeGreaterThan(0);
+      expect(executionRequests).toBe(count);
+      await page.getByRole("button", { name: "Review results", exact: true }).last().click();
+      await expect(panel.getByRole("table", { name: "Result rows" })).toBeVisible();
+      return execution;
+    };
+    try {
+      await page.goto(`/?dataSource=${source}`);
+      const draft = page.getByRole("textbox", { name: "Your question", exact: true });
+      await expect(draft).toBeVisible();
+      timing.mark("source-selected");
+      await type(draft, "How many patients are there?");
+      await page.getByRole("button", { name: "Expand", exact: true }).click();
+      await expect(draft).toHaveValue("How many patients are there?");
+      timing.mark("question-typed");
+      await dwell(5000);
+      await page.getByRole("button", { name: "What data is available?" }).click();
+      const browser = page.getByRole("complementary", { name: "Available data" });
+      await browser.getByRole("searchbox", { name: "Search tables and fields" }).fill("patient");
+      await expect(browser.locator(".cds--accordion__item").first()).toBeVisible({ timeout: 30000 });
+      expect(executionRequests).toBe(0);
+      timing.mark("schema-visible");
+      await page.screenshot({ path: info.outputPath("schema-and-draft.png") });
+      await dwell(8000);
+      await browser.getByRole("button", { name: "Back to your question" }).click();
+      await expect(draft).toBeFocused();
+      await expect(draft).toHaveValue("How many patients are there?");
+      await browser.getByRole("button", { name: "Close available data" }).click();
+      await page.getByRole("button", { name: "Restore", exact: true }).click();
+      // An explicit profile is honored exactly. Otherwise the existing UI's
+      // configured default is used and captured in the session evidence.
+      if (process.env.CATALYST_DEMO_PROFILE) {
+        await page.getByText("Query settings", { exact: true }).click();
+        await page.getByRole("combobox", { name: "Model profile" }).selectOption(process.env.CATALYST_DEMO_PROFILE);
+        await page.getByText("Query settings", { exact: true }).click();
+      }
+      timing.mark("prepare-1");
+      await page.getByRole("button", { name: "Continue", exact: true }).click();
+      await expect(page.getByRole("button", { name: "Get results", exact: true })).toBeEnabled({ timeout: 600000 });
+      expect(executionRequests).toBe(0);
+      timing.mark("ready-1");
+      await dwell(5000);
+      await showResults("Get results", 1);
+      timing.mark("result-1");
+      await page.screenshot({ path: info.outputPath("result-1.png") });
+      await dwell(8000);
+      await panel.getByText("Technical details", { exact: true }).click();
+      await panel.getByText(/Query v\d+ SQL snapshot/).click();
+      await panel.locator("pre").scrollIntoViewIfNeeded();
+      await expect(panel.locator("pre")).toBeInViewport();
+      timing.mark("provenance-1");
+      await dwell(8000);
+      await page.keyboard.press("Escape");
+      const followup = page.getByRole("textbox", { name: "Ask a follow-up", exact: true });
+      await type(followup, "Break down that patient count by gender, including patients with missing gender. Return gender and patient_count.");
+      timing.mark("followup-typed");
+      await dwell(5000);
+      timing.mark("prepare-2");
+      await page.getByRole("button", { name: "Continue", exact: true }).click();
+      await expect(followup).toHaveValue("", { timeout: 600000 });
+      await expect(page.getByRole("button", { name: "Get results", exact: true })).toBeEnabled();
+      expect(executionRequests).toBe(1);
+      timing.mark("ready-2");
+      await dwell(5000);
+      const grouped = await showResults("Get results", 2);
+      expect(grouped.result!.columns.map(column => column.name)).toEqual(["gender", "patient_count"]);
+      timing.mark("result-2");
+      await dwell(8000);
+      const dataset = await saveQuery(queryTitle);
+      timing.mark("saved-query");
+      await followup.fill("Keep this question for later");
+      await library("Saved queries");
+      const savedCard = page.getByRole("article", { name: queryTitle, exact: true });
+      await savedCard.scrollIntoViewIfNeeded();
+      await dwell(5000);
+      await savedCard.getByRole("button", { name: "Start from this SQL", exact: true }).click();
+      await page.getByRole("dialog", { name: "Start from saved SQL" })
+        .getByRole("button", { name: "Keep my draft and start" }).click();
+      const editor = page.getByRole("textbox", { name: "SQL query", exact: true });
+      // CodeMirror renders separate line elements; textContent joins them
+      // without newlines even when the saved SQL is loaded correctly.
+      await expect.poll(async () => (await editor.locator(".cm-line").allTextContents()).join("\n"))
+        .toBe(dataset.configuration.parameterizedSql);
+      expect(executionRequests).toBe(2);
+      await page.getByText(/View options/).click();
+      await page.getByRole("radio", { name: "Dark", exact: true }).check();
+      await page.getByText("Advanced mode", { exact: true }).click();
+      await page.keyboard.press("Escape");
+      await expect(page.locator("#catalyst-advanced-mode")).toBeChecked();
+      timing.mark("reused-sql");
+      await page.screenshot({ path: info.outputPath("reused-sql-dark.png") });
+      await dwell(8000);
+      const reusedExecution = await showResults("Run query", 3);
+      expect(reusedExecution.query).toEqual(grouped.query);
+      timing.mark("reused-result");
+      await dwell(8000);
+      const reused = await saveQuery(`${queryTitle} — reused`);
+      expect(reused.versionId).not.toBe(dataset.versionId);
+      expect(reused.configuration.source).toMatchObject({ dataSourceId: source, turnId: null });
+      expect(reused.configuration.parameterizedSql).toBe(dataset.configuration.parameterizedSql);
+      expect(reused.configuration.parameters).toEqual(dataset.configuration.parameters);
+      await page.getByRole("button", { name: "Return to previous draft" }).click();
+      await expect(followup).toHaveValue("Keep this question for later");
+      await page.getByText(/View options/).click();
+      await page.getByRole("radio", { name: "Light", exact: true }).check();
+      await page.getByText("Advanced mode", { exact: true }).click();
+      await page.keyboard.press("Escape");
+      timing.mark("reuse-complete");
+      await library("Charts and tables");
+      const chartIds: string[] = [];
+      for (const [index, kind] of ["table", "grouped_bar"].entries()) {
+        await page.getByRole("button", { name: "New chart or table", exact: true }).click();
+        await panel.getByLabel("Saved query", { exact: true }).selectOption(reused.versionId);
+        await panel.getByLabel("Chart name", { exact: true }).fill(chartTitles[index]!);
+        await panel.getByLabel("Visualization", { exact: true }).selectOption(kind);
+        await dwell(5000);
+        const response = page.waitForResponse(r => r.request().method() === "POST" && r.url().endsWith("/dashboard-builder/widgets"));
+        await panel.getByRole("button", { name: "Save chart or table", exact: true }).click();
+        const saved = await response;
+        expect(saved.ok()).toBe(true);
+        chartIds.push((await saved.json() as DashboardBuilderEntity).versionId);
+        await expect(panel).not.toBeVisible();
+        timing.mark(`widget-${kind}`);
+      }
+      await library("Dashboards");
+      await page.getByRole("button", { name: "New Dashboard", exact: true }).click();
+      await panel.getByLabel("Dashboard name").fill(dashboardTitle);
+      for (const checkbox of await panel.getByRole("checkbox").all()) await checkbox.uncheck();
+      for (const title of chartTitles) {
+        await panel.getByRole("checkbox", { name: title, exact: true }).check();
+        await panel.getByLabel(`Width of ${title}`).selectOption("6");
+      }
+      timing.mark("arrangement");
+      await dwell(8000);
+      const save = page.waitForResponse(r => r.request().method() === "POST" && r.url().endsWith("/dashboard-builder/dashboards"));
+      await panel.getByRole("button", { name: "Save Dashboard", exact: true }).click();
+      const savedResponse = await save;
+      expect(savedResponse.ok()).toBe(true);
+      const first = await savedResponse.json() as DashboardBuilderEntity;
+      await expect(panel).not.toBeVisible();
+      await page.reload();
+      await library("Dashboards");
+      await page.getByRole("article", { name: `${dashboardTitle} version 1`, exact: true })
+        .getByRole("button", { name: `Review and arrange ${dashboardTitle}`, exact: true }).click();
+      for (const title of chartTitles) await expect(panel.getByLabel(`Width of ${title}`)).toHaveValue("6");
+      await panel.getByRole("button", { name: `Move ${chartTitles[1]} earlier`, exact: true }).click();
+      timing.mark("arrangement-restored");
+      await page.screenshot({ path: info.outputPath("arrangement-restored.png") });
+      await dwell(8000);
+      const revise = page.waitForResponse(r => r.request().method() === "POST" && r.url().endsWith("/dashboard-builder/dashboards"));
+      await panel.getByRole("button", { name: "Save new Dashboard version", exact: true }).click();
+      const revisedResponse = await revise;
+      expect(revisedResponse.ok()).toBe(true);
+      const revised = await revisedResponse.json() as DashboardBuilderEntity;
+      expect(revised.id).toBe(first.id);
+      expect(revised.ordinal).toBe(2);
+      expect(revised.configuration.widgets).toEqual([
+        expect.objectContaining({ versionId: chartIds[1], width: 6 }),
+        expect.objectContaining({ versionId: chartIds[0], width: 6 }),
+      ]);
+      await expect(panel).not.toBeVisible();
+      const card = page.getByRole("article", { name: `${dashboardTitle} version 2`, exact: true });
+      const publish = page.waitForResponse(r => r.request().method() === "POST" && r.url().endsWith("/publish"));
+      await card.getByRole("button", { name: "Publish to Superset", exact: true }).click();
+      const publication = await publish;
+      expect(publication.ok()).toBe(true);
+      const bundle = await publication.json() as DashboardPublication;
+      const repeat = await page.request.post(`/v1/catalyst/dashboard-builder/dashboards/${revised.versionId}/publish`);
+      expect(repeat.ok()).toBe(true);
+      expect((await repeat.json() as DashboardPublication).pointer.bundle.sha256).toBe(bundle.pointer.bundle.sha256);
+      timing.mark("bundle-ready");
+      await dwell(5000);
+      timing.mark("import-started");
+      const importedUrl = runSupersetImport(bundle.pointer.bundle.sha256);
+      await page.reload();
+      await library("Dashboards");
+      await expect(card.getByText("Imported", { exact: true })).toBeVisible();
+      const openLink = card.getByRole("link", { name: "Open Superset", exact: true });
+      await expect(openLink).toBeVisible();
+      expect(await openLink.getAttribute("href")).toBe(importedUrl);
+      timing.mark("imported-visible");
+      await page.screenshot({ path: info.outputPath("import-receipt.png") });
+      await dwell(8000);
+      // Authenticate outside the published cut. Final rendering stays in the
+      // same page, so the recording remains a single continuous source.
+      timing.mark("superset-login");
+      const supersetBase = process.env.PLAYWRIGHT_SUPERSET_URL ?? "http://127.0.0.1:18088";
+      await page.goto(`${supersetBase}/login/`);
+      await page.locator("#username").fill(process.env.SUPERSET_ADMIN_USERNAME ?? "admin");
+      await page.locator("#password").fill(process.env.SUPERSET_ADMIN_PASSWORD ?? "admin");
+      await page.getByRole("button", { name: /sign in/i }).click();
+      await page.waitForURL(url => !url.pathname.replace(/\/$/, "").endsWith("/login"));
+      const dashboardUrl = new URL(new URL(importedUrl).pathname, supersetBase).toString();
+      timing.mark("superset-open");
+      await page.goto(dashboardUrl);
+      await expect(page.getByText(dashboardTitle, { exact: false }).first()).toBeVisible({ timeout: 120000 });
+      await expect(page.locator("canvas").first()).toBeVisible({ timeout: 120000 });
+      // Compare the displayed table with the originating recorded result;
+      // do not open a second connection or use an obsolete fixture count.
+      const table = page.getByRole("table").first();
+      await expect(table).toBeVisible({ timeout: 120000 });
+      for (const row of reusedExecution.result!.rows) {
+        const cells = row.map(cell => cell.type === "null" ? "NULL" : String(cell.value));
+        const renderedRow = table.getByRole("row").filter({ has: page.getByText(cells[0], { exact: true }) });
+        // Superset labels cells with their column name, not their value.
+        await expect(renderedRow.getByRole("cell").nth(1)).toHaveText(cells[1]);
+      }
+      timing.mark("dashboard-rendered");
+      await dwell(8000);
+      await page.screenshot({ path: info.outputPath("superset-rendered.png") });
+      timing.mark("end");
+      writeFileSync(info.outputPath("proof.json"), JSON.stringify({ source, dataset, reused, first, revised, bundle, dashboardUrl, execution: reusedExecution }, null, 2));
+    } finally {
+      await Promise.allSettled(pending);
+      writeFileSync(info.outputPath("requests-and-results.json"), JSON.stringify({ source, executionRequests, executions, evidence }, null, 2));
+      timing.save();
+    }
+  });
 }
-
-test("plain-language question to a published Superset dashboard", async ({
-  page,
-}, info) => {
-  test.skip(
-    process.env.PLAYWRIGHT_LIVE !== "true",
-    "Live-stack scenario; set PLAYWRIGHT_LIVE=true with PLAYWRIGHT_BASE_URL.",
-  );
-
-  const filming = info.project.name === "demo-video";
-  const timing = new DemoMilestones("full-scenario-demo");
-  // Dashboard Builder state is intentionally retained. A fresh artifact name
-  // keeps this run separate from every prior take without resetting or
-  // reseeding the application databases. Callers may supply a meaningful run
-  // ID for a published take; the default is unique for every invocation.
-  const runId = process.env.CATALYST_DEMO_RUN_ID?.trim() || randomUUID();
-  const runName = (base: string) => `${base} · ${runId}`;
-  const detailDataset = runName(DETAIL_DATASET_BASE);
-  const volumeDataset = runName(VOLUME_DATASET_BASE);
-  const tableWidget = runName(TABLE_WIDGET_BASE);
-  const barWidget = runName(BAR_WIDGET_BASE);
-  const dashboard = runName(DASHBOARD_BASE);
-  /** Hold the frame so a viewer can read; nothing at all when testing. */
-  const dwell = async (ms: number) => {
-    if (filming) await page.waitForTimeout(ms);
-  };
-  /** Type visibly on camera, instantly when testing. */
-  const type = async (
-    locator: ReturnType<typeof page.getByLabel>,
-    text: string,
-  ) => {
-    if (filming) await locator.pressSequentially(text, { delay: 28 });
-    else await locator.fill(text);
-  };
-
-  /** Save the current turn's dataset draft under a real name.
-   *
-   * The cell's "Review results" opens the dataset review panel; only the
-   * current turn offers it, so the locator is unique by construction. */
-  const saveDataset = async (name: string) => {
-    await page.getByRole("button", { name: "Review results" }).click();
-    const nameBox = page.getByPlaceholder(/Dataset from Query v/);
-    await expect(nameBox).toBeVisible();
-    await nameBox.click();
-    await type(nameBox, name);
-    await page.getByRole("button", { name: "Save query" }).click();
-    // Saving swaps the draft chrome for the saved entity; wait for the busy
-    // label to clear before moving on.
-    await expect(page.getByRole("button", { name: "Saving…" })).toHaveCount(0);
-    await dwell(1_500);
-    // Close the review DIALOG through its own button: the workspace's
-    // "Close review panel" control sits behind the dialog's backdrop, so a
-    // click on it never lands while the panel is open.
-    await page
-      .getByRole("dialog")
-      .getByRole("button", { name: "Close" })
-      .first()
-      .click();
-    await expect(page.getByRole("dialog")).toHaveCount(0);
-  };
-
-  /** Build one widget over a saved dataset. */
-  const saveWidget = async (
-    name: string,
-    dataset: string,
-    visualization: string,
-  ) => {
-    await page.getByRole("button", { name: "New chart or table" }).click();
-    await type(page.getByRole("textbox", { name: "Chart name" }), name);
-    await page
-      .getByRole("combobox", { name: "Saved query" })
-      .selectOption({ label: dataset });
-    await page
-      .getByRole("combobox", { name: "Visualization" })
-      .selectOption({ label: visualization });
-    await dwell(2_000);
-    await page.getByRole("button", { name: "Save chart or table" }).click();
-    await expect(page.getByRole("heading", { name })).toBeVisible();
-    await dwell(1_500);
-  };
-
-  // ---- Act 1: the question ------------------------------------------------
-  await page.goto("/?dataSource=openelis");
-  await expect(page.getByText("Catalyst", { exact: true })).toBeVisible();
-  await expect(
-    page.getByText("OpenELIS Laboratory", { exact: true }).first(),
-  ).toBeVisible();
-  timing.mark("source-selected");
-  await dwell(2_500);
-
-  await expect(page.getByLabel("Model profile")).toBeEnabled();
-  // The reviewed profile: a 12B writer drafts, a 14B reviewer checks — the
-  // same lineup the published validation runs use.
-  await page
-    .getByLabel("Model profile")
-    .selectOption("catalyst-query-gemma-4-12b-qwen2.5-14b-checked");
-  await type(
-    page.getByLabel("Your question"),
-    "Show viral load results since 2026-01-01 with patient, value, and observed date",
-  );
-  timing.mark("question-typed");
-  await dwell(1_200);
-  await page.getByRole("button", { name: "Continue" }).click();
-  timing.mark("generate-clicked");
-
-  await expect(
-    page.getByRole("heading", { name: /^Refine \[1\]$/ }),
-  ).toBeVisible({ timeout: 600_000 });
-  // Pinned deliberately: only the curated lab fact's column vocabulary
-  // actually executes against the analytics database.
-  await expect(page.getByRole("textbox", { name: "SQL query" })).toContainText(
-    "lab_result_fact_v1",
-  );
-  timing.mark("sql-ready-1");
-  await dwell(6_000);
-
-  await page.getByRole("button", { name: "Run query" }).click();
-  const detailResult = page.locator(".query-turn__dataset").first();
-  await expect(detailResult).toBeVisible({
-    timeout: 120_000,
-  });
-  await expect(detailResult.getByRole("columnheader")).toHaveCount(3);
-  for (const column of ["patient_id", "result_value", "observed_at"]) {
-    await expect(
-      detailResult.getByRole("columnheader", { name: column, exact: true }),
-    ).toBeVisible();
-  }
-  await expect(
-    detailResult.getByText("Showing 1–10 of 100 returned rows", {
-      exact: true,
-    }),
-  ).toBeVisible();
-  timing.mark("dataset-1");
-  await dwell(5_000);
-  await saveDataset(detailDataset);
-  timing.mark("dataset-saved-1");
-
-  const ensureComposerOpen = async () => {
-    await expect(
-      page.getByRole("textbox", { name: "Ask a follow-up" }),
-    ).toBeVisible();
-  };
-
-  // ---- Act 2: refine in conversation ---------------------------------------
-  await ensureComposerOpen();
-  await type(
-    page.getByRole("textbox", { name: "Ask a follow-up" }),
-    "Now replace the detail rows with counts across the full dataset by test name. Call the count column result_count and put the highest count first",
-  );
-  timing.mark("followup-typed");
-  await dwell(1_200);
-  await page.getByRole("button", { name: "Continue" }).click();
-  timing.mark("generate-clicked-2");
-
-  await expect(
-    page.getByRole("heading", { name: /^Refine \[2\]$/ }),
-  ).toBeVisible({ timeout: 600_000 });
-  await expect(page.getByRole("textbox", { name: "SQL query" })).toContainText(
-    "lab_result_fact_v1",
-  );
-  timing.mark("sql-ready-2");
-  await dwell(6_000);
-
-  await page.getByRole("button", { name: "Run query" }).click();
-  const volumeResult = page.locator(".query-turn__dataset").last();
-  await expect(volumeResult).toBeVisible({
-    timeout: 120_000,
-  });
-  await expect(volumeResult.getByRole("columnheader")).toHaveCount(2);
-  for (const column of ["test_name", "result_count"]) {
-    await expect(
-      volumeResult.getByRole("columnheader", { name: column, exact: true }),
-    ).toBeVisible();
-  }
-  const groupedRows = volumeResult.locator("tbody tr");
-  await expect(groupedRows).toHaveCount(EXPECTED_GROUPS);
-  const topGroupRow = groupedRows.first();
-  await expect(topGroupRow.getByRole("cell")).toHaveCount(2);
-  await expect(
-    topGroupRow.getByRole("cell", {
-      name: EXPECTED_TOP_GROUP,
-      exact: true,
-    }),
-  ).toBeVisible();
-  await expect(
-    topGroupRow.getByRole("cell", {
-      name: String(EXPECTED_TOP_GROUP_COUNT),
-      exact: true,
-    }),
-  ).toBeVisible();
-  timing.mark("dataset-2");
-  await dwell(5_000);
-  await saveDataset(volumeDataset);
-  timing.mark("dataset-saved-2");
-
-  // ---- Act 3: two widgets over the governed datasets ----------------------
-  await page.getByRole("button", { name: "Widgets" }).click();
-  await dwell(1_500);
-  await saveWidget(tableWidget, detailDataset, "Table");
-  timing.mark("widget-table");
-  await saveWidget(barWidget, volumeDataset, "Grouped bar");
-  timing.mark("widget-bar");
-
-  // ---- Act 4: the dashboard -------------------------------------------------
-  await page.getByRole("button", { name: "Dashboards" }).click();
-  await dwell(1_200);
-  await page.getByRole("button", { name: "New Dashboard" }).click();
-  await type(page.getByRole("textbox", { name: "Dashboard name" }), dashboard);
-  await page.getByRole("checkbox", { name: tableWidget, exact: true }).check();
-  await page.getByRole("checkbox", { name: barWidget, exact: true }).check();
-  await dwell(1_500);
-  const savedDashboardResponse = page.waitForResponse(
-    (response) =>
-      response.request().method() === "POST" &&
-      new URL(response.url()).pathname ===
-        "/v1/catalyst/dashboard-builder/dashboards",
-  );
-  await page.getByRole("button", { name: "Save Dashboard" }).click();
-  const savedDashboard = (await (await savedDashboardResponse).json()) as {
-    versionId?: unknown;
-  };
-  if (typeof savedDashboard.versionId !== "string") {
-    throw new Error("saved Dashboard response did not include its version ID");
-  }
-
-  const card = page.locator("article").filter({ hasText: dashboard });
-  await expect(card).toBeVisible({ timeout: 60_000 });
-  const publishedDashboardResponse = page.waitForResponse(
-    (response) =>
-      response.request().method() === "POST" &&
-      new URL(response.url()).pathname ===
-        `/v1/catalyst/dashboard-builder/dashboards/${encodeURIComponent(savedDashboard.versionId as string)}/publish`,
-  );
-  await card.getByRole("button", { name: "Publish to Superset" }).click();
-  const publication = (await (await publishedDashboardResponse).json()) as {
-    pointer?: { bundle?: { sha256?: unknown } };
-  };
-  const bundleDigest = publication.pointer?.bundle?.sha256;
-  if (
-    typeof bundleDigest !== "string" ||
-    !/^[a-f0-9]{64}$/.test(bundleDigest)
-  ) {
-    throw new Error("published Dashboard response did not include a bundle digest");
-  }
-  await expect(card.getByText("Superset bundle ready")).toBeVisible({
-    timeout: 60_000,
-  });
-  timing.mark("bundle-ready");
-  await dwell(4_000);
-
-  // ---- Act 5: the seam — the pinned importer ------------------------------
-  // The MVP has no Superset REST publication; a pinned CLI imports the
-  // bundle and records a receipt, which is what flips the card to Imported.
-  timing.mark("import-started");
-  runSupersetImport(bundleDigest);
-  timing.mark("imported");
-  // The library only refetches receipts on a fresh load — tab navigation
-  // keeps the stale publication state, so the flip never shows without it.
-  await page.reload();
-  await expect(page.getByText("Catalyst", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Dashboards" }).click();
-  await expect(card.getByText("Imported", { exact: true })).toBeVisible({
-    timeout: 60_000,
-  });
-  timing.mark("imported-visible");
-  await dwell(4_000);
-
-  // ---- Act 6: the finished dashboard in Superset --------------------------
-  const openLink = card.getByRole("link", { name: "Open Superset" });
-  await expect(openLink).toBeVisible();
-  const href = await openLink.getAttribute("href");
-  if (!href) throw new Error("Open Superset link has no href");
-  const supersetBase =
-    process.env.PLAYWRIGHT_SUPERSET_URL ?? "http://127.0.0.1:18088";
-  const dashboardUrl = new URL(new URL(href).pathname, supersetBase).toString();
-
-  // Sign in to Superset in the same page so the capture stays one video.
-  await page.goto(`${supersetBase}/login/`);
-  await page
-    .locator("#username")
-    .fill(process.env.SUPERSET_ADMIN_USERNAME ?? "admin");
-  await page
-    .locator("#password")
-    .fill(process.env.SUPERSET_ADMIN_PASSWORD ?? "admin");
-  await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForLoadState("networkidle");
-  await page.goto(dashboardUrl);
-  timing.mark("superset-open");
-
-  await expect(
-    page.getByText(dashboard, { exact: false }).first(),
-  ).toBeVisible({ timeout: 120_000 });
-  // The table widget shows real rows; the bar chart renders on canvas.
-  await expect(page.getByText("Viral Load").first()).toBeVisible({
-    timeout: 120_000,
-  });
-  await expect(page.locator("canvas").first()).toBeVisible({
-    timeout: 120_000,
-  });
-  timing.mark("dashboard-rendered");
-  await dwell(9_000);
-  timing.mark("end");
-  timing.save();
-});

@@ -955,7 +955,7 @@ test("question to iterative notebook to imported dashboard", async ({
     await navigate("Explore");
   }
 
-  const dataSection = header.getByRole("button", { name: "What data is available?" });
+  const dataSection = page.getByRole("button", { name: "What data is available?" });
   await dataSection.click();
   await expect(dataSection).toHaveAttribute("aria-expanded", "true");
   const browser = page.getByRole("complementary", { name: "Available data" });

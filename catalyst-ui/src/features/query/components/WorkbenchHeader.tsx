@@ -21,14 +21,6 @@ interface WorkbenchHeaderProps {
   onDraftDataSourceChange: (dataSourceId: string) => void;
   onStartSession: () => void;
   newSessionDisabled?: boolean;
-  openSection: WorkspaceSection | null;
-  onOpenSectionChange: (section: WorkspaceSection) => void;
-  relationCount: number;
-  turns: WorkspaceTurn[];
-  activeTurnOrdinal: number | null;
-  onSelectTurn: (ordinal: number) => void;
-  onOpenDetails?: () => void;
-  detailsOpen: boolean;
   themePreference: ThemePreference;
   onThemePreferenceChange: (preference: ThemePreference) => void;
   advancedMode: boolean;
@@ -55,14 +47,6 @@ export const WorkbenchHeader = ({
   onDraftDataSourceChange,
   onStartSession,
   newSessionDisabled = false,
-  openSection,
-  onOpenSectionChange,
-  relationCount,
-  turns,
-  activeTurnOrdinal,
-  onSelectTurn,
-  onOpenDetails,
-  detailsOpen,
   themePreference,
   onThemePreferenceChange,
   advancedMode,
@@ -71,8 +55,6 @@ export const WorkbenchHeader = ({
   savedWorkSection,
   onSectionChange,
 }: WorkbenchHeaderProps) => {
-  const dataOpen = openSection === "data";
-  const turnsOpen = openSection === "turns";
   return (
     <header inert={inert || undefined} className="workbench-header-shell" aria-label="Workspace navigation"
       onKeyDown={(event) => {
@@ -139,7 +121,7 @@ export const WorkbenchHeader = ({
           >
             <span>
               <strong>Using {sessionSourceLabel ?? "connected data"}</strong>
-              <small>{sessionName ?? "Change data"}</small>
+              <small>Change data</small>
             </span>
             <span aria-hidden="true">▾</span>
           </button>
@@ -294,7 +276,38 @@ export const WorkbenchHeader = ({
           </div>
         </details>
       </div>
-      <div hidden={activeSection !== "ask"} className="workbench-header-shell__tools">
+    </header>
+  );
+};
+
+interface WorkbenchToolsProps {
+  openSection: WorkspaceSection | null;
+  onOpenSectionChange: (section: WorkspaceSection) => void;
+  relationCount: number;
+  turns: WorkspaceTurn[];
+  activeTurnOrdinal: number | null;
+  onSelectTurn: (ordinal: number) => void;
+  onOpenDetails?: () => void;
+  detailsOpen: boolean;
+  advancedMode: boolean;
+}
+
+export const WorkbenchTools = ({
+  openSection,
+  onOpenSectionChange,
+  relationCount,
+  turns,
+  activeTurnOrdinal,
+  onSelectTurn,
+  onOpenDetails,
+  detailsOpen,
+  advancedMode,
+}: WorkbenchToolsProps) => {
+  const dataOpen = openSection === "data";
+  const turnsOpen = openSection === "turns";
+  return (
+    <>
+      <div className="workbench-header-shell__tools">
         <Button id="available-data-opener" kind="ghost" size="sm" aria-expanded={dataOpen}
           aria-controls="available-data-panel" onClick={() => onOpenSectionChange("data")}>
           What data is available?{advancedMode ? ` (${relationCount})` : ""}
@@ -306,7 +319,7 @@ export const WorkbenchHeader = ({
         {onOpenDetails && <Button kind="ghost" size="sm" aria-expanded={detailsOpen}
           onClick={onOpenDetails}>Technical details</Button>}
       </div>
-      <div id="workspace-turns" hidden={!turnsOpen || activeSection !== "ask"}>
+      <div id="workspace-turns" hidden={!turnsOpen}>
         <ol className="workbench-header-shell__turns">
           {turns.map((turn) => (
             <li key={turn.ordinal}><Button kind="ghost" size="sm"
@@ -317,6 +330,6 @@ export const WorkbenchHeader = ({
           ))}
         </ol>
       </div>
-    </header>
+    </>
   );
 };
