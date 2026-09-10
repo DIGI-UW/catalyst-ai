@@ -24,6 +24,31 @@ the cached virtual environment and retains setup-uv download caching, so the
 locked dependencies produce fresh launchers in the current checkout. This is a point-in-time
 observation, not a permanent readiness label; use PR checks for current status.
 
+## Saved-work interaction handoff — 10 September 2026
+
+The owner approved grouped Saved work and saved-SQL reuse in the current
+harness delivery. The existing mock now demonstrates that bounded extension;
+the frozen shell, palette, composer and Advanced mode remain the reference.
+In the preview, choose **Saved queries and SQL reuse**. Review either saved
+query, load its exact parameterized SQL and typed values, and explicitly keep
+the current draft when starting a separate question. The source change is
+visible before confirmation. The second example retains reusable SQL even
+though its earlier result details are unavailable.
+
+The loaded editor identifies the originating saved version and source. It
+retrieves nothing until **Get results** is chosen, and that action still only
+shows fictional mock rows. **Return to your earlier draft** restores the prior
+question and SQL; retained drafts are also listed under **Change data**. This
+uses temporary fixture state solely to review the interaction. Production must
+use its existing session and browser-state owners, including persistence and
+failure handling; no mock state code is an implementation prescription.
+
+Feature 008 tasks record owner feedback, delivery acceptance and remaining
+polish. This handoff does not maintain a separate progress register. The
+multi-artifact, shared-control, Metabase and Evidence scenarios remain in their
+scheduled follow-on milestones. Public preview synchronization follows the
+compatible harness update.
+
 ## Delivery order
 
 Use these as small reviewable portions of the existing UI effort, not a new
@@ -112,5 +137,5 @@ The Python code and lockfiles match the PR's base `4c6a46f`. The type-check
 findings are therefore existing debt; the workflow already treats mypy as
 non-blocking. They remain visible rather than being fixed or suppressed in this
 design/CI change. Hosted checks must still validate the final PR head; use their
-live result for merge readiness. The mock assets are byte-for-byte unchanged
+live result for merge readiness. At the CI repair, the mock assets were byte-for-byte unchanged
 from the frozen design commit, and handoff links/component paths were checked.
