@@ -179,7 +179,9 @@ for (const source of ["openelis", "openmrs-hiv"]) {
       expect(failedExecution.query.parameters).toEqual(grouped.query.parameters);
       expect(failedExecution.databaseDiagnostic?.message).toContain("catalyst_missing_column");
       expect(executionRequests).toBe(3);
-      await expect(page.getByRole("alert").filter({ hasText: "catalyst_missing_column" }).first()).toBeVisible();
+      const diagnostic = page.getByRole("alert").filter({ hasText: "catalyst_missing_column" }).first();
+      await diagnostic.scrollIntoViewIfNeeded();
+      await expect(diagnostic).toBeInViewport();
       await expect.poll(async () => (await editor.locator(".cm-line").allTextContents()).join("\n")).toBe(invalidSql);
       timing.mark("reuse-failed");
       await page.screenshot({ path: info.outputPath("reuse-failed.png") });
