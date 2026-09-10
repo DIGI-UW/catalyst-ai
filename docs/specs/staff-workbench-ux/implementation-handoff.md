@@ -24,7 +24,7 @@ the cached virtual environment and retains setup-uv download caching, so the
 locked dependencies produce fresh launchers in the current checkout. This is a point-in-time
 observation, not a permanent readiness label; use PR checks for current status.
 
-## Saved-work extension awaiting review — 10 September 2026
+## Saved-work interaction handoff — 10 September 2026
 
 The owner approved grouped Saved work and saved-SQL reuse in the current
 harness delivery. The existing mock now demonstrates that bounded extension;
@@ -43,11 +43,11 @@ uses temporary fixture state solely to review the interaction. Production must
 use its existing session and browser-state owners, including persistence and
 failure handling; no mock state code is an implementation prescription.
 
-The interaction review is pending. Delivery acceptance remains in Feature 008
-tasks; this does not record approval or start Dashboard implementation. The
+Feature 008 tasks record owner feedback, delivery acceptance and remaining
+polish. This handoff does not maintain a separate progress register. The
 multi-artifact, shared-control, Metabase and Evidence scenarios remain in their
-scheduled follow-on milestones. Public preview synchronization follows review
-and the compatible harness update.
+scheduled follow-on milestones. Public preview synchronization follows the
+compatible harness update.
 
 ## Delivery order
 
