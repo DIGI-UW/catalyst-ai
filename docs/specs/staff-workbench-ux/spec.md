@@ -55,12 +55,18 @@ Use two main navigation destinations: **Explore** and **Saved work**. Explore
 maps to the existing Workbench. Saved work contains **Saved queries** (Datasets),
 **Charts and tables** (Widgets), and **Dashboards**. These are interface labels
 and grouping changes; the domain objects, APIs and save behavior keep their
-existing identities. This explicitly amends the existing navigation presentation.
+existing identities. The active main-navigation item uses normal text on the
+neutral header with a thin purple underline; avoid pale purple text on a purple
+filled tab. Keep the same treatment in light and dark appearances. This explicitly
+amends the existing navigation presentation.
 
 Remove the permanent development-style sidebar. Use a centered content column,
 a comfortable writing card, readable type and restrained borders. Use neutral
 light surfaces or charcoal dark surfaces, with clear violet accents for actions
-and focus. The owner rejected broad purple tinting, a gold header stripe, and
+and focus. Keep the approved light appearance, including its deep-purple
+secondary actions. In dark mode, navigation, links and secondary actions use
+off-white text; filled purple actions use white labels in both modes. The owner
+rejected broad purple tinting, a gold header stripe, and
 dusty lavender buttons. Keep the OpenClinAI connection to a small purple mark
 with a tiny gold highlight. These are visual preferences, not evidence of better
 clinical outcomes. Reuse Carbon controls and semantic theme tokens.
@@ -124,7 +130,8 @@ must preserve the question, SQL, parameters, selected source and results.
 | Page / surface | `#fafafa` / `#ffffff` | `#19191c` / `#222225` |
 | Main text | `#252329` | `#eeeef0` |
 | Primary action / text | `#7540d0` / white | `#8b4cf0` / white |
-| Links and disclosure | `#6d35c3` | `#bb99ff` |
+| Links and disclosure text | `#6d35c3` | `#eeeef0` |
+| Active main-navigation text | `#252329` | `#eeeef0` |
 | Focus | `#7540d0` | `#bb99ff` |
 | Brand detail | OpenClinAI purple `#4b2e83`, small gold `#f2c75c` dot | Same small mark |
 

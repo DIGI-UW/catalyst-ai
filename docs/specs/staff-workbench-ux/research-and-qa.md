@@ -80,7 +80,10 @@ without manufacturing reassuring explanations of SQL.
 The owner asked for a visual connection to OpenClinAI, then clarified that the
 initial purple/gold treatment was too overt and the pale lavender looked dull.
 The revised direction is charcoal with clear violet actions in dark mode,
-neutral white in light mode, and gold only as a tiny brand highlight. This is a
+neutral white in light mode, and gold only as a tiny brand highlight. Subsequent
+owner feedback retained the light theme but removed purple interface text
+from dark mode: use off-white text, white labels on filled purple actions,
+and neutral active navigation with a thin purple underline. This is a
 product interpretation of the brand, not an official UW identity implementation.
 
 | Source checked 9 September 2026 | Application and limits |
@@ -113,6 +116,7 @@ dependencies, model calls, database access or credentials.
 | Save-to-dashboard flow retested on final shell | Saved a named query through View results, opened Saved work, created a named Table, and reached Waiting for import through Add to dashboard and Publish. These are mock transitions, not external writes. |
 | Other fixture states, checked before shell revision | Limited/error/clarification/unsupported/imported/failed fixtures were inspected. Their backend behavior is not implemented in this mock. |
 | Earlier source/profile checks, before shell revision | OpenMRS session selection changed the source and explicit model choice changed the selected profile. Final design presents the exact profile in Query settings and advanced view instead of a default badge. |
+| Final navigation/text refinement | Browser-computed dark navigation and secondary text are `rgb(238, 238, 240)` on a transparent active tab; primary labels are white. Light secondary actions remain `rgb(109, 53, 195)` and active navigation uses normal dark text. Screenshots refreshed; no application behavior changed. |
 | Appearance and persistence | Switched Light/Dark without losing the draft or Advanced mode. Explicit Light survived navigation/reload; System resolved to the current dark system setting. Actual operating-system preference changes and blocked storage were not exercised. |
 | Color calculations | Checked main/secondary/link text across neutral layers, primary/hover button labels, warning/error/success text, and control/focus colors against their surfaces. Minimum tested text ratios: light 5.31:1, dark 4.78:1; tested control/focus ratios: light 3.68:1, dark 3.85:1. This is a token-pair check, not a complete accessibility audit. |
 | Data companion | Typed while the browser stayed open; exact column search `completed_tests` found one relation; opened its types, returned focus to the question, and retained the draft/search/expansion. No-match feedback and Clear search worked. Escape inside the browser returned focus to the actual opener. |

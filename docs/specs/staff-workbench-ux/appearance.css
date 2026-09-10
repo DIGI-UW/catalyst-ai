@@ -8,6 +8,7 @@
   --border: #e1dfe4;
   --control-border: #867b91;
   --accent: #6d35c3;
+  --action-text: #6d35c3;
   --primary: #7540d0;
   --primary-hover: #6330b7;
   --accent-hover: #5923ac;
@@ -43,6 +44,7 @@
   --border: #414047;
   --control-border: #85818e;
   --accent: #bb99ff;
+  --action-text: #eeeef0;
   --primary: #8b4cf0;
   --primary-hover: #8040e1;
   --accent-hover: #d1baff;
