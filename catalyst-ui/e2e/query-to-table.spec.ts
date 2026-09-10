@@ -965,7 +965,7 @@ test("question to iterative notebook to imported dashboard", async ({
 
   // This existing analyst regression deliberately exercises the SQL tools.
   await header.getByText(/View options/).click();
-  await header.getByRole("checkbox", { name: /Advanced mode/ }).check();
+  await header.getByText("Advanced mode", { exact: true }).click();
   await header.getByText(/View options/).click();
 
   // ---------------------------------------------------- ask the question

@@ -29,7 +29,7 @@ test("simple navigation and theme changes retain the unfinished question", async
   await page.setViewportSize({ width: 390, height: 640 });
   await expect(question).toBeVisible();
   await page.getByText(/View options/).click();
-  await expect(page.getByRole("checkbox", { name: /Advanced mode/ })).toBeInViewport();
+  await expect(page.getByText("Advanced mode", { exact: true })).toBeInViewport();
   await page.getByRole("radio", { name: "Dark", exact: true }).check();
   await expect(page.locator(".application")).toHaveAttribute("data-theme", "g100");
   const overflow = await page.evaluate<boolean>("document.documentElement.scrollWidth > window.innerWidth");
@@ -48,17 +48,20 @@ test("Advanced mode retains edited SQL, selection, undo and follow-up without ex
   await followup.fill("Keep my follow-up draft");
   const options = page.getByText(/View options/);
   await options.click();
-  const advanced = page.getByRole("checkbox", { name: /Advanced mode/ });
-  await advanced.check();
+  const advanced = page.getByRole("switch", { name: /Advanced mode/ });
+  await page.getByText("Advanced mode", { exact: true }).click();
+  await expect(advanced).toHaveAttribute("aria-checked", "true");
   const editor = page.getByRole("textbox", { name: "SQL query" });
   await expect(editor).toBeVisible();
   await editor.fill("SELECT 42 AS answer");
   await editor.press("End");
   await editor.press("Shift+ArrowLeft");
   const selected = await page.evaluate<string>("window.getSelection()?.toString()");
-  await advanced.uncheck();
+  await page.getByText("Advanced mode", { exact: true }).click();
+  await expect(advanced).toHaveAttribute("aria-checked", "false");
   // The manual edit remains explicitly available even in simple mode.
-  await advanced.check();
+  await page.getByText("Advanced mode", { exact: true }).click();
+  await expect(advanced).toHaveAttribute("aria-checked", "true");
   await expect(editor).toContainText("SELECT 42 AS answer");
   await editor.focus();
   expect(await page.evaluate<string>("window.getSelection()?.toString()")).toBe(selected);

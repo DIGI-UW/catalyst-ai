@@ -1,4 +1,4 @@
-import { Button } from "@carbon/react";
+import { Button, Toggle } from "@carbon/react";
 import type { ThemePreference } from "../theme";
 import type { DashboardBuilderSection, DataSource, WorkbenchSessionSummary } from "../types";
 import type { WorkspaceSection, WorkspaceTurn } from "./workbenchShellSupport";
@@ -279,19 +279,18 @@ export const WorkbenchHeader = ({
                 ),
               )}
             </fieldset>
-            <label className="workbench-header-shell__advanced">
-              <input
-                type="checkbox"
-                checked={advancedMode}
-                onChange={(event) =>
-                  onAdvancedModeChange(event.currentTarget.checked)
-                }
+            <div className="workbench-header-shell__advanced">
+              <Toggle
+                id="catalyst-advanced-mode"
+                labelText="Advanced mode"
+                labelA="Off"
+                labelB="On"
+                toggled={advancedMode}
+                onToggle={onAdvancedModeChange}
+                aria-describedby="catalyst-advanced-mode-help"
               />
-              <span>
-                <strong>Advanced mode</strong>
-                <small>Show SQL, settings, and technical details.</small>
-              </span>
-            </label>
+              <small id="catalyst-advanced-mode-help">Show SQL, settings, and technical details.</small>
+            </div>
           </div>
         </details>
       </div>

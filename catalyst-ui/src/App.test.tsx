@@ -577,7 +577,7 @@ const openNewSessionForm = async (user: ReturnType<typeof userEvent.setup>) => {
 const enableAdvancedMode = async () => {
   const user = userEvent.setup();
   await user.click(screen.getByText("View options", { exact: true }));
-  await user.click(screen.getByRole("checkbox", { name: /Advanced mode/ }));
+  await user.click(screen.getByRole("switch", { name: /Advanced mode/ }));
   await user.click(screen.getByText("View options", { exact: true }));
 };
 

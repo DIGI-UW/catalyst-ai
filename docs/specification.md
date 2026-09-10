@@ -81,8 +81,8 @@ Dataset, Widget, and Dashboard domain names in APIs and evidence. Use a centered
 content surface instead of a permanent development-style sidebar.
 
 Complexity is hidden until requested and never discarded. **View options**
-contains Appearance and a visit-scoped, workspace-wide **Advanced mode** that
-defaults off. Switching it preserves the draft, editor selection, SQL,
+contains Appearance and an on/off switch for visit-scoped, workspace-wide
+**Advanced mode** that defaults off. Switching it preserves the draft, editor selection, SQL,
 parameters, source, query and execution identities, results, selected profile,
 and focus. The same individual capabilities remain reachable through named
 disclosures in the simple view. Query settings exposes profile selection;

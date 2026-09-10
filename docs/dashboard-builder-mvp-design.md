@@ -235,7 +235,7 @@ contains the three object libraries.
 - The selected source stays visible in Explore. Changing it starts a new session
   through the existing confirmation behavior.
 - Place **View options** at the quiet end of the header. It contains Appearance
-  and Advanced mode and shows a small Advanced indicator while enabled. Query
+  and an on/off Advanced mode switch, with a small Advanced indicator while enabled. Query
   settings stays directly accessible beside the composer.
 
 **Content column**: center the writing experience with comfortable readable
