@@ -64,11 +64,11 @@ export const QuestionComposerInput = ({
     if (!textarea) return;
     const selection = [textarea.selectionStart, textarea.selectionEnd] as const;
     if (expanded) {
-      const height = restoreHeight.current ?? visitHeight ?? 96;
+      const height = restoreHeight.current ?? visitHeight ?? 88;
       textarea.style.height = `${height}px`;
       visitHeight = height;
     } else {
-      restoreHeight.current = textarea.getBoundingClientRect().height || visitHeight || 96;
+      restoreHeight.current = textarea.getBoundingClientRect().height || visitHeight || 88;
       textarea.style.height = `${expandedHeight()}px`;
     }
     setExpanded((current) => !current);

@@ -3,7 +3,7 @@ import { installBaselineApi } from "./support/baseline-fixture";
 
 test("the composer stays available while reading and preserves an expanded draft", async ({
   page,
-}) => {
+}, testInfo) => {
   await installBaselineApi(page);
   await page.setViewportSize({ width: 1280, height: 620 });
   await page.goto("/");
@@ -39,6 +39,15 @@ test("the composer stays available while reading and preserves an expanded draft
   await expect(input).toBeFocused();
   await expect.poll(async () => (await input.boundingBox())!.height)
     .toBeCloseTo(originalHeight, 0);
+
+  for (const theme of ["Dark", "Light"]) {
+    await page.getByText(/View options/).click();
+    await page.getByRole("radio", { name: theme, exact: true }).check();
+    await page.keyboard.press("Escape");
+    await expect(input).toHaveValue(draft);
+    await expect(page.getByRole("button", { name: "Continue" })).toBeInViewport();
+    await page.screenshot({ path: testInfo.outputPath(`followup-${theme.toLowerCase()}.png`) });
+  }
 });
 
 test("the first question grows and restores its actual writing area", async ({ page }) => {
@@ -61,7 +70,7 @@ test("the first question grows and restores its actual writing area", async ({ p
 
 test("the composer and its actions remain reachable on a narrow screen", async ({
   page,
-}) => {
+}, testInfo) => {
   await installBaselineApi(page);
   await page.setViewportSize({ width: 390, height: 640 });
   await page.goto("/");
@@ -69,4 +78,10 @@ test("the composer and its actions remain reachable on a narrow screen", async (
   await expect(page.getByRole("textbox", { name: "Ask a follow-up" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Expand" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Continue" })).toBeVisible();
+  await page.getByText(/View options/).click();
+  await page.getByRole("radio", { name: "Dark", exact: true }).check();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "Continue" })).toBeInViewport();
+  expect(await page.evaluate<boolean>("document.documentElement.scrollWidth > window.innerWidth")).toBe(false);
+  await page.screenshot({ path: testInfo.outputPath("followup-narrow-dark.png") });
 });
