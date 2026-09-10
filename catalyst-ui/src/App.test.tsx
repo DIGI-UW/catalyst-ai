@@ -668,127 +668,31 @@ describe("Catalyst query workflow", () => {
     },
   );
 
-  it("shows the dataset browser and uses the Gateway-owned available profile", async () => {
+  it("browses schema without fetching rows and uses the Gateway-owned available profile", async () => {
     const api = makeApi();
     api.getQueryOptions = vi.fn().mockResolvedValue(queryOptions);
-    api.getDatasetOverview = vi.fn().mockResolvedValue({
-      contractVersion: "catalyst.dataset-overview.v1",
-      datasetId: "catalyst-openelis-cohort-v1",
-      synthetic: true,
-      patients: 96,
-      results: 1152,
-      testTypes: 9,
-      firstObservedAt: "2025-07-15T04:00:00Z",
-      lastObservedAt: "2026-04-27T04:00:00Z",
-      tests: [
-        {
-          testName: "Viral Load",
-          unit: "copies/ml",
-          results: 384,
-          patients: 96,
-          minimum: "30",
-          median: "900",
-          maximum: "35000",
-        },
-      ],
-      exampleQuestions: ["Show viral load results since 2026-01-01"],
-    });
-    api.getDatasetRows = vi.fn().mockResolvedValue({
-      contractVersion: "catalyst.dataset-rows.v1",
-      total: 1,
-      limit: 25,
-      offset: 0,
-      rows: [
-        {
-          observationId: "observation-1",
-          patientId: "patient-123456789",
-          testName: "Viral Load",
-          value: "9000",
-          unit: "copies/ml",
-          observedAt: "2026-04-27T04:00:00Z",
-          issuedAt: "2026-04-27T04:00:00Z",
-          turnaroundMinutes: "120",
-        },
-      ],
-    });
+    api.getWorkbenchCatalog = vi.fn().mockResolvedValue(editorCatalog);
+    api.getDatasetOverview = vi.fn();
+    api.getDatasetRows = vi.fn();
     vi.mocked(api.submitQuestion).mockResolvedValue(preview);
     render(<App api={api} />);
-
     const user = userEvent.setup();
     await user.click(await screen.findByRole("button", { name: "What data is available?" }));
-    await user.click(
-      await screen.findByText("Preview available laboratory records"),
-    );
-    expect(await screen.findByText("1,152")).toBeVisible();
-    expect(screen.queryByText("Synthetic laboratory dataset")).not.toBeInTheDocument();
-    expect(screen.queryByText("Example questions")).not.toBeInTheDocument();
-    expect(
-      screen.queryByText("Show viral load results since 2026-01-01"),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByText(/test types and numeric distributions/i),
-    ).not.toBeInTheDocument();
-    // Source-neutral: the workbench is not laboratory-only, and this composer
-    // is shown for whichever catalog the session is grounded in.
-    expect(screen.getByLabelText("Your question")).toHaveAttribute(
-      "placeholder",
-      "Describe the data you want to explore",
-    );
-    expect(screen.getByLabelText("Model profile")).toHaveValue(
-      "catalyst-query-gemma-e4b",
-    );
+    const browser = screen.getByRole("complementary", { name: "Available data" });
+    expect(await within(browser).findByRole("searchbox")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Back to your question" }));
+    expect(screen.getByLabelText("Your question")).toHaveFocus();
     await user.click(screen.getByText("Query settings", { exact: true }));
-    const profileSelector = screen.getByLabelText("Model profile");
-    /*
-     * The option carries the profile's prose label only. It used to append the
-     * model aliases, which restated what the label already said and overflowed
-     * the control; the concrete aliases are disclosed in helper text beneath
-     * the field instead, so they are still on screen (and still on camera in
-     * the published demo cuts) without crowding the option.
-     */
-    expect(
-      within(profileSelector).getByRole("option", {
-        name: "Catalyst governed query — Gemma 4 E4B",
-      }),
-    ).toBeInTheDocument();
-    expect(
-      within(profileSelector).queryByRole("option", { name: /gemma-e4b/ }),
-    ).not.toBeInTheDocument();
+    const profile = screen.getByRole("combobox", { name: "Model profile" });
+    expect(profile).toHaveValue("catalyst-query-gemma-e4b");
+    expect(within(profile).getByRole("option", { name: "Split generation and review" })).toBeInTheDocument();
+    expect(within(profile).queryByRole("option", { name: "Offline research profile" })).not.toBeInTheDocument();
     expect(screen.getByText("gemma-e4b")).toBeVisible();
-    expect(
-      within(profileSelector).getByRole("option", {
-        name: "Split generation and review",
-      }),
-    ).toBeInTheDocument();
-    expect(
-      within(profileSelector).queryByRole("option", {
-        name: "Offline research profile",
-      }),
-    ).not.toBeInTheDocument();
-
-    // Record preview is an explicit disclosure inside the data browser;
-    // it keeps its filter state across close and reopen.
-    const records = screen
-      .getByText("Preview available laboratory records")
-      .closest("details")!;
-    expect(records).toHaveAttribute("open");
-    expect(screen.getByText("9000 copies/ml")).toBeVisible();
-    const patientFilter = screen.getByLabelText("Patient FHIR ID");
-    await user.type(patientFilter, "patient-123");
-    await user.click(screen.getByText("Preview available laboratory records"));
-    expect(records).not.toHaveAttribute("open");
-    await user.click(screen.getByText("Preview available laboratory records"));
-    expect(records).toHaveAttribute("open");
-    expect(patientFilter).toHaveValue("patient-123");
-    await user.type(
-      screen.getByLabelText("Your question"),
-      "Show viral load results since 2026-01-01",
-    );
+    await user.type(screen.getByLabelText("Your question"), "Show viral load results");
     await user.click(screen.getByRole("button", { name: "Continue" }));
-    expect(api.submitQuestion).toHaveBeenCalledWith(
-      "Show viral load results since 2026-01-01",
-      "catalyst-query-gemma-e4b",
-    );
+    expect(api.submitQuestion).toHaveBeenCalledWith("Show viral load results", "catalyst-query-gemma-e4b");
+    expect(api.getDatasetOverview).not.toHaveBeenCalled();
+    expect(api.getDatasetRows).not.toHaveBeenCalled();
   });
 
   it("opens the editable workbench and keeps invalid model evidence runnable", async () => {

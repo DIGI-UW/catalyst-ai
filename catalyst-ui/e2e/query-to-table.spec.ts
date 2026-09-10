@@ -954,8 +954,9 @@ test("question to iterative notebook to imported dashboard", async ({
   const dataSection = header.getByRole("button", { name: "What data is available?" });
   await dataSection.click();
   await expect(dataSection).toHaveAttribute("aria-expanded", "true");
-  await expect(header.getByLabel("Filter columns")).toBeVisible();
-  await expect(header.getByRole("cell", { name: "result_unit", exact: true })).toBeVisible();
+  const browser = page.getByRole("complementary", { name: "Available data" });
+  await browser.getByRole("searchbox", { name: "Search tables and fields" }).fill("result_unit");
+  await expect(browser.getByText("result_unit", { exact: true }).first()).toBeVisible();
   await dataSection.click();
 
   // This existing analyst regression deliberately exercises the SQL tools.
@@ -983,7 +984,7 @@ test("question to iterative notebook to imported dashboard", async ({
     .toBeVisible();
   // Run state lives in the thread, not the composer: the fresh query's cell
   // says "not run" and the composer carries no grounding prose.
-  await expect(page.getByText(/not run/i).first()).toBeVisible();
+  await expect(page.getByRole("region", { name: "Iterative query notebook" }).getByText(/not run/i).first()).toBeVisible();
   await expect(page.locator(".turn-composer__grounding")).toHaveCount(0);
 
   if (useMockApi) {

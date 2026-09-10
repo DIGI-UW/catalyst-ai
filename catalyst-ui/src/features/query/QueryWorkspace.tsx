@@ -47,6 +47,7 @@ import {
   isPreview,
   isTable,
   type BoundParameter,
+  type DashboardBuilderSection,
   type CatalystExecutionOutcome,
   type CatalystQueryOutcome,
   type WorkbenchQueryVersion,
@@ -621,6 +622,8 @@ export const QueryWorkspace = ({
     setParameters: setWorkbenchParameters,
     catalog: workbenchCatalog,
     catalogFailed: workbenchCatalogFailed,
+    catalogLoading: workbenchCatalogLoading,
+    reloadCatalog,
     wrapLines: workbenchWrapLines,
     setWrapLines: setWorkbenchWrapLines,
     focusRequestId: sqlEditorFocusRequestId,
@@ -757,6 +760,7 @@ export const QueryWorkspace = ({
   }, [api, pollIntervalMs, state, setState]);
 
   const submitQuestion = async (normalizedQuestion: string) => {
+    if (window.innerWidth < 896) setWorkspaceSection(null);
     setState({ kind: "submitting" });
     setWorkbenchError(null);
     try {
@@ -880,7 +884,6 @@ export const QueryWorkspace = ({
       rememberActiveWorkbenchSession(session.sessionId);
       adoptWorkbenchSession(session);
       setDraftSessionName("");
-      setWorkspaceSection("data");
     } catch (error) {
       setWorkbenchError(messageFromError(error));
     }
@@ -1041,6 +1044,7 @@ export const QueryWorkspace = ({
       return;
     }
 
+    if (window.innerWidth < 896) setWorkspaceSection(null);
     setFollowupBusy(true);
     setWorkbenchError(null);
     setFollowupError(null);
@@ -1246,6 +1250,22 @@ export const QueryWorkspace = ({
     current: Boolean(turn.current),
   }));
 
+  const dataBrowserOpen = workspaceSection === "data" && activeSection === "ask";
+  useEffect(() => {
+    if (dataBrowserOpen) document.getElementById("available-data-search")?.focus();
+  }, [dataBrowserOpen]);
+
+  const closeDataBrowser = () => {
+    setWorkspaceSection(null);
+    persistBrowserState({ railSection: null });
+    requestAnimationFrame(() => document.getElementById("available-data-opener")?.focus());
+  };
+  const navigateSection = (section: DashboardBuilderSection) => {
+    setWorkspaceSection(null);
+    setDetailsOpen(false);
+    setActiveSection(section);
+  };
+
   const changeWorkspaceSection = (section: WorkspaceSection) => {
     const next: WorkspaceSection | null = section === workspaceSection ? null : section;
     setWorkspaceSection(next);
@@ -1427,7 +1447,7 @@ export const QueryWorkspace = ({
 
   return (
     <div
-      className={`dashboard-builder-shell${narrowWorkspace ? " dashboard-builder-shell--stacked" : ""}${advancedMode ? " dashboard-builder-shell--advanced" : ""}`}
+      className={`dashboard-builder-shell${dataBrowserOpen ? " dashboard-builder-shell--browsing" : ""}${narrowWorkspace ? " dashboard-builder-shell--stacked" : ""}${advancedMode ? " dashboard-builder-shell--advanced" : ""}`}
     >
       <WorkbenchHeader
         sessionName={
@@ -1474,15 +1494,23 @@ export const QueryWorkspace = ({
         onAdvancedModeChange={setAdvancedMode}
         activeSection={activeSection}
         savedWorkSection={savedWorkSection}
-        onSectionChange={setActiveSection}
-      >
-        <DatasetBrowser
-          api={api}
-          catalog={workbenchCatalog}
-          catalogLoadingFailed={workbenchCatalogFailed}
-          dataSourceId={effectiveDataSourceId || undefined}
-        />
-      </WorkbenchHeader>
+        onSectionChange={navigateSection}
+      />
+      <aside id="available-data-panel" aria-label="Available data" className="available-data-panel" hidden={!dataBrowserOpen}
+        onKeyDownCapture={(event) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeDataBrowser(); } }}>
+        <header className="available-data-panel__header">
+          <div><h2>Available data</h2><p>{activeDataSourceLabel ?? "Connected data"}</p>
+            <Button kind="ghost" size="sm" onClick={() => document.getElementById(sessionHasWork ? "catalyst-followup" : "catalyst-question")?.focus()}>
+              Back to your question
+            </Button>
+          </div>
+          <Button kind="ghost" size="sm" onClick={closeDataBrowser} aria-label="Close available data">Close</Button>
+        </header>
+        <p>Find a table or field for your question. Browsing these descriptions does not run a query.</p>
+        <DatasetBrowser key={effectiveDataSourceId}
+          catalog={workbenchCatalog} catalogLoading={workbenchCatalogLoading}
+          catalogLoadingFailed={workbenchCatalogFailed} onRetry={reloadCatalog} advancedMode={advancedMode} />
+      </aside>
 
       <main
         className={`app-shell${hasQueryDock && activeSection === "ask" ? " app-shell--with-query-dock" : ""}`}
@@ -1705,7 +1733,7 @@ export const QueryWorkspace = ({
           parameters={workbenchParameters}
           activeSection={activeSection}
           disabled={followupBusy || workbenchBusy !== null}
-          onNavigate={setActiveSection}
+          onNavigate={navigateSection}
         />
     </main>
     </div>
