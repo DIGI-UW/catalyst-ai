@@ -8,6 +8,7 @@ import {
 } from "../editorDigest";
 import type {
   BoundParameter,
+  DataSource,
   DashboardBuilderEntity,
   DashboardBuilderSection,
   DashboardPresentationKind,
@@ -20,6 +21,7 @@ import "./DashboardPublishPanel.css";
 
 interface DashboardPublishPanelProps {
   advancedMode?: boolean;
+  dataSources?: DataSource[];
   api: CatalystApi;
   session: WorkbenchSession | null;
   sql: string;
@@ -237,6 +239,7 @@ const publicationFailureGuidance = (
 
 export const DashboardPublishPanel = ({
   advancedMode = false,
+  dataSources = [],
   api,
   session,
   sql,
@@ -737,63 +740,81 @@ export const DashboardPublishPanel = ({
     );
   };
 
+  const renderLibraryNavigation = () => (
+    <nav className="builder-library__navigation" aria-label="Saved work">
+      {([
+        ["datasets", "Saved queries", datasets.length],
+        ["widgets", "Charts and tables", widgets.length],
+        ["dashboards", "Dashboards", dashboards.length],
+      ] as const).map(([id, label, count]) => (
+        <Button key={id} kind="ghost" aria-label={label}
+          aria-current={activeSection === id ? "page" : undefined}
+          onClick={() => onNavigate(id)}>{label} ({count})</Button>
+      ))}
+    </nav>
+  );
+
   const renderDatasets = () => (
     <section className="builder-library" aria-labelledby="datasets-title">
       <header className="builder-library__header">
         <div>
           <p className="eyebrow">Saved work</p>
           <h1 id="datasets-title">Saved queries</h1>
-          <p>Queries you have saved for reuse in charts, tables and dashboards.</p>
+          <p>Saved queries you can reuse in charts and dashboards.</p>
         </div>
-        <Button type="button" onClick={() => onNavigate("ask")}>New from question</Button>
       </header>
+      {renderLibraryNavigation()}
       {datasets.length === 0 ? (
         <p className="builder-empty-note">No saved queries yet. Start with a question in Explore, get results, then save your query.</p>
       ) : (
-        <div className="builder-table-wrap">
-          <table>
-            <thead><tr><th>Name</th><th>Source</th><th>Columns</th><th>Rows</th><th>Parameters</th><th>Widgets</th><th>Status</th><th>Saved</th><th>Action</th></tr></thead>
-            <tbody>
-              {datasets.map((dataset) => {
-                const source = configurationRecord(dataset, "source");
-                const columns = configurationValue(dataset, "columns");
-                const rowCount = configurationRecord(dataset, "rowCount");
-                const savedParameters = configurationValue(dataset, "parameters");
-                const widgetCount = widgets.filter(
-                  (widget) =>
-                    configurationValue(widget, "datasetVersionId") === dataset.versionId,
-                ).length;
-                return (
-                  <tr key={dataset.versionId}>
-                    <td><strong>{entityTitle(dataset, "Dataset")}</strong></td>
-                    <td>{String(source?.dataSourceId ?? "Unknown")}</td>
-                    <td>{Array.isArray(columns) ? columns.length : "—"}</td>
-                    <td>{String(rowCount?.returned ?? "—")}</td>
-                    <td>{Array.isArray(savedParameters) ? savedParameters.length : "—"}</td>
-                    <td>{widgetCount}</td>
-                    <td><Tag type="green">Ready</Tag></td>
-                    <td>{dateLabel(dataset.createdAt)}</td>
-                    <td>
-                      <Button
-                        type="button"
-                        kind="ghost"
-                        size="sm"
-                        onClick={(event) => {
-                          setReturnFocusTarget(event.currentTarget);
-                          openPanel("dataset", dataset.versionId);
-                        }}
-                      >
-                        Review {entityTitle(dataset, "Dataset")}
-                      </Button>
-                      {onReuseQuery && <Button type="button" kind="ghost" size="sm"
-                        disabled={disabled || busy || !savedQueryDraft(dataset)}
-                        onClick={() => onReuseQuery(dataset)}>Start from this SQL</Button>}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="builder-saved-list">
+          {datasets.map((dataset) => {
+            const source = configurationRecord(dataset, "source");
+            const sourceId = String(source?.dataSourceId ?? "Unknown");
+            const columns = configurationValue(dataset, "columns");
+            const rowCount = configurationRecord(dataset, "rowCount");
+            const savedParameters = configurationValue(dataset, "parameters");
+            const parameters = Array.isArray(savedParameters) ? savedParameters.filter(isRecord) : [];
+            const widgetCount = widgets.filter(
+              (widget) => configurationValue(widget, "datasetVersionId") === dataset.versionId,
+            ).length;
+            const title = entityTitle(dataset, "Saved query");
+            return (
+              <article key={dataset.versionId} className="builder-saved-card" aria-label={title}>
+                <header className="builder-saved-card__header">
+                  <h2>{title}</h2>
+                  <Tag type="gray">Saved</Tag>
+                </header>
+                <dl className="builder-saved-card__facts">
+                  <div><dt>Source</dt><dd>{dataSources.find((item) => item.id === sourceId)?.label ?? sourceId}</dd></div>
+                  <div><dt>Saved version</dt><dd>{dataset.ordinal}</dd></div>
+                  <div><dt>Used by</dt><dd>{widgetCount} {widgetCount === 1 ? "chart" : "charts"}</dd></div>
+                </dl>
+                {parameters.length > 0 && <p className="builder-saved-card__parameters">
+                  {parameters.map((parameter) => `${parameter.name} · ${parameter.type}`).join("; ")}
+                </p>}
+                <details className="builder-saved-card__details" open={advancedMode || undefined}>
+                  <summary>Query details</summary>
+                  <p>{Array.isArray(columns) ? columns.length : "Unknown"} columns · {String(rowCount?.returned ?? "Unknown")} rows · {parameters.length} parameters · Saved {dateLabel(dataset.createdAt)}</p>
+                </details>
+                <div className="builder-saved-card__actions">
+                  <Button type="button" aria-label={`Review ${title}`}
+                    onClick={(event) => {
+                      setReturnFocusTarget(event.currentTarget);
+                      openPanel("dataset", dataset.versionId);
+                    }}>Review saved query</Button>
+                  <Button type="button" kind="tertiary" disabled={disabled || busy}
+                    onClick={(event) => {
+                      setReturnFocusTarget(event.currentTarget);
+                      openPanel("widget", dataset.versionId);
+                    }}>Create chart or table</Button>
+                  {onReuseQuery && <Button type="button" kind="ghost"
+                    disabled={disabled || busy || !savedQueryDraft(dataset)}
+                    onClick={() => onReuseQuery(dataset)}>Start from this SQL</Button>}
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
     </section>
@@ -818,6 +839,7 @@ export const DashboardPublishPanel = ({
           New Widget
         </Button>
       </header>
+      {renderLibraryNavigation()}
       {widgets.length === 0 ? (
         <p className="builder-empty-note">No charts or tables saved yet. Choose a saved query to create one.</p>
       ) : (
@@ -866,6 +888,7 @@ export const DashboardPublishPanel = ({
           New Dashboard
         </Button>
       </header>
+      {renderLibraryNavigation()}
       {dashboards.length === 0 ? (
         <p className="builder-empty-note">No Dashboards saved yet.</p>
       ) : (

@@ -1818,6 +1818,7 @@ export const QueryWorkspace = ({
         )}
 
         <DashboardPublishPanel
+          dataSources={dataSources?.dataSources ?? []}
           advancedMode={advancedMode}
           api={api}
           hostedInThread={notebookShowing || !sessionHasWork}

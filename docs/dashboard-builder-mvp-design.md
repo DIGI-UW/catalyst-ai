@@ -342,15 +342,21 @@ Same shell and composer, no thread.
 
 ### 3. Datasets library
 
-Purpose: find and reuse a saved governed query.
+Purpose: find and reuse a saved query.
 
-- Header: eyebrow "Library", H1 "Datasets", description "Saved governed queries, ready for dashboard publication. One dataset can back many widgets." Primary button top-right: "New from question" (add-16 icon) → navigates to Workbench.
-- Carbon `DataTable` on a `#fff` surface with `box-shadow: 0 0.125rem 0.5rem rgb(0 0 0 / 8%)`. Header row background `#e8e8e8`, cells padding `0.75rem 1rem`, `0.875rem`, row separators `1px solid #e0e0e0`, zebra `#fff` / `#f4f4f4`.
-- Columns: Name (weight 500) · Source · Columns · Widgets · Parameters (IBM Plex Mono `0.75rem` `#525252`) · Last run (`#525252`) · Status pill · row action "Review" (ghost button, `#0f62fe`, right-aligned).
-- **Widgets count is the governance affordance** — it shows downstream use so nothing is deleted blind.
-- Seed rows: "Turnaround time by test type" (OpenELIS · 6 · 2 · `:since_date` · Jul 12, 09:14 · Saved); "Rejected specimens by reason" (OpenELIS · 4 · 1 · — · Jul 10, 16:02 · Saved); "CD4 cohort, under 200" (OpenMRS · 5 · 0 · `:facility` · Jul 8, 11:47 · Draft). A dataset saved during the session appears at the top.
-- Row "Review" opens the same dataset panel used in the thread.
-- **Start from this SQL** is available on a saved query's row and review panel.
+- Use the approved mock's Saved queries cards, typography and spacing. The page
+  has a "Saved work" eyebrow, "Saved queries" heading and a short description;
+  the three Saved work category buttons, with counts, sit below that heading.
+- Each card shows its title, neutral Saved badge, source label, saved version and
+  downstream chart count. Parameter names/types remain visible when present.
+  Keep column/row counts, parameter counts and saved time in a Query details
+  disclosure, opened by Advanced mode. Preserve access to all recorded details.
+- Reuse the mock's 14px card radius, 24px/28px padding (18px on narrow screens),
+  23px/550 card headings, wrapping metadata and wrapping action groups.
+- "Review saved query" opens the existing review panel. "Create chart or table"
+  starts a visualization from that exact saved version. New saves appear first;
+  Explore remains the route to a new question.
+- **Start from this SQL** is available on a saved query's card and review panel.
   It opens the exact saved parameterized SQL and typed values in Explore's single
   editor, retains the Dataset version and source/dialect, and focuses the draft.
   Loading never runs SQL or overwrites saved work. Preserve any ongoing draft;

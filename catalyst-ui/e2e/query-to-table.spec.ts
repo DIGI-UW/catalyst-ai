@@ -935,7 +935,7 @@ test("question to iterative notebook to imported dashboard", async ({
   const header = page.getByRole("banner", { name: "Workspace navigation" });
   await expect(header).toBeVisible();
   const primary = header.getByRole("navigation", { name: "Primary" });
-  const sections = header.getByRole("navigation", { name: "Saved work" });
+  const sections = page.getByRole("navigation", { name: "Saved work" });
   const navigate = async (destination: string) => {
     if (destination === "Explore") {
       await primary.getByRole("button", { name: "Explore" }).click();

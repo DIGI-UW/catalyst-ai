@@ -605,8 +605,8 @@ input {
 }
 
 .eyebrow {
-  margin: 0 0 0.5rem !important;
-  color: var(--cds-link-primary) !important;
+  margin: 0 0 0.75rem;
+  color: var(--cds-text-secondary);
   font-size: var(--cds-helper-text-01-font-size, 0.75rem);
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -978,7 +978,7 @@ input {
 
 /* Approved staff Workbench palette applied to existing Carbon components. */
 .application {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 1rem;
   line-height: 1.5;
   --catalyst-brand: #4b2e83;

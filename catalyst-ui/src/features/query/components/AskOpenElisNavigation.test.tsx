@@ -258,4 +258,23 @@ describe("Ask OpenELIS reachability navigation", () => {
       ).toBeVisible();
     });
   });
+  it("hides the jump while Explore is hidden and restores the same composer", async () => {
+    const view = (hidden: boolean) => <>
+      <section hidden={hidden} id="ask-openelis">
+        <h1 id="question-title">Question</h1>
+        <textarea id="catalyst-question" aria-label="Your question" defaultValue="Keep my draft" />
+      </section>
+      <AskOpenElisNavigation />
+    </>;
+    const { rerender } = render(view(false));
+    const input = screen.getByRole("textbox", { name: "Your question" });
+    expect(screen.getByRole("button", { name: "Ask a question" })).toBeVisible();
+    rerender(view(true));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Ask a question" })).not.toBeInTheDocument());
+    rerender(view(false));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Ask a question" })).toBeVisible());
+    expect(screen.getByRole("textbox", { name: "Your question" })).toBe(input);
+    expect(input).toHaveValue("Keep my draft");
+  });
+
 });

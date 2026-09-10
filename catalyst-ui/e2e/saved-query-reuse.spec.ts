@@ -51,6 +51,29 @@ test("saved SQL opens explicitly, keeps typed values and the earlier draft, and 
   const editor = page.getByRole("textbox", { name: "SQL query" });
   await editor.fill("SELECT 17 AS earlier_draft");
   await page.getByRole("button", { name: "Saved work", exact: true }).click();
+  const savedCard = page.getByRole("article", { name: "Monthly registrations" });
+  await expect(savedCard).toBeVisible();
+  await expect(page.getByTestId("ask-openelis-jump")).not.toBeVisible();
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const theme of ["Light", "Dark"]) {
+      await page.getByText(/View options/).click();
+      await page.getByRole("radio", { name: theme, exact: true }).check();
+      await page.keyboard.press("Escape");
+      for (const name of ["Review Monthly registrations", "Create chart or table", "Start from this SQL"]) {
+        const action = savedCard.getByRole("button", { name, exact: true });
+        await action.scrollIntoViewIfNeeded();
+        await expect(action).toBeInViewport();
+        const box = (await action.boundingBox())!;
+        expect(box.x).toBeGreaterThanOrEqual(0);
+        expect(box.x + box.width).toBeLessThanOrEqual(width);
+      }
+      expect(await page.evaluate<boolean>("document.documentElement.scrollWidth > window.innerWidth")).toBe(false);
+      await savedCard.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: testInfo.outputPath(`saved-library-${theme}-${width}.png`) });
+    }
+  }
+  await page.setViewportSize({ width: 1280, height: 900 });
   await page.getByRole("button", { name: "Review Monthly registrations" }).click();
   const review = page.getByRole("dialog", { name: "Review panel" });
   await expect(review.getByText(/Historical rows and run details/)).toBeVisible();
