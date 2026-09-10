@@ -221,6 +221,15 @@ It is not a source, warehouse, or restricted schema copy.
   parameters, execution identity, typed shape, warnings, and recorded
   configuration.
 
+**Start from this SQL** in Saved queries loads the saved Dataset's exact
+parameterized SQL and typed parameter values into the single editor. It retains
+the starting Dataset version and source/dialect, creates a new draft, and never
+executes SQL or changes the saved version. Preserve any ongoing draft; using a
+different source requires an explicit matching or new session. Compiled SQL
+remains the saved execution snapshot, not the editable source. Saved query
+configuration stays available when detailed originating execution evidence
+cannot be loaded; report the missing evidence separately.
+
 ### Widget
 
 - Compatibility and the initial visualization suggestion are deterministic from
@@ -254,6 +263,12 @@ It is not a source, warehouse, or restricted schema copy.
 Superset application programming interface publication, embedded viewing,
 bidirectional synchronization, sharing, scheduling, automatic refresh, and
 model-generated chart specifications are later work.
+
+The [design extension proposal](specs/staff-workbench-ux/proposals/catalyst-output-integrations-hiv-draft.md)
+supplies follow-on design inputs for multi-artifact requests, shared controls,
+Metabase and Evidence. The harness Feature 008 plan schedules them after current
+usability and Superset delivery. Their detailed contracts remain subject to that
+milestone's review; they are not current Dashboard completion requirements.
 
 ## Selected reference deployment
 
