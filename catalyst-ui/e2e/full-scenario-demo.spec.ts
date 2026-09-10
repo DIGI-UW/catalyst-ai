@@ -164,7 +164,30 @@ for (const source of ["openelis", "openmrs-hiv"]) {
       timing.mark("reused-sql");
       await page.screenshot({ path: info.outputPath("reused-sql-dark.png") });
       await dwell(8000);
-      const reusedExecution = await showResults("Run query", 3);
+      // Exercise a real engine failure in the copied draft. The saved version
+      // stays intact, and correcting the draft must not lose its typed values.
+      const savedSql = dataset.configuration.parameterizedSql as string;
+      const invalidSql = `SELECT catalyst_missing_column FROM (${savedSql.replace(/;\s*$/, "")}) AS saved_query`;
+      await editor.fill(invalidSql);
+      const failureResponse = page.waitForResponse(r => r.request().method() === "POST" && r.url().endsWith("/execute"));
+      await page.getByRole("button", { name: "Run query", exact: true }).click();
+      const failedResponse = await failureResponse;
+      expect(failedResponse.ok()).toBe(true);
+      const failedExecution = await failedResponse.json() as WorkbenchExecution;
+      expect(failedExecution.status).toBe("failed");
+      expect(failedExecution.query.sql).toBe(invalidSql);
+      expect(failedExecution.query.parameters).toEqual(grouped.query.parameters);
+      expect(failedExecution.databaseDiagnostic?.message).toContain("catalyst_missing_column");
+      expect(executionRequests).toBe(3);
+      const diagnostic = page.getByRole("alert").filter({ hasText: "catalyst_missing_column" }).first();
+      await diagnostic.scrollIntoViewIfNeeded();
+      await expect(diagnostic).toBeInViewport();
+      await expect.poll(async () => (await editor.locator(".cm-line").allTextContents()).join("\n")).toBe(invalidSql);
+      timing.mark("reuse-failed");
+      await page.screenshot({ path: info.outputPath("reuse-failed.png") });
+      await dwell(8000);
+      await editor.fill(savedSql);
+      const reusedExecution = await showResults("Run query", 4);
       expect(reusedExecution.query).toEqual(grouped.query);
       timing.mark("reused-result");
       await dwell(8000);
@@ -283,7 +306,7 @@ for (const source of ["openelis", "openmrs-hiv"]) {
       await dwell(8000);
       await page.screenshot({ path: info.outputPath("superset-rendered.png") });
       timing.mark("end");
-      writeFileSync(info.outputPath("proof.json"), JSON.stringify({ source, dataset, reused, first, revised, bundle, dashboardUrl, execution: reusedExecution }, null, 2));
+      writeFileSync(info.outputPath("proof.json"), JSON.stringify({ source, dataset, reused, first, revised, bundle, dashboardUrl, failedExecution, execution: reusedExecution }, null, 2));
     } finally {
       await Promise.allSettled(pending);
       writeFileSync(info.outputPath("requests-and-results.json"), JSON.stringify({ source, executionRequests, executions, evidence }, null, 2));

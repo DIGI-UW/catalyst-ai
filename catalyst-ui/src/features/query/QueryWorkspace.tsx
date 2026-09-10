@@ -1500,7 +1500,7 @@ export const QueryWorkspace = ({
           // result twice. Without the notebook this panel is the only surface
           // a failed run can appear on.
           showExecutionResult={
-            !usesNotebook &&
+            !notebookShowing &&
             workbenchSession.executions.some(
               (execution) =>
                 execution.status === "failed" &&

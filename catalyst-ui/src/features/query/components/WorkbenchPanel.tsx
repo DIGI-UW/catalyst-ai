@@ -361,7 +361,7 @@ export const ExecutionResult = ({
     const diagnostic = execution.databaseDiagnostic;
     return (
       <section
-        className="workbench-execution"
+        className="workbench-execution workbench-execution--failed"
         data-compact={compact ? "true" : undefined}
         aria-label="Latest execution"
       >

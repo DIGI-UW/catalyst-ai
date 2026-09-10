@@ -3,7 +3,8 @@
 `catalyst-ui/e2e/full-scenario-demo.spec.ts` walks the accepted visible workflow
 through the product's own path for both retained sources, OpenELIS and OpenMRS:
 write a question while browsing the schema, prepare and explicitly execute it,
-refine the result, save and reuse its exact SQL without losing a draft, create
+refine the result, save and reuse its exact SQL without losing a draft, recover
+from a real database error in the copied SQL, create
 a table and grouped-bar chart, and save and restore their Dashboard arrangement.
 `Publish to Superset` writes the native bundle; the owning harness imports it,
 and displayed Superset rows are compared with the originating Catalyst result.
@@ -66,9 +67,10 @@ PLAYWRIGHT_LIVE=true PLAYWRIGHT_USE_MOCK_API=false \
 
 The spec runs the pinned importer itself (`e2e/support/superset-import.ts`)
 through the Harness's supported `scripts/catalyst-mvp.sh superset-import`
-wrapper. That wrapper starts and waits for the required Superset services, so
-the "Superset bundle ready → Imported" flip happens on camera and the e2e mode
-genuinely covers the seam.
+wrapper. It requires healthy services in the owning checkout with matching
+configuration and never starts or reconfigures them during import. The
+"Superset bundle ready → Imported" change happens on camera, backed by the
+actual importer receipt.
 
 Run one worker because both sources share the operator's current outbox pointer.
 Use `--grep openelis` or `--grep openmrs-hiv` to select one source. For server

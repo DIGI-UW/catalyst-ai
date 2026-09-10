@@ -487,7 +487,7 @@ describe("Dashboard Builder Ask shell", () => {
     );
   });
 
-  it("renders a recorded run once, in the cell that owns its query version", async () => {
+  it.each([true, false])("renders a recorded failure once with a visible notebook: %s", async (hasTurns) => {
     const client = api();
     const failed: WorkbenchExecution = {
       contractVersion: "catalyst.workbench.execution.v1",
@@ -517,19 +517,25 @@ describe("Dashboard Builder Ask shell", () => {
     client.getWorkbenchSession = vi
       .fn()
       .mockResolvedValue({ ...session, executions: [failed] });
+    if (!hasTurns) {
+      client.getWorkbenchTurns = vi.fn().mockResolvedValue({
+        ...timeline, currentTurnId: null, turns: [],
+      });
+    }
     window.localStorage.setItem(
       "catalyst.workbench.activeSessionId",
       session.sessionId,
     );
     render(<QueryWorkspace api={client} />);
 
-    // The notebook cell owns the run. The workbench panel below must not
-    // repeat it, or the same failure is reported twice on one page.
+    // A reused SQL session has no question turns. Its error must still be
+    // visible; a conversation's error must not be duplicated below its cell.
     const diagnostic = await screen.findAllByText(
       'column "test_type" does not exist',
     );
     expect(diagnostic).toHaveLength(1);
-    expect(diagnostic[0]!.closest(".query-turn")).not.toBeNull();
+    expect(diagnostic[0]).toBeVisible();
+    expect(Boolean(diagnostic[0]!.closest(".query-turn"))).toBe(hasTurns);
   });
 
   it("lets a failed run lead, and makes editing again a choice", async () => {
