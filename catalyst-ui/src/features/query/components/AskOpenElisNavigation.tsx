@@ -38,6 +38,7 @@ const getComposerElements = () => {
 };
 
 export const AskOpenElisNavigation = () => {
+  const [composerAvailable, setComposerAvailable] = useState(false);
   const [inputIsVisible, setInputIsVisible] = useState(false);
   const [jumpDirection, setJumpDirection] = useState<JumpDirection>("down");
   const [jumpHasFocus, setJumpHasFocus] = useState(false);
@@ -45,7 +46,7 @@ export const AskOpenElisNavigation = () => {
   const [targetId, setTargetId] = useState("catalyst-question");
   const [targetLabel, setTargetLabel] = useState("Ask a question");
   const observedTargetRef = useRef<HTMLElement | null>(null);
-  const jumpIsExposed = compactViewport || !inputIsVisible || jumpHasFocus;
+  const jumpIsExposed = composerAvailable && (compactViewport || !inputIsVisible || jumpHasFocus);
 
   useEffect(() => {
     if (typeof window.matchMedia !== "function") return;
@@ -61,9 +62,7 @@ export const AskOpenElisNavigation = () => {
   }, []);
 
   useEffect(() => {
-    if (typeof IntersectionObserver === "undefined") return;
-
-    const intersectionObserver = new IntersectionObserver(
+    const intersectionObserver = typeof IntersectionObserver === "undefined" ? null : new IntersectionObserver(
       ([entry]) => {
         if (!entry) return;
         setInputIsVisible(entry.isIntersecting);
@@ -75,14 +74,20 @@ export const AskOpenElisNavigation = () => {
     );
     const bindCanonicalComposer = () => {
       const { label, target } = getComposerElements();
-      if (!target) return;
+      const available = Boolean(target && !target.closest("[hidden]"));
+      setComposerAvailable(available);
+      if (!available || !target) {
+        intersectionObserver?.disconnect();
+        observedTargetRef.current = null;
+        return;
+      }
       setTargetId(target.id);
       setTargetLabel(label);
       if (observedTargetRef.current === target) return;
-      intersectionObserver.disconnect();
+      intersectionObserver?.disconnect();
       observedTargetRef.current = target;
       setInputIsVisible(false);
-      intersectionObserver.observe(target);
+      intersectionObserver?.observe(target);
     };
 
     bindCanonicalComposer();
@@ -97,7 +102,7 @@ export const AskOpenElisNavigation = () => {
     });
     return () => {
       mutationObserver?.disconnect();
-      intersectionObserver.disconnect();
+      intersectionObserver?.disconnect();
       observedTargetRef.current = null;
     };
   }, []);

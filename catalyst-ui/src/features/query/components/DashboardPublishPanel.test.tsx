@@ -270,6 +270,22 @@ describe("Dashboard Builder supervised promotion", () => {
     expect(within(dialog).getByText("1", { selector: "dd" })).toBeVisible();
   });
 
+  it("browses a named saved-query card and creates a chart from that exact version", async () => {
+    const user = userEvent.setup();
+    const api = makeApi(true);
+    render(<DashboardPublishPanel api={api} session={session} sql={queryVersion.sql}
+      parameters={[]} activeSection="datasets" onNavigate={vi.fn()}
+      dataSources={[{ id: "openelis", label: "OpenELIS Laboratory", available: true }]} />);
+    const card = await screen.findByRole("article", { name: "Count result" });
+    expect(within(card).getByText("OpenELIS Laboratory")).toBeVisible();
+    expect(within(card).getByText("Saved version")).toBeVisible();
+    expect(within(card).getByText("1 chart")).toBeVisible();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    await user.click(within(card).getByRole("button", { name: "Create chart or table" }));
+    const review = screen.getByRole("dialog", { name: "Review panel" });
+    expect(within(review).getByLabelText("Reads Dataset")).toHaveValue(savedDataset.versionId);
+  });
+
   it("opens a saved Dataset from the library in the same evidence panel", async () => {
     const user = userEvent.setup();
     render(

@@ -236,7 +236,7 @@ describe("Dashboard Builder Ask shell", () => {
     expect(screen.getByLabelText("Your question")).toBe(input);
     expect(input).toHaveValue("Visits by month\nInclude missing dates");
     await user.click(within(primary).getByRole("button", { name: "Saved work" }));
-    expect(within(saved).getByRole("button", { name: "Charts and tables" })).toHaveAttribute("aria-current", "page");
+    expect(within(screen.getByRole("navigation", { name: "Saved work" })).getByRole("button", { name: "Charts and tables" })).toHaveAttribute("aria-current", "page");
     expect(client.createWorkbenchSession).not.toHaveBeenCalled();
   });
 

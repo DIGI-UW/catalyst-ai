@@ -294,17 +294,6 @@ export const WorkbenchHeader = ({
           </div>
         </details>
       </div>
-      {activeSection !== "ask" && (
-        <nav className="workbench-header-shell__saved" aria-label="Saved work">
-          {([
-            ["datasets", "Saved queries"], ["widgets", "Charts and tables"], ["dashboards", "Dashboards"],
-          ] as const).map(([id, label]) => (
-            <Button key={id} kind="ghost" size="sm"
-              aria-current={activeSection === id ? "page" : undefined}
-              onClick={() => onSectionChange(id)}>{label}</Button>
-          ))}
-        </nav>
-      )}
       <div hidden={activeSection !== "ask"} className="workbench-header-shell__tools">
         <Button id="available-data-opener" kind="ghost" size="sm" aria-expanded={dataOpen}
           aria-controls="available-data-panel" onClick={() => onOpenSectionChange("data")}>
