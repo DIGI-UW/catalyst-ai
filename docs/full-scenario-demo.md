@@ -1,14 +1,19 @@
 # The full-scenario demo: one spec, two modes
 
 `catalyst-ui/e2e/full-scenario-demo.spec.ts` walks the accepted visible workflow
-through the product's own path: a plain-language laboratory question becomes
-checked SQL in the workbench, is refined in conversation, both results are
-saved as governed Datasets, a table Widget and a grouped-bar Widget are built
-over them, a Dashboard collects both, `Publish to Superset` writes the native
-bundle, the pinned importer brings it in, and the finished dashboard renders
-in Superset. Until the Spark reference deployment is accepted, this proves the
-interaction and publication seam; it is not Phase 1 connection or comparison
-evidence.
+through the product's own path for both retained sources, OpenELIS and OpenMRS:
+write a question while browsing the schema, prepare and explicitly execute it,
+refine the result, save and reuse its exact SQL without losing a draft, create
+a table and grouped-bar chart, and save and restore their Dashboard arrangement.
+`Publish to Superset` writes the native bundle; the owning harness imports it,
+and displayed Superset rows are compared with the originating Catalyst result.
+The run also verifies light/dark appearance and the Advanced mode switch.
+
+The visible Publish action is followed by one direct verification request that
+asserts a repeated publication has the identical bundle digest. Query preparation
+and execution use the visible interface. Each source's proof records its saved
+versions, publication and originating execution. This is delivery evidence;
+model comparison and owner acceptance remain separate.
 
 It runs two ways, and they are **the same steps**:
 
@@ -49,12 +54,14 @@ accepts the Harness root rather than reconstructing those settings itself.
 cd catalyst-ui
 
 # as a test
-PLAYWRIGHT_LIVE=true PLAYWRIGHT_BASE_URL=http://127.0.0.1:13000 \
+PLAYWRIGHT_LIVE=true PLAYWRIGHT_USE_MOCK_API=false \
+  PLAYWRIGHT_BASE_URL=http://127.0.0.1:13000 \
   CATALYST_HARNESS_DIR=<running clinical-ai-validation-harness checkout> \
-  npx playwright test e2e/full-scenario-demo.spec.ts --project=deterministic
+  npx playwright test e2e/full-scenario-demo.spec.ts --project=deterministic --workers=1
 
 # as a recording
-…same env… npx playwright test e2e/full-scenario-demo.spec.ts --project=demo-video
+…same env… npx playwright test e2e/full-scenario-demo.spec.ts \
+  --project=demo-video --workers=1 --output=<private run directory>/capture
 ```
 
 The spec runs the pinned importer itself (`e2e/support/superset-import.ts`)
@@ -63,13 +70,24 @@ wrapper. That wrapper starts and waits for the required Superset services, so
 the "Superset bundle ready → Imported" flip happens on camera and the e2e mode
 genuinely covers the seam.
 
-The recording lands at `test-results/*/video.webm` and is **wiped by the next
-run** — copy it out immediately. Milestones land in
-`demo-milestones/full-scenario-demo.json`; the published cut's timeline is
-authored from them (`scripts/author_timeline.py` in the harness repo, plan in
-`e2e/full-scenario-demo.plan.json`) and rendered by
-`scripts/render_demo_video.py` — see `specs/demo-video-recording-guide.md`
-there.
+Run one worker because both sources share the operator's current outbox pointer.
+Use `--grep openelis` or `--grep openmrs-hiv` to select one source. For server
+evidence, run from the checkout owning that server's stack and use its public UI
+and Superset URLs; importing the local outbox cannot prove the server workflow.
+
+The selected output directory is **wiped by the next run**. Use a fresh private
+directory per take and archive videos, traces, screenshots, `proof.json` and
+`requests-and-results.json`. Milestones land in
+`demo-milestones/full-scenario-<source>.json`, or `DEMO_MILESTONES_DIR` when set.
+Author the timeline against those measured marks and the actual capture, then
+render with the harness's `scripts/render_demo_video.py`; see its
+`specs/demo-video-recording-guide.md`. Exclude Superset sign-in from the cut.
+
+Keep captions/cards visible for at least five seconds (longer for longer text),
+results/details for at least eight seconds, and reading/interactions at normal
+speed. Label accelerated waits and preserve captions during holds. Keep the
+FHIR Data Pipes introduction to about 10–15 seconds. Watch final cuts at normal
+speed before publishing; raw evidence remains private.
 
 ## Environment
 
@@ -77,7 +95,9 @@ there.
 |---|---|---|
 | `PLAYWRIGHT_LIVE` | — | must be `true`; otherwise the spec skips |
 | `PLAYWRIGHT_BASE_URL` | `http://127.0.0.1:4173` | the Catalyst UI |
-| `PLAYWRIGHT_SUPERSET_URL` | `http://127.0.0.1:18088` | Superset, for the final act |
+| `PLAYWRIGHT_SUPERSET_URL` | `http://127.0.0.1:18088` | Superset, including any hosted path prefix |
 | `CATALYST_HARNESS_DIR` | — | required root of the Harness checkout that owns the running isolated stack |
 | `CATALYST_DEMO_RUN_ID` | a random UUID | unique suffix for this run's retained builder artifacts |
+| `CATALYST_DEMO_PROFILE` | configured UI default | optionally selects an explicit available profile; the session records the selection |
+| `DEMO_MILESTONES_DIR` | `demo-milestones` | private destination for each source's measured timings |
 | `SUPERSET_ADMIN_USERNAME` / `_PASSWORD` | `admin` / `admin` | Superset sign-in |

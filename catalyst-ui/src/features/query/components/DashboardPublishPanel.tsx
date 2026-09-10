@@ -359,6 +359,9 @@ export const DashboardPublishPanel = ({
         ? hydratedDatasetSession.session
         : null
     : session;
+  const reviewedSourceId = String(
+    reviewedDatasetSource?.dataSourceId ?? reviewedSession?.dataSourceId ?? "Unknown source",
+  );
   const reviewedExecution = reviewedDatasetSource
     ? reviewedSession?.executions.find(
         (candidate) => candidate.executionId === reviewedDatasetSource.executionId,
@@ -1092,7 +1095,8 @@ export const DashboardPublishPanel = ({
                     id="builder-dataset-title"
                     labelText="Query name"
                     value={datasetTitle}
-                    disabled={busy || Boolean(reviewedDataset) || !canSaveReviewedResult}
+                    disabled={busy}
+                    readOnly={Boolean(reviewedDataset) || !canSaveReviewedResult}
                     placeholder="Give this query a name"
                     onChange={(event) => setDatasetTitle(event.currentTarget.value)}
                   />
@@ -1105,6 +1109,7 @@ export const DashboardPublishPanel = ({
                       subtitle="Your current query differs from this result. You can inspect it here; run the current query before saving new work."
                     />
                   )}
+                  <p>Source: {dataSources.find((source) => source.id === reviewedSourceId)?.label ?? reviewedSourceId}</p>
                   {reviewedExecution.result && <p>{reviewedExecution.result.rowCount.returned} {reviewedExecution.result.rowCount.returned === 1 ? "row" : "rows"} · {reviewedExecution.result.columns.length} {reviewedExecution.result.columns.length === 1 ? "column" : "columns"}</p>}
                   {reviewedValidation && reviewedValidation.findings.length > 0 && (
                     <p role="status">This query has {reviewedValidation.findings.length} advisory {reviewedValidation.findings.length === 1 ? "finding" : "findings"}. Review them in Technical details before using the results.</p>

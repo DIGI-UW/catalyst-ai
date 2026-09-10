@@ -121,6 +121,7 @@ export const QuestionForm = ({
               {busy ? "Preparing…" : retry ? "Retry" : "Continue"}
             </Button>
           </div>
+          <p className="query-composer__help">Review the request before retrieving data. Ctrl / ⌘ + Enter to continue.</p>
         </div>
       </Form>
     </section>

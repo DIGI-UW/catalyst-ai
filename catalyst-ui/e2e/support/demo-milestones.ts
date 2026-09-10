@@ -10,8 +10,8 @@ import { dirname, resolve } from "node:path";
  *
  * Times are seconds from the first navigation. Playwright starts recording at
  * context creation, marginally BEFORE the test body runs, so video time is
- * milestone time plus a small constant. `author_timeline.py` recovers that
- * constant from the rendered duration rather than assuming it is zero.
+ * milestone time plus a small constant. Align the final timeline against the
+ * actual capture and review the rendered cut rather than assuming zero offset.
  */
 export class DemoMilestones {
   private readonly marks: { label: string; at: number }[] = [];
@@ -22,6 +22,7 @@ export class DemoMilestones {
   /** Record that `label` just happened. */
   mark(label: string): void {
     this.marks.push({ label, at: (Date.now() - this.origin) / 1000 });
+    console.info(`${this.name}: ${label}`);
   }
 
   /** Write the milestones as JSON for the timeline author to read. */

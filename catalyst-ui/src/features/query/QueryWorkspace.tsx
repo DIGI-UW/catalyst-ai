@@ -22,7 +22,7 @@ import {
   type NotebookTurn,
 } from "./components/TurnNotebook";
 import { WorkbenchPanel } from "./components/WorkbenchPanel";
-import { WorkbenchHeader } from "./components/WorkbenchHeader";
+import { WorkbenchHeader, WorkbenchTools } from "./components/WorkbenchHeader";
 import {
   NARROW_WORKSPACE_BREAKPOINT,
   type WorkspaceSection,
@@ -1553,23 +1553,6 @@ export const QueryWorkspace = ({
         onDraftDataSourceChange={setDataSourceId}
         onStartSession={startNewSession}
         newSessionDisabled={followupBusy || workbenchBusy !== null}
-        openSection={workspaceSection}
-        onOpenSectionChange={changeWorkspaceSection}
-        relationCount={catalogRelationCount}
-        turns={workspaceTurns}
-        activeTurnOrdinal={activeTurnOrdinal}
-        onSelectTurn={selectTurn}
-        onOpenDetails={
-          workbenchSession
-            ? () =>
-                openDetails(
-                  (activeNotebookTurns.find(
-                    (turn) => turn.ordinal === activeTurnOrdinal,
-                  ) ?? activeNotebookTurns.at(-1))?.turnId ?? null,
-                )
-            : undefined
-        }
-        detailsOpen={detailsOpen}
         themePreference={themePreference}
         onThemePreferenceChange={onThemePreferenceChange ?? (() => undefined)}
         advancedMode={advancedMode}
@@ -1606,14 +1589,34 @@ export const QueryWorkspace = ({
                 ? (workbenchSession?.name ?? "").trim() || workbenchSession?.question || "Your question"
                 : "What would you like to find out?"}
             </h1>
-            {!sessionHasWork && <>
-              <p>Start with a question, in your own words.</p>
-              <p className="workbench-empty__note">Review the prepared query, then choose when to get results.</p>
-            </>}
+            {!sessionHasWork && <p>Start with a question, in your own words.</p>}
+            <WorkbenchTools
+              openSection={workspaceSection}
+              onOpenSectionChange={changeWorkspaceSection}
+              relationCount={catalogRelationCount}
+              turns={workspaceTurns}
+              activeTurnOrdinal={activeTurnOrdinal}
+              onSelectTurn={selectTurn}
+              onOpenDetails={
+                workbenchSession
+                  ? () =>
+                      openDetails(
+                        (activeNotebookTurns.find(
+                          (turn) => turn.ordinal === activeTurnOrdinal,
+                        ) ?? activeNotebookTurns.at(-1))?.turnId ?? null,
+                      )
+                  : undefined
+              }
+              detailsOpen={detailsOpen}
+              advancedMode={advancedMode}
+            />
             {advancedMode && workbenchSession && <p className="dashboard-session-meta">
               Session {workbenchSession.sessionId} · {activeDataSourceLabel}
             </p>}
           </header>
+          {!sessionHasWork && <p className="workbench-empty__note">
+            Catalyst helps you explore information from your connected data. You choose what to retrieve and what to save.
+          </p>}
           {startingQuery && <div className="saved-query-origin">
             <p>Started from {startingQuery.title}. The saved query is unchanged; select {runActionLabel} when ready.</p>
             <details><summary>Saved query reference</summary>

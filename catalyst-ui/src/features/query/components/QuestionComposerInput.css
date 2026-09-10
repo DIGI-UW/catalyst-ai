@@ -55,6 +55,11 @@
   outline-offset: 3px;
 }
 
+.question-composer-input > textarea::placeholder {
+  color: var(--cds-text-secondary);
+  opacity: 1;
+}
+
 .question-composer-input > textarea:disabled {
   color: var(--cds-text-disabled);
   cursor: not-allowed;
