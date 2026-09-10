@@ -283,6 +283,7 @@ export interface DatasetRows {
 export interface WorkbenchEditorCatalogColumn {
   name: string;
   logicalType: string;
+  databaseType?: string;
   nullable: boolean;
   description: string;
   unitColumn?: string;

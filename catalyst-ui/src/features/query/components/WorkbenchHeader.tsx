@@ -1,5 +1,4 @@
 import { Button } from "@carbon/react";
-import type { ReactNode } from "react";
 import type { ThemePreference } from "../theme";
 import type { DashboardBuilderSection, DataSource, WorkbenchSessionSummary } from "../types";
 import type { WorkspaceSection, WorkspaceTurn } from "./workbenchShellSupport";
@@ -36,7 +35,6 @@ interface WorkbenchHeaderProps {
   activeSection: DashboardBuilderSection;
   savedWorkSection: DashboardBuilderSection;
   onSectionChange: (section: DashboardBuilderSection) => void;
-  children: ReactNode;
 }
 
 export const WorkbenchHeader = ({
@@ -70,7 +68,6 @@ export const WorkbenchHeader = ({
   activeSection,
   savedWorkSection,
   onSectionChange,
-  children,
 }: WorkbenchHeaderProps) => {
   const dataOpen = openSection === "data";
   const turnsOpen = openSection === "turns";
@@ -308,8 +305,8 @@ export const WorkbenchHeader = ({
         </nav>
       )}
       <div hidden={activeSection !== "ask"} className="workbench-header-shell__tools">
-        <Button kind="ghost" size="sm" aria-expanded={dataOpen}
-          aria-controls="workspace-data" onClick={() => onOpenSectionChange("data")}>
+        <Button id="available-data-opener" kind="ghost" size="sm" aria-expanded={dataOpen}
+          aria-controls="available-data-panel" onClick={() => onOpenSectionChange("data")}>
           What data is available?{advancedMode ? ` (${relationCount})` : ""}
         </Button>
         {turns.length > 0 && <Button kind="ghost" size="sm" aria-expanded={turnsOpen}
@@ -319,8 +316,6 @@ export const WorkbenchHeader = ({
         {onOpenDetails && <Button kind="ghost" size="sm" aria-expanded={detailsOpen}
           onClick={onOpenDetails}>Technical details</Button>}
       </div>
-      <div id="workspace-data" hidden={!dataOpen || activeSection !== "ask"}
-        className="workbench-header-shell__data">{children}</div>
       <div id="workspace-turns" hidden={!turnsOpen || activeSection !== "ask"}>
         <ol className="workbench-header-shell__turns">
           {turns.map((turn) => (

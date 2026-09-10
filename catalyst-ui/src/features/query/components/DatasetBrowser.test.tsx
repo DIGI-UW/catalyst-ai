@@ -1,55 +1,8 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { CatalystApi } from "../api";
-import type {
-  DatasetOverview,
-  DatasetRows,
-  WorkbenchEditorCatalog,
-} from "../types";
+import type { WorkbenchEditorCatalog } from "../types";
 import { DatasetBrowser } from "./DatasetBrowser";
-
-const overview: DatasetOverview = {
-  contractVersion: "catalyst.dataset-overview.v1",
-  datasetId: "openelis-live-load",
-  synthetic: true,
-  patients: 1,
-  results: 1,
-  testTypes: 1,
-  firstObservedAt: "2026-01-01T00:00:00Z",
-  lastObservedAt: "2026-01-01T00:00:00Z",
-  tests: [
-    {
-      testName: "Viral Load",
-      unit: "copies/ml",
-      results: 1,
-      patients: 1,
-      minimum: "9000",
-      median: "9000",
-      maximum: "9000",
-    },
-  ],
-  exampleQuestions: [],
-};
-
-const oneRow: DatasetRows = {
-  contractVersion: "catalyst.dataset-rows.v1",
-  total: 1,
-  limit: 25,
-  offset: 0,
-  rows: [
-    {
-      observationId: "observation-1",
-      patientId: "patient-1",
-      testName: "Viral Load",
-      value: "9000",
-      unit: "copies/ml",
-      observedAt: "2026-01-01T00:00:00Z",
-      issuedAt: "2026-01-01T01:00:00Z",
-      turnaroundMinutes: "60",
-    },
-  ],
-};
 
 const catalog: WorkbenchEditorCatalog = {
   contractVersion: "catalyst.workbench.editor-catalog.v1",
@@ -92,6 +45,7 @@ const catalog: WorkbenchEditorCatalog = {
             {
               name: "result_value",
               logicalType: "decimal",
+              databaseType: "numeric(10,2)",
               nullable: true,
               unitColumn: "result_unit",
               description: "Numeric FHIR Quantity value.",
@@ -103,120 +57,75 @@ const catalog: WorkbenchEditorCatalog = {
   ],
 };
 
-const makeApi = (getDatasetRows: CatalystApi["getDatasetRows"]): CatalystApi => ({
-  submitQuestion: vi.fn(),
-  executePreview: vi.fn(),
-  pollExecution: vi.fn(),
-  getDatasetOverview: vi.fn().mockResolvedValue(overview),
-  getDatasetRows,
-});
 
 describe("DatasetBrowser", () => {
-  it("renders a truthful empty state for filters with no matches", async () => {
-    const api = makeApi(
-      vi.fn().mockResolvedValue({ ...oneRow, total: 0, rows: [] }),
-    );
+  it("shows exact names, types and supplied descriptions for every relation", async () => {
     const user = userEvent.setup();
-
-    render(<DatasetBrowser api={api} />);
-    await user.click(
-      await screen.findByText("Preview available laboratory records"),
-    );
-
-    expect(
-      screen.getByText("No laboratory records match these filters."),
-    ).toBeVisible();
-    expect(screen.queryByText(/showing 1–0/i)).not.toBeInTheDocument();
-  });
-
-  it("does not show stale rows after a filter request fails", async () => {
-    const getDatasetRows = vi
-      .fn()
-      .mockResolvedValueOnce(oneRow)
-      .mockRejectedValueOnce(new Error("Dataset rows are unavailable."));
-    const api = makeApi(getDatasetRows);
-    const user = userEvent.setup();
-
-    render(<DatasetBrowser api={api} />);
-    await user.click(
-      await screen.findByText("Preview available laboratory records"),
-    );
-    expect(await screen.findByText("9000 copies/ml")).toBeVisible();
-
-    await user.type(screen.getByLabelText("Patient FHIR ID"), "missing-patient");
-    await user.click(screen.getByRole("button", { name: "Apply filters" }));
-
-    expect(await screen.findByText("Dataset rows are unavailable.")).toBeVisible();
-    await waitFor(() =>
-      expect(screen.queryByText("9000 copies/ml")).not.toBeInTheDocument(),
-    );
-  });
-
-  it("browses one relation at a time and keeps full column detail available", async () => {
-    const api = makeApi(vi.fn().mockResolvedValue(oneRow));
-    const user = userEvent.setup();
-
-    render(<DatasetBrowser api={api} catalog={catalog} />);
-
-    // Every relation stays reachable — the rail picks between them rather
-    // than dropping the ones it cannot fit.
-    const relations = await screen.findByRole("combobox", { name: "Relation" });
-    expect(
-      within(relations).getAllByRole("option").map((option) => option.textContent),
-    ).toEqual(["analytics.lab_result_fact_v1", "fhir.patient_flat_v1"]);
-
-    // The first relation is shown without an extra click.
-    expect(screen.getByText("2 columns · spark")).toBeVisible();
+    render(<DatasetBrowser catalog={catalog} />);
+    for (const name of ["analytics.lab_result_fact_v1", "fhir.patient_flat_v1"]) {
+      await user.click(screen.getByRole("button", { name: new RegExp(name) }));
+    }
+    expect(screen.getAllByText("patient_id")).toHaveLength(2);
     expect(screen.getByText("result_value")).toBeVisible();
-    expect(screen.getByText(/Exactly one row per FHIR Observation/)).toBeVisible();
-
-    // Nothing the page version showed is lost. Nullability, the unit
-    // relationship and the description are rendered but width-gated: the
-    // container query brings them back as the rail is dragged out, so at rail
-    // width they are in the document rather than visible.
-    expect(screen.getByText("Unit from")).toBeInTheDocument();
-    expect(screen.getByText("result_unit")).toBeInTheDocument();
-    expect(
-      screen.getByText("Numeric FHIR Quantity value."),
-    ).toBeInTheDocument();
-
-    await user.selectOptions(relations, "fhir.patient_flat_v1");
-    expect(screen.getByText("1 column · spark")).toBeVisible();
-    expect(screen.queryByText("result_value")).not.toBeInTheDocument();
+    expect(screen.getByText("decimal")).toBeVisible();
+    await user.click(screen.getByText("Database type", { exact: true }));
+    expect(screen.getByText("numeric(10,2)")).toBeVisible();
+    expect(screen.getByText("Numeric FHIR Quantity value.")).toBeVisible();
+    expect(screen.getByText("result_unit")).toBeVisible();
+    expect(screen.getByText(/^May be empty/)).toBeVisible();
+    expect(screen.getByText("Exactly one row per FHIR Patient.")).toBeVisible();
   });
 
-  it("filters columns within the selected relation and reports the reduced count", async () => {
-    const api = makeApi(vi.fn().mockResolvedValue(oneRow));
+  it("searches names and descriptions across pages and clears back to the complete schema", async () => {
     const user = userEvent.setup();
-
-    render(<DatasetBrowser api={api} catalog={catalog} />);
-
-    await user.type(
-      await screen.findByLabelText("Filter columns"),
-      "result_value",
-    );
-    expect(screen.getByText("1 of 2 columns · spark")).toBeVisible();
-    expect(screen.getByText("result_value")).toBeVisible();
+    const largeCatalog: WorkbenchEditorCatalog = { ...catalog, schemas: [{ name: "source", views:
+      Array.from({ length: 26 }, (_, i) => ({ name: `table_${i}`, qualifiedName: `source.table_${String(i).padStart(2, "0")}`,
+        grain: "", columns: [{ name: `field_${i}`, logicalType: "string", nullable: true, description: i === 25 ? "Appointment location" : "" }] })) }] };
+    render(<DatasetBrowser catalog={largeCatalog} />);
+    expect(screen.queryByRole("button", { name: /source.table_25/ })).not.toBeInTheDocument();
+    const search = screen.getByRole("searchbox", { name: "Search tables and fields" });
+    await user.type(search, "appointment");
+    expect(screen.getByText("1 of 26 tables and views match")).toBeVisible();
+    expect(screen.getByText("field_25")).toBeVisible();
+    await user.clear(search);
+    await user.type(search, "field_24");
+    expect(screen.getByText("field_24")).toBeVisible();
+    await user.clear(search);
+    expect(screen.getByText("26 tables and views")).toBeVisible();
+    expect(screen.getByRole("button", { name: /source.table_00/ })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Next page" }));
+    expect(screen.getByRole("button", { name: /source.table_10/ })).toBeVisible();
   });
 
-  it("inserts a column into the editor when the workspace offers it", async () => {
-    const api = makeApi(vi.fn().mockResolvedValue(oneRow));
-    const onInsertColumn = vi.fn();
+  it("distinguishes no matches, empty catalogs, missing schema and retryable errors", async () => {
     const user = userEvent.setup();
+    const retry = vi.fn();
+    const { rerender } = render(<DatasetBrowser catalog={catalog} />);
+    await user.type(screen.getByRole("searchbox"), "unknown field");
+    expect(screen.getByText(/No matches/)).toBeVisible();
+    rerender(<DatasetBrowser catalog={{ ...catalog, schemas: [] }} />);
+    expect(screen.getByText(/No readable tables/)).toBeVisible();
+    rerender(<DatasetBrowser catalog={null} catalogLoading />);
+    expect(screen.getByText("Loading available data…")).toBeVisible();
+    rerender(<DatasetBrowser catalog={null} catalogLoadingFailed onRetry={retry} />);
+    expect(screen.getByRole("searchbox")).toHaveValue("unknown field");
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(retry).toHaveBeenCalledOnce();
+    rerender(<DatasetBrowser catalog={null} />);
+    expect(screen.getByText(/Schema browsing is unavailable/)).toBeVisible();
+  });
 
-    render(
-      <DatasetBrowser
-        api={api}
-        catalog={catalog}
-        onInsertColumn={onInsertColumn}
-      />,
-    );
-
-    await user.click(
-      await screen.findByRole("button", {
-        name: "Insert result_value into the SQL editor",
-      }),
-    );
-    expect(onInsertColumn).toHaveBeenCalledWith("result_value");
+  it("keeps expanded fields and search when Advanced mode changes", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<DatasetBrowser catalog={catalog} />);
+    await user.type(screen.getByRole("searchbox"), "patient");
+    await user.click(screen.getByRole("button", { name: /fhir.patient_flat_v1/ }));
+    const details = screen.getByText("Schema details").closest("details")!;
+    expect(details).not.toHaveAttribute("open");
+    rerender(<DatasetBrowser catalog={catalog} advancedMode />);
+    expect(details).toHaveAttribute("open");
+    expect(within(details).getByText("spark")).toBeVisible();
+    expect(screen.getByRole("searchbox")).toHaveValue("patient");
+    expect(screen.getByRole("button", { name: /fhir.patient_flat_v1/ })).toHaveAttribute("aria-expanded", "false");
   });
 });

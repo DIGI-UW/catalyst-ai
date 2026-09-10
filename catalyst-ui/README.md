@@ -21,6 +21,13 @@ The [approved design](../docs/specs/staff-workbench-ux/index.html) is the visual
 reference. Current iteration and deployment status lives in the harness
 [Feature 008 task register](https://github.com/pmanko/clinical-ai-validation-harness/blob/main/specs/008-catalyst-query-workbench/tasks.md).
 
+**Available data** opens a companion browser alongside your question. Search
+all readable table/view names, field names, types and supplied descriptions;
+expand an item for its exact fields. Browsing fetches schema metadata only.
+Close/reopen retains your search and expanded items; another source starts a
+fresh browser context. **Back to your question** returns focus without closing
+it, and **Try again** retries a failed schema load without changing your draft.
+
 ## Local commands
 
 ```bash

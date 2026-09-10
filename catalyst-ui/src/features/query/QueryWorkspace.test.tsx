@@ -246,7 +246,7 @@ describe("Dashboard Builder Ask shell", () => {
     const data = screen.getByRole("button", { name: "What data is available?" });
     expect(data).toHaveAttribute("aria-expanded", "false");
     await user.click(data);
-    expect(await screen.findByLabelText("Filter columns")).toBeVisible();
+    expect(await screen.findByRole("searchbox", { name: "Search tables and fields" })).toBeVisible();
     await user.click(data);
     expect(data).toHaveAttribute("aria-expanded", "false");
     expect(screen.getByLabelText("Your question")).toHaveValue("Find recent tests");
@@ -1105,7 +1105,7 @@ describe("Dashboard Builder Ask shell", () => {
     expect(screen.getByRole("heading", { name: "What would you like to find out?" })).toBeVisible();
     expect(document.querySelector(".workbench-catalog__relation")).toBeNull();
     await user.click(screen.getByRole("button", { name: "What data is available?" }));
-    expect(await screen.findByLabelText("Filter columns")).toBeVisible();
+    expect(await screen.findByRole("searchbox", { name: "Search tables and fields" })).toBeVisible();
     expect(screen.getByLabelText("Your question")).toBeVisible();
   });
 });
