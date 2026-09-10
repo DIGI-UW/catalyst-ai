@@ -1,13 +1,14 @@
-# Catalyst product roadmap
+# Historical Catalyst product roadmap
 
-**Status:** Generic connection and the Spark reference deployment are next.
-Final Dashboard Builder acceptance follows the validation harness's Phase 1
-comparison and Phase 2 scope decision.
+**Status:** Retired as an implementation authority on 10 September 2026. The
+validation harness Feature 008 plan owns current implementation sequence and
+delivery; its tasks own progress. The historical detail below is retained only
+to explain prior decisions and does not schedule work.
 
 [specification.md](specification.md) owns product requirements.
 [dashboard-builder-mvp-design.md](dashboard-builder-mvp-design.md) owns the
-binding Dashboard Builder interaction and visual contract. This file owns the
-Catalyst-repository implementation sequence.
+current interaction and visual contract. The cross-repository Feature 008 plan
+is linked from the harness pin and cannot be expressed as a relative link here.
 
 ## Outcome
 

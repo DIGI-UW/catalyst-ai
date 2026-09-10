@@ -6,15 +6,19 @@ Catalyst is a generic SQL-connected workbench and Dashboard Builder. Read these
 files before changing product behavior:
 
 1. `docs/specification.md`
-2. `docs/roadmap.md`
-3. `docs/dashboard-builder-mvp-design.md`
-4. `docs/med-agent-hub.md`
+2. `docs/dashboard-builder-mvp-design.md`
+3. `docs/med-agent-hub.md`
 
 The binding Dashboard visual reference is
 `docs/prototypes/dashboard-builder-mvp/Catalyst Dashboard Builder 4c.dc.html`.
 
 Current documents contain current requirements and implementation status. Run
 reports are evidence, not product requirements.
+
+The frozen staff Workbench files under `docs/specs/staff-workbench-ux/` are
+dated design and research evidence. Their accepted behavior is incorporated in
+the product specification and binding design; they do not own delivery order or
+progress.
 
 ## Architecture rules
 

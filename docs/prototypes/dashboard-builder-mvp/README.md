@@ -27,17 +27,20 @@ Reference priority:
 1. The written invariants in `docs/dashboard-builder-mvp-design.md`.
 2. The running current Catalyst query workbench and its tests for SQL editing,
    Format/Validate/Run, evidence, versions, restoration, and result semantics.
-3. The populated binding 4c page for the target shell, chronology, fixed composer,
-   Dataset/Widget tiles, panels, and library navigation.
+3. The populated binding 4c page for chronology, Dataset/Widget tiles, panels,
+   libraries, arrangement, and publication. Its older shell, fixed composer,
+   palette, and compact Available data treatment are superseded by the written
+   contract and frozen staff Workbench evidence.
 4. `Catalyst Query Screen.dc.html` and the wireframes as supporting,
    non-binding explorations.
 
 The populated 4c reference deliberately shows:
 
 - one editable SQL surface and one page-header New session action;
-- the available profile with writer and reviewer models in the fixed composer;
-- compact Available data access backed by the runtime catalog/full source
-  browser rather than a static cohort table;
+- a profile selector that moves into Query settings and technical details in the
+  accepted Workbench presentation;
+- Available data backed by the runtime catalog/full source browser rather than
+  a static cohort table; the accepted implementation is a nonmodal companion;
 - Format, Validate, explicit Run, typed parameters, staleness, and inspectable
   generation/failure evidence;
 - no inline result-row table; the Dataset panel owns the bounded typed table,

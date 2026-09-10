@@ -7,14 +7,15 @@ in [PR #81](https://github.com/DIGI-UW/catalyst-ai/pull/81). The [specification]
 form the handoff. Further visual exploration is closed; change this target only
 for an identified implementation problem or a new owner decision.
 
-## Start condition
+## Current authority and start condition
 
-Merge PR #81 through the normal repository process after the existing checks
-pass and any required review is satisfied. Recheck the exact head and reviews
-immediately before merging; do not bypass checks. Then start a short-lived
-implementation branch from the merged `main`, preserving this design reference.
-No production implementation, merge, deployment or phase completion is recorded
-by this handoff.
+PR #81 is merged. This handoff and its mock remain dated evidence. Accepted
+application behavior now lives in the current
+[product specification](../../specification.md) and
+[binding Dashboard Builder design](../../dashboard-builder-mvp-design.md).
+Delivery order, acceptance, and progress live in the validation harness Feature
+008 plan, specification, and tasks. No production implementation, deployment,
+or owner acceptance is recorded by this handoff.
 
 At freeze: GitHub reported no merge conflicts, no submitted reviews and no
 inline review threads. UI and MVP assembly passed. Gateway could not launch
@@ -39,14 +40,13 @@ Component paths above are relative to `catalyst-ui/src/features/query/`, except
 `App.tsx` in `catalyst-ui/src/`. The offline mock's fixture state is not production
 code to port. Use the shared presentation/components and existing state owners.
 
-## Align authorities in the relevant implementation change
+## Authority alignment
 
-Carry the frozen navigation, composer, visibility and palette amendments into
-[the current product specification](../../specification.md) and
-[the binding Dashboard Builder design](../../dashboard-builder-mvp-design.md)
-when implementing each affected surface. Track work through the existing harness
-Feature 008 tasks and implementation plan. The [overlap review](overlap.md)
-identifies the changed requirements; avoid leaving contradictory instructions.
+The frozen navigation, composer, visibility and palette amendments have been
+incorporated into the [current product specification](../../specification.md)
+and [binding Dashboard Builder design](../../dashboard-builder-mvp-design.md).
+Track implementation through the validation harness Feature 008 plan and tasks.
+The [overlap review](overlap.md) remains dated evidence of the consolidation.
 
 Preserve the existing Phase 1 → Phase 2 → Phase 3 order. Small usability fixes
 may accompany the upgrade, but they do not define conversation mode or close

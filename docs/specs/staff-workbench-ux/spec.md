@@ -1,10 +1,12 @@
 # Catalyst workbench usability design
 
-**Status:** Design and specification frozen by the owner on 9 September 2026,
-based on commit `8542d5e59f40bf1dc2fcde06dd724095fa6d370a`. Implementation starts
-after PR #81 is properly merged. This records the design target, not deployed
-behavior or final product acceptance. See the [implementation handoff](implementation-handoff.md)
-for merge prerequisites, authority alignment and delivery order.
+**Status:** Dated design evidence frozen by the owner on 9 September 2026 and
+merged through PR #81. Accepted behavior is incorporated into the current
+[product specification](../../specification.md) and
+[binding design](../../dashboard-builder-mvp-design.md). This file records the
+reviewed target and mock, not deployed behavior, delivery progress, or final
+product acceptance. See the [implementation handoff](implementation-handoff.md)
+for current authority and delivery references.
 
 **Audience:** clinical and program staff without SQL knowledge first; analysts
 second. The owner's immediate need is a resizable question-writing area at the
@@ -23,7 +25,7 @@ and explicitly runs the prepared query, inspects the result and limitations,
 and saves it for reuse. Analyst tools remain easy to find without requiring
 staff to understand schema identifiers, model configuration, or traces first.
 
-Use existing React, Carbon, and CodeMirror components. This proposal adds no
+Use existing React, Carbon, and CodeMirror components. This design adds no
 query engine, model behavior, schema filter, or publication path.
 
 ## One question composer
