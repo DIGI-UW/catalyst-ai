@@ -3525,15 +3525,28 @@ def test_saved_query_draft_session_round_trips_without_generation_or_execution(
 
 
 @pytest.mark.parametrize("source_id", ["openelis-demo", "openmrs-hiv"])
+@pytest.mark.parametrize("manual", [False, True])
 def test_saved_query_retains_the_real_store_session_source(
-    tmp_path: Path, source_id: str
+    tmp_path: Path, source_id: str, manual: bool
 ) -> None:
     catalog = replace(_catalog(), data_source=source_id)
     query = _ready_query()
     query["target"]["dataSource"] = source_id
     client, _ = _client(tmp_path, query, catalog=catalog)
-    session = _create_session(client)
-    version = session["currentVersion"]
+    session = _create_session(client, question="" if manual else QUESTION)
+    if manual:
+        response = client.post(
+            f"/v1/catalyst/workbench/sessions/{session['sessionId']}/versions",
+            json={
+                "contractVersion": "catalyst.workbench.version.request.v1",
+                "sql": query["sql"],
+                "parameters": query["parameters"],
+            },
+        )
+        assert response.status_code == 201, response.text
+        version = response.json()["currentVersion"]
+    else:
+        version = session["currentVersion"]
     assert session["dataSourceId"] == source_id
     response = client.post(
         f"/v1/catalyst/workbench/versions/{version['versionId']}/execute",
@@ -3557,3 +3570,32 @@ def test_saved_query_retains_the_real_store_session_source(
     )
     assert saved.status_code == 201, saved.text
     assert saved.json()["configuration"]["source"]["dataSourceId"] == source_id
+
+    dataset = saved.json()
+    turn_id = dataset["configuration"]["source"]["turnId"]
+    if manual:
+        assert turn_id is None
+    else:
+        assert isinstance(turn_id, str) and turn_id != "None"
+    widget = client.post(
+        "/v1/catalyst/dashboard-builder/widgets",
+        json={
+            "datasetVersionId": dataset["versionId"],
+            "presentationKind": "table",
+        },
+    )
+    assert widget.status_code == 201, widget.text
+    dashboard = client.post(
+        "/v1/catalyst/dashboard-builder/dashboards",
+        json={
+            "widgetVersionIds": [widget.json()["versionId"]],
+        },
+    )
+    assert dashboard.status_code == 201, dashboard.text
+    published = client.post(
+        f"/v1/catalyst/dashboard-builder/dashboards/{dashboard.json()['versionId']}/publish"
+    )
+    assert published.status_code == 201, published.text
+    ContractRegistry.default().validate(
+        "catalyst-superset-bundle-v1.schema.json", published.json()["manifest"]
+    )

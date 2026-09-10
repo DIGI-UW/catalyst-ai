@@ -224,6 +224,9 @@ It is not a source, warehouse, or restricted schema copy.
 - Each Dataset retains source, dialect, readable-schema reference, SQL,
   parameters, execution identity, typed shape, warnings, and recorded
   configuration.
+- A saved query without a generated question turn records `turnId: null`; it
+  retains its actual session, query-version and execution identities. Publication
+  accepts this manual/reused-SQL lineage without inventing a question turn.
 - Saving uses the source recorded with the originating session. If that identity
   is missing, ask the person to run the query in a new session before saving;
   never substitute a default connection.

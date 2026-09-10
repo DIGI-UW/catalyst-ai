@@ -481,7 +481,7 @@ class DashboardBuilder:
         columns = list(result.get("columns") or [])
         query = execution.get("query") or {}
         timeline = self.workbench.list_turns(session_id)
-        source_turn_id = str(timeline["currentTurnId"])
+        source_turn_id = timeline["currentTurnId"]
         provenance = session.get("provenance") or {}
         data_source_id = provenance.get("dataSourceId") or session.get("dataSourceId")
         if not isinstance(data_source_id, str) or not data_source_id.strip():
