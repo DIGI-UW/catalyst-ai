@@ -350,6 +350,15 @@ Purpose: find and reuse a saved governed query.
 - **Widgets count is the governance affordance** — it shows downstream use so nothing is deleted blind.
 - Seed rows: "Turnaround time by test type" (OpenELIS · 6 · 2 · `:since_date` · Jul 12, 09:14 · Saved); "Rejected specimens by reason" (OpenELIS · 4 · 1 · — · Jul 10, 16:02 · Saved); "CD4 cohort, under 200" (OpenMRS · 5 · 0 · `:facility` · Jul 8, 11:47 · Draft). A dataset saved during the session appears at the top.
 - Row "Review" opens the same dataset panel used in the thread.
+- **Start from this SQL** is available on a saved query's row and review panel.
+  It opens the exact saved parameterized SQL and typed values in Explore's single
+  editor, retains the Dataset version and source/dialect, and focuses the draft.
+  Loading never runs SQL or overwrites saved work. Preserve any ongoing draft;
+  a different source requires an explicit matching or new session. Saved SQL is
+  accessible independently of originating execution details; label unavailable
+  historical evidence without disabling reuse. The compiled SQL remains the
+  recorded execution snapshot. This addition retains the approved Explore /
+  Saved work shell and the three Saved work groups.
 
 ### 4. Widgets library
 

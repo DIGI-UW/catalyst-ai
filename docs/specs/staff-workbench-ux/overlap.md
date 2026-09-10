@@ -94,3 +94,22 @@ Some current document headers still describe the Spark path as unimplemented
 despite newer code/branch activity. The baselines above prevent those headers
 from being mistaken for live deployment evidence. Broader status drift is
 outside this UX documentation PR.
+
+## Dashboard extension proposal
+
+The [HIV workflow, saved-SQL reuse and output proposal](proposals/catalyst-output-integrations-hiv-draft.md),
+[advisor prompt drafts](proposals/catalyst-dashboard-advisors-draft.md) and
+[interaction research](proposals/catalyst-unified-thread-research.md) are
+consolidated design inputs. The owner confirmed Explore / Saved work and the
+richer saved-work structure on 10 September 2026. Saved-SQL reuse is added to
+the product specification and binding design for current delivery. The harness
+[Feature 008 plan](https://github.com/pmanko/clinical-ai-validation-harness/blob/main/specs/008-catalyst-query-workbench/plan.md#design-extension-review)
+owns disposition and scheduling.
+
+Saved-SQL persistence exists, but its first-class reuse action does not.
+Multi-artifact proposals, model-assisted Dashboard design, shared filters and
+Metabase/Evidence publication are follow-on milestones after current usability
+and Superset delivery. Their interfaces and contracts need review when those
+milestones start. The exploratory Workbench / Library sidebar is superseded;
+retain its useful artifact grouping within the approved navigation. Keep one
+mock and implementation home in Catalyst; the harness publishes that mock.

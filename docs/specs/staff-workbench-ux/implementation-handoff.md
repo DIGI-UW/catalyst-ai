@@ -48,9 +48,9 @@ and [binding Dashboard Builder design](../../dashboard-builder-mvp-design.md).
 Track implementation through the validation harness Feature 008 plan and tasks.
 The [overlap review](overlap.md) remains dated evidence of the consolidation.
 
-Preserve the existing Phase 1 → Phase 2 → Phase 3 order. Small usability fixes
-may accompany the upgrade, but they do not define conversation mode or close
-Dashboard Builder. The final owner review still compares the live Workbench,
+Follow the harness Feature 008 plan: approved usability first, then Dashboard
+functionality after feedback on the local usability gate. Model comparison and
+broader conversation remain separately scheduled. The final owner review still compares the live Workbench,
 Dataset/Widget review and libraries, Dashboard arrangement, and publish/import
 states with the binding reference.
 
