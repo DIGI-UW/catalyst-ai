@@ -3,24 +3,26 @@
 **Status:** Binding Dashboard Builder interaction and visual contract
 **Interactive reference:** `docs/prototypes/dashboard-builder-mvp/`
 
-This document is the UX and product-design source for Dashboard Builder. The
-populated Workbench state in `Catalyst Dashboard Builder 4c.dc.html` is the
-binding visual reference. This written contract defines behavior when a static
-mock cannot express it.
+This document is the current interaction and visual source for the Workbench and
+Dashboard Builder. The populated `Catalyst Dashboard Builder 4c.dc.html` page is
+the binding reference for Dashboard object flow, panels, libraries, arrangement,
+and publication. The frozen staff Workbench mock is dated evidence for the
+accepted shell, composer, Available data, disclosure, and appearance amendments.
+This written contract controls when either static page cannot express current
+behavior or they conflict.
 
-The [Workbench usability proposal](specs/staff-workbench-ux/spec.md) explores a
-resizable question area and simpler default experience. Its
-[overlap review](specs/staff-workbench-ux/overlap.md) identifies the specific
-changes proposed to this binding design; this document remains authoritative
-until those changes are adopted.
+The [frozen staff Workbench design](specs/staff-workbench-ux/spec.md) and its
+[overlap review](specs/staff-workbench-ux/overlap.md) are dated design evidence.
+Their accepted navigation, composer, disclosure, data-browser, result-review,
+appearance, and accessibility behavior is incorporated into this contract.
 
 ## Current product decisions
 
 The decisions below govern the detailed design that follows.
 
-- **The "Ask shell" is the Workbench.** The section nav names the place rather
-  than the gesture, in visible text rather than an icon's `aria-label`, and
-  the section repeats that word in a heading above the session's name.
+- **Explore is the Workbench.** The primary navigation uses Explore and Saved
+  work. Saved work groups Saved queries, Charts and tables, and Dashboards;
+  API and evidence names remain Dataset, Widget, and Dashboard.
 - **Validation is advisory.** Validate reports findings for the exact editor
   state, does not execute SQL, and never disables Run. The visible controls are
   Format, Validate, and Run.
@@ -36,13 +38,18 @@ The decisions below govern the detailed design that follows.
   dataset-review surfaces, which are the provenance views.
 - **One source per session.** Changing the Data source control starts a new
   session; an existing thread never silently switches its connection or schema.
-- **Available data is complete.** It shows every table, view, column, and type
-  readable through the configured connection. Optional descriptions may enrich
-  the display but cannot hide relations.
+- **Available data is complete and nonmodal.** It shows every table, view,
+  column, and type readable through the configured connection beside the draft,
+  without retrieving source rows. Optional descriptions may enrich the display
+  but cannot hide relations.
+- **Complexity is disclosed.** View options contains Appearance and a
+  visit-scoped Advanced mode. Simple and Advanced presentations share state and
+  capabilities; switching never discards a draft, source, query, result, profile,
+  or focus.
 
 ## MVP interaction contract
 
-The prototype's Ask shell, fixed composer, chronological thread, Dataset tile,
+The prototype's chronological thread, Dataset tile,
 and review panel are the required target experience. Production must integrate
 the accepted query notebook into them and retain profile/model selection and
 evidence, exactly one SQL editor with completion/formatting/wrapping, manual
@@ -59,19 +66,20 @@ tile and review panel own the successful execution result.
 The accepted Ask invariants are testable requirements:
 
 - **ASK-01 — one work surface:** a populated session has one editable SQL
-  control whose accessible name is exactly `SQL query`, one fixed question/
+  control whose accessible name is exactly `SQL query`, one resizable question/
   follow-up composer, and exactly one New session action. Completion/formatting/
   wrapping help is descriptive text outside the label.
 - **ASK-02 — behavioral parity:** Format, Validate, explicit Run, typed
   parameters, raw generation/failure evidence, findings, database diagnostics,
   version provenance, Clear/Restore, result staleness, refresh restoration, and
   available profile/model selection remain reachable.
-- **ASK-03 — contextual refinement:** the fixed composer identifies the exact
+- **ASK-03 — contextual refinement:** the composer identifies the exact
   visible Query vN/editor snapshot on which the next complete query is based.
-- **ASK-04 — available-data context:** a compact, keyboard-operable disclosure
-  exposes every relation and column readable through the active source and a path into the
-  full searchable/filterable/paginated source browser, including its empty and
-  failure states.
+- **ASK-04 — available-data context:** a keyboard-operable nonmodal companion
+  exposes every relation and column readable through the active source through
+  the complete searchable/filterable/paginated browser, including its no-match,
+  empty, loading, unavailable, and failure states. Browsing does not retrieve
+  source rows or discard the question draft.
 - **DATASET-01 — explicit transition:** only a successful Run for the exact
   editor digest creates or refreshes a Dataset draft tile.
 - **DATASET-02 — one result presentation:** the active card reports execution
@@ -209,7 +217,8 @@ Generated SQL may contain named parameters (`:since_date`, `:facility`). The dat
 
 ## Screens / Views
 
-The app is a left-nav shell with four sections. Shell chrome is identical across all four.
+The app uses one horizontal shell across Explore and Saved work. Saved work
+contains the three object libraries.
 
 ### Shell
 
@@ -220,18 +229,30 @@ The app is a left-nav shell with four sections. Shell chrome is identical across
 - Right-aligned session meta, color `#c6c6c6`, font-size `0.75rem`: "Session 7f2a91c4 · 3 turns" (or "No active session" when the thread is empty). This is status text, never a second New session action.
 - This is the existing `DemoBanner` component, restyled to a full-width fixed bar.
 
-**Left nav** (fixed, `top: 2.5rem`, `bottom: 0`, `z-index: 100`)
-- Expanded width `16rem`; collapsed width `3rem`; `transition: width 140ms`. Background `#fff`, right border `1px solid #e0e0e0`, padding `0.5rem 0 1rem`.
-- Header (expanded only): "Catalyst" `0.875rem`/600 `#161616`; subtitle "Governed queries → dashboards" `0.75rem` `#6f6f6f`, `white-space: nowrap`.
-- Collapse toggle: 2.5rem square icon button, chevron-left 20×20 `#525252`, rotates 180° when collapsed (`transition: transform 140ms`), hover background `#e8e8e8`, `aria-label="Toggle navigation"`, `aria-expanded`.
-- Nav items: Workbench · Datasets · Widgets · Dashboards. Each is a full-width button, `min-height: 2.5rem`, 16×16 Carbon icon, label `0.875rem`, right-aligned count `0.75rem` `#6f6f6f` with `font-variant-numeric: tabular-nums`. Collapsed: icon only, centered, `title` attribute carries the label.
-- Active item: background `#e8e8e8`, `border-left: 3px solid #0f62fe`, color `#161616`, weight 600, `aria-current="page"`. Inactive: transparent background, transparent left border, `#525252`, weight 400. Hover: `#e8e8e8`.
-- Counts are live: Datasets and Widgets increment as objects are saved.
-- Footer (expanded only), above a `1px solid #e0e0e0` top border: label "Data source" `0.75rem` `#6f6f6f` and a Carbon Select. The OpenELIS and OpenMRS labels in the prototype are examples. Changing the selection starts a new session.
+**Primary navigation**
+- Use a neutral horizontal header with visible **Explore** and **Saved work**
+  destinations. A thin violet underline identifies the active destination; text
+  remains neutral in light mode and off-white in dark mode.
+- Saved work reveals Saved queries, Charts and tables, and Dashboards. Counts
+  update as objects are saved. Do not show a permanent development-style side
+  rail or icon-only destinations.
+- The selected source stays visible in Explore. Changing it starts a new session
+  through the existing confirmation behavior.
+- Place **View options** at the quiet end of the header. It contains Appearance
+  and Advanced mode and shows a small Advanced indicator while enabled. Query
+  settings stays directly accessible beside the composer.
 
-**Content column**: `margin-left` tracks nav width (`transition: margin-left 140ms`); the inner container fills the remaining main-panel width with `1.5rem` inline gutters. Do not impose a page-level max width: the fixed side navigation and bottom workbench dock already bound the workspace, and data tables, SQL, results, and dashboard layouts need the available horizontal space. Keep narrower measure constraints only on prose or compact controls that benefit from them. Padding top `2rem`; bottom `18rem` on Workbench (or the measured composer height plus one spacing unit) and `4rem` elsewhere.
+**Content column**: center the writing experience with comfortable readable
+measure, then let SQL, results, schema, and Dashboard layouts use the available
+width. Use `1.5rem` inline gutters. On Workbench, bottom padding equals the
+measured composer height plus one spacing unit; use `4rem` elsewhere. There is
+no navigation offset.
 
-**Page header pattern** (all four screens): eyebrow `0.75rem`/600 `#0f62fe`, `letter-spacing: 0.08em`, uppercase; H1 `2rem`/400, `letter-spacing: -0.025em`, `line-height: 1.15`; description `0.875rem` `#525252`, `line-height: 1.5`. Primary action, when present, sits top-right.
+**Page header pattern** (all screens): eyebrow `0.75rem`/600 in the secondary
+text role, `letter-spacing: 0.08em`, uppercase; H1 `2rem`/400,
+`letter-spacing: -0.025em`, `line-height: 1.15`; description `0.875rem` in the
+secondary text role, `line-height: 1.5`. Primary action, when present, sits
+top-right.
 
 ### 1. Workbench — populated thread
 
@@ -246,7 +267,9 @@ SQL editor remains the active query work surface.
 
 Thread is a single `flex-direction: column; gap: 1rem` stack, full content width.
 
-- **Header**: eyebrow "Ask OpenELIS", H1 = the session title ("Monthly viral load, 2026"), description "Nothing is saved until you review it. Drafts stay in this thread." Top-right: "New session" ghost button (height `2rem`, `1px solid #0f62fe`, `#0f62fe`, add-16 icon).
+- **Header**: eyebrow "Explore", H1 = the session title ("Monthly viral load,
+  2026"), description "Nothing is saved until you review it. Drafts stay in
+  this thread." Top-right: "New session" secondary button.
 - **User message**: `align-self: flex-end`, `max-width: 38rem`, padding `0.75rem 1rem`, background `#e0e0e0`, color `#161616`, `0.875rem`/1.5. No radius (Carbon is square).
 - **Latest query workbench card**: immediately after the latest user instruction
   and before any Dataset tile, integrate the current production workbench. It is
@@ -266,13 +289,14 @@ Thread is a single `flex-direction: column; gap: 1rem` stack, full content width
   Its editable control is labelled exactly `SQL query`; completion, formatting,
   and wrapping help is linked with `aria-describedby` rather than included in
   the accessible name.
-- **Available data disclosure**: place a compact `Available data` button in the
-  workbench header, labelled with the active catalog summary (for example,
-  "2 schemas · 6 relations"). It expands in place to a search/filterable relation
-  and column summary and links or expands to the existing full source browser.
-  Preserve its runtime-derived relation/column list, source and test filters,
-  pagination, exact identifiers, and loading/empty/failure feedback. It is query
-  context, not a second static dataset overview and not an executed-result table.
+- **Available data companion**: “What data is available?” opens the existing
+  complete source browser beside the draft. Search matches relation names,
+  optional descriptions, column names, and exact identifiers. Preserve its
+  runtime relation/column list, exact types, source filters, pagination, and
+  no-match/loading/empty/unavailable/retry feedback. Opening, searching, and
+  closing preserves the draft, selection, composer size, expanded relations,
+  scroll, and focus return. It never retrieves clinical rows while drafting.
+  On narrow screens it becomes a full-height sheet over the same retained state.
 - **Draft tile — dataset** (the key component). A button, `width: 100%`, `max-width: 34rem`, `display: flex; align-items: center; gap: 1rem`, padding `0.75rem 1rem`, background `#fff`, border `1px solid #c6c6c6`, `border-left: 3px solid` state accent. Contents left → right:
   - 20×20 Carbon "data-table" icon, `#525252`
   - stacked text (`flex: 1`): name `0.875rem`/600; meta line `0.75rem` `#6f6f6f` — "Dataset · 250 shown · more available · total unknown · 4 typed columns · Query v3" for a truncated result without an exact total
@@ -280,32 +304,40 @@ Thread is a single `flex-direction: column; gap: 1rem` stack, full content width
   - "Review" affordance, `#0f62fe`, `0.875rem`
   - Hover: `border-color: #0f62fe`, `background: #f4f4f4`. Left accent: `#0f62fe` while draft, `#24a148` once saved.
   - Whole tile is the click target; it opens the review panel. No data table and no chart render inline — detail lives in the panel only.
-- **Assistant suggestion**: `max-width: 44rem`, padding `1rem 1.25rem`, `border-left: 3px solid #8a3ffc`, background `#f7f2ff`, `0.875rem`/1.5. Viz name in `<strong>`.
+- **Assistant suggestion**: `max-width: 44rem`, padding `1rem 1.25rem`, a
+  restrained action-role left border, neutral surface background, `0.875rem`/1.5.
+  Viz name in `<strong>`.
 - **Draft tile — widget**: same geometry as the dataset tile; thumbnail is a 52×24 two-series sparkline (`#0f62fe` and `#a56eff`, `stroke-width: 2`). Meta line: "Line chart · split by test_name", becoming "Line chart · on Lab operations" after placement. Left accent `#8a3ffc` while draft, `#24a148` once saved.
 
-**Composer** (fixed, bottom, `left` tracks nav width, `z-index: 90`)
-- Padding `0.75rem 1.5rem calc(0.75rem + env(safe-area-inset-bottom))`, `border-top: 4px solid #0f62fe`, background `#fff`, `box-shadow: 0 -0.25rem 1rem rgb(0 0 0 / 18%)`. Inner container matches the content column.
-- In a populated session, the visible label is `Refine Query vN` and helper text
-  says `Based on Query vN` plus the version author/model and whether the exact
-  editor buffer is saved or unresolved. In an empty session, use `Ask OpenELIS`.
-- Field wrapper: `1px solid #8d8d8d`, background `#f4f4f4`; textarea area is `#fff`, padding `0.75rem 1rem`, `min-height: 3.5rem`, `font-size: 1rem`/1.5, `resize: none`, no visible border. Placeholder: "Ask a question, or say how you want the current query changed".
-- Footer row, `border-top: 1px solid #c6c6c6`, padding `0.625rem 1rem`, contains
-  the available-profile selector (profile name plus writer and reviewer model
-  families), configured-source execution note, and a primary `Generate next query`
-  button. Do not render unavailable profiles. The empty-state action is
-  `Generate query`.
-- Use a persistent programmatic label, `aria-describedby` for base/version and
-  shortcut help, and a documented `Cmd/Ctrl+Enter` action. Empty input disables
-  generation. Tab order is textarea → profile → action; focus and error status
-  remain visible above the fixed region, and the region reflows at the 320- and
-  640-CSS-pixel acceptance boundaries. Actual 200% browser zoom is deferred
-  polish.
+**Composer** (bottom Workbench surface, `z-index: 90`)
+- Reserve the measured full composer height in the thread so the latest result
+  and focused controls remain reachable. Keep it at the bottom for ordinary
+  viewports and use page flow on very short screens.
+- In a populated session, the visible label is `Ask a follow-up`; helper text
+  identifies the earlier question and exact selected query, says `Using your
+  edited query` when applicable, and retains provenance in technical details.
+  In an empty session use `Your question`; use `Your answer` for clarification.
+- Start at three comfortable lines. Allow native vertical resizing with a
+  minimum around `72px`, maximum `40vh`, and desktop cap of `360px`; lower the
+  cap on narrow screens. Provide explicit keyboard-operable Expand and Restore.
+  Preserve entered text, selection, focus, and the visit's chosen size across
+  preparation, failure, retry, and Workbench state changes.
+- The footer contains a quiet Query settings control, the configured-source
+  execution note, Expand/Restore, and primary `Continue`. Query settings shows
+  only available profiles; exact profile/model identities remain available in
+  technical details and Advanced mode.
+- `Continue` prepares a complete candidate and never executes SQL. The later
+  explicit action is `Get results`. `Cmd/Ctrl+Enter` invokes Continue; Enter
+  inserts a newline. Empty input disables Continue. Prevent duplicate requests,
+  announce progress and failures, retain the draft on failure, and offer Retry.
+- The composer reflows at 320, 390, and 640 CSS pixels without covering focused
+  content. It does not automatically collapse or tuck when the page scrolls.
 - Composer is present on Workbench only.
 
 ### 2. Workbench — first run / empty thread
 
 Same shell and composer, no thread.
-- H1 "What do you want to know?"; description "Ask in plain language. Catalyst
+- H1 "What would you like to find out?"; description "Ask in plain language. Catalyst
   prepares editable SQL; you review, validate, and explicitly run it read-only."
 - Omit the prototype's three example-prompt buttons. They would bias manual
   evaluation and are not part of the accepted Ask experience.
@@ -349,7 +381,7 @@ Purpose: see what exists, which bundle is ready/imported, and jump to Superset.
 
 One panel component, two modes. Opened by any draft tile or library row; this is **the only place saves happen**.
 
-- Scrim: fixed, `top: 2.5rem`, `left` = nav width, `right: 0`, `bottom: 0`, background `rgb(22 22 22 / 40%)`, `z-index: 130`; click closes.
+- Scrim: fixed below the header, `left: 0`, `right: 0`, `bottom: 0`, background `rgb(22 22 22 / 40%)`, `z-index: 130`; click closes.
 - Panel: fixed right, `top: 2.5rem`, `bottom: 0`, `width: min(32rem, calc(100vw - 4rem))`, background `#fff`, `border-left: 1px solid #e0e0e0`, `box-shadow: -0.25rem 0 1rem rgb(0 0 0 / 18%)`, `z-index: 140`, `display: flex; flex-direction: column`.
 - Underlying page gets `filter: blur(1.5px)` (`transition: filter 120ms`) — cheap depth cue; drop it if it costs paint performance.
 - **Header**: padding `1.25rem 1.5rem`, `border-bottom: 1px solid #e0e0e0`. Kicker `0.75rem` `#6f6f6f` uppercase `letter-spacing: 0.08em` ("Dataset" / "Widget"); title `1.25rem`/400 `letter-spacing: -0.025em` ("Review dataset" / "Review widget"); 2.5rem close icon button (close-20), hover `#e8e8e8`.
@@ -359,10 +391,11 @@ One panel component, two modes. Opened by any draft tile or library row; this is
 **Dataset mode body**
 1. Name text input (label `0.75rem` `#525252`; Carbon underline field: `background: #f4f4f4`, `border-bottom: 1px solid #8d8d8d`, `min-height: 2.5rem`).
 2. Metadata grid, 2 columns, `gap: 1px` on a `#e0e0e0` background so hairlines show; each cell padding `0.75rem 1rem`, background `#f4f4f4`; `dt` `0.75rem` `#6f6f6f`, `dd` `1rem`. Include bounded rows (`250 shown · total unknown` when truncated without an exact total), columns, exact `Query vN`, source, typed parameters, and truncation state.
-3. Always-visible `Query vN evidence` block with the exact-digest validation
-   findings, database diagnostic (including an explicit `None` after a
-   successful run), and profile/model/trace/catalog provenance. Required
-   evidence must not be discoverable only by opening an accordion.
+3. Always-visible plain-language warnings, limits, and database diagnostic,
+   including an explicit `None` after a successful run. A named **Technical
+   details** disclosure contains exact-digest findings and profile/model/trace/
+   catalog provenance. Advanced mode opens it by default; simple mode keeps it
+   directly reachable. Required failures and limits remain visible outside it.
 4. Full bounded typed-result table, `0.75rem`, `1px solid #e0e0e0`, with the
    same header/zebra treatment as the libraries. Show each column's declared
    type, `showing X–Y of N` for the bounded payload, paging controls,
@@ -371,7 +404,7 @@ One panel component, two modes. Opened by any draft tile or library row; this is
    returned, use `N shown; more available; total unknown`; never infer a total
    from the query or preview. This panel is the only row-table rendering for the
    active result; it is not a three-row teaser.
-5. Collapsed accordion `Query vN SQL snapshot` (Carbon accordion; chevron rotates 90°, `transition: transform 110ms`). Expanded: `<pre>` IBM Plex Mono `0.75rem`/1.6 on `#f4f4f4`, padding `1rem`. The always-visible evidence block above remains authoritative for findings, diagnostics, and provenance.
+5. Collapsed accordion `Query vN SQL snapshot` (Carbon accordion; chevron rotates 90°, `transition: transform 110ms`). Expanded: `<pre>` IBM Plex Mono `0.75rem`/1.6 on `#f4f4f4`, padding `1rem`. The visible warnings and named Technical details disclosure above remain authoritative for limitations and provenance.
    - **Governance decision:** this is a read-only snapshot of the exact executed
      Query vN and provenance. Editing remains in the latest turn's single
      canonical SQL editor. Saving the Dataset is explicit; later query changes
@@ -405,7 +438,10 @@ Use Carbon `ToastNotification` if it can be positioned this way; otherwise match
 ## Interactions & Behavior
 
 **Navigation**
-- Nav item click sets the active screen and closes any open panel. Collapse toggle animates nav `width`, and content `margin-left`, composer `left`, and scrim `left` all track it (140ms).
+- Explore or Saved work selection changes the visible destination and closes any
+  open panel. Saved work retains the current library subdestination.
+- View options changes Appearance or the workspace-wide Advanced presentation
+  without changing the active destination or any draft/query/result state.
 - "New from question" (Datasets) → Workbench. The single page-header "New session"
   action clears the active thread and composer after the existing confirmation
   semantics. Neither the banner, workbench, nor composer provides another New
@@ -435,9 +471,14 @@ Use Carbon `ToastNotification` if it can be positioned this way; otherwise match
   dashboard row reports `Bundle ready`; the authoritative preview is available
   only after a successful import receipt.
 
-**Responsive** — desktop-first (the working surface is a laptop or larger). Below roughly 1024px, force the nav collapsed and let the panel take `calc(100vw - 4rem)`. Below 672px (Carbon's `md`), the panel goes full-screen. Tiles and cards already wrap.
+**Responsive** — the working surface supports desktop and narrow layouts. Below
+672px (Carbon's `md`), review and Available data companions become full-height
+sheets. Tiles, cards, the header, composer, results, and controls wrap without
+hiding actions at 640, 390, and 320 CSS pixels.
 
-**Motion** — nav width and content offset 140ms; chevrons 140ms (nav) / 110ms (accordion); page blur 120ms. Panel entry should be a 240ms ease-out slide from the right in production. Respect `prefers-reduced-motion` by dropping the blur and the slide.
+**Motion** — disclosure chevrons use 110ms; page blur uses 120ms. Panel entry is
+a 240ms ease-out slide from the right. Respect `prefers-reduced-motion` by
+dropping the blur and slide.
 
 ## State Management
 
@@ -445,19 +486,20 @@ Session-scoped state (prototype names in parentheses):
 
 | State | Type | Purpose / transitions |
 | --- | --- | --- |
-| `screen` | "Workbench" \| "Datasets" \| "Widgets" \| "Dashboards" | user-facing nav selection; the internal route key may remain `ask`; selection also closes the panel |
-| `navExpanded` | boolean | nav rail collapsed/expanded |
+| `screen` | "Workbench" \| "Datasets" \| "Widgets" \| "Dashboards" | domain route behind Explore and Saved work; selection also closes the panel |
+| `savedWorkView` | "Datasets" \| "Widgets" \| "Dashboards" | retained Saved work subdestination |
+| `advancedMode` | boolean | visit-scoped presentation preference; changes disclosure defaults only |
 | `thread` | boolean (prototype) / message array (production) | empty vs. populated Ask screen |
 | `currentVersion` + `editorSnapshot` | immutable version reference + exact mutable SQL/typed-parameter buffer | drives the latest turn's single active workbench card; dirty/unresolved state is never duplicated in a Dataset draft |
 | `validation` + `execution` | exact-digest findings and latest execution summary/typed result reference | drives advisory state, explicit Run, result staleness, and eligibility for a Dataset tile |
-| `catalogOpen` + runtime catalog projection | boolean + server response | compact Available data disclosure backed by the same runtime relations/columns, filters, paging, and status as the full source browser |
+| `catalogOpen` + runtime catalog projection | boolean + server response | nonmodal Available data companion backed by the complete runtime relations/columns, filters, paging, and status; never fetches rows |
 | `evidenceOpen` | boolean | exposes raw candidate/failure evidence, findings, and database diagnostics without creating a second editor |
 | `panel` | null \| "dataset" \| "widget" | which slide-over mode is open |
 | `sqlOpen` | boolean | SQL/provenance accordion |
 | `dsSaved`, `wSaved` | boolean (prototype) / immutable Catalyst version ids (implementation) | Draft vs. Saved for the current drafts |
 | `dsName`, `wName` | string | editable names, deterministically prefilled from question/result metadata |
 | `dashboard` | "lab" \| "hiv" \| "none" | placement choice |
-| `prompt` | string | composer value |
+| `prompt` + `composerHeight` | string + number | composer value and visit-retained user-selected size |
 | `toast` | null \| string | transient confirmation, 6s timer |
 | `labPending` | boolean | per-dashboard bundle-ready flag |
 
@@ -476,7 +518,13 @@ In implementation, replace the booleans with server-owned entities: a session/th
 
 ## Design Tokens
 
-Carbon Gray 10 theme. Everything below is already a Carbon token — use the token, not the hex.
+Use Carbon semantic tokens for neutral light and charcoal dark appearances.
+Violet is reserved for primary actions, focus, and the small OpenClinAI mark;
+body, navigation, disclosure, and link text stays neutral or off-white. The hex
+values below document reference roles for visual comparison and must be mapped
+to the existing theme system instead of copied into components.
+Earlier blue literals in component geometry mean the current semantic action or
+focus role; they do not override this palette.
 
 **Color**
 | Value | Carbon token | Used for |
@@ -492,13 +540,14 @@ Carbon Gray 10 theme. Everything below is already a Carbon token — use the tok
 | `#e8e8e8` | gray-20 / `$layer-hover` | table headers, hover, active nav |
 | `#f4f4f4` | gray-10 / `$layer` | app background, fields, zebra |
 | `#ffffff` | white / `$layer-01` | surfaces |
-| `#0f62fe` | blue-60 / `$interactive` | primary action, links, accents, series 1 |
-| `#0050e6` | — | primary hover |
-| `#0043ce` | blue-70 | link hover |
+| `#7540d0` / `#8b4cf0` | violet action roles | primary action in light / dark, white label |
+| `#6d35c3` / `#eeeef0` | link/disclosure roles | links in light / dark |
+| `#252329` / `#eeeef0` | text roles | primary text in light / dark |
+| `#fafafa` / `#19191c` | background roles | page in light / dark |
+| `#ffffff` / `#222225` | surface roles | cards and panels in light / dark |
+| `#bb99ff` | focus role | dark appearance focus |
 | `#78a9ff` | blue-40 | proportion segment 2 |
-| `#8a3ffc` | purple-60 | AI/suggestion accent, series 2 |
-| `#a56eff` | purple-50 | sparkline series 2 |
-| `#e8daff` / `#6929c4` | purple-20 / purple-70 | source tag on the query screen |
+| `#4b2e83` / `#f2c75c` | brand detail roles | small OpenClinAI mark / tiny gold detail |
 | `#24a148` / `#defbe6` / `#0e6027` | green-50 / green-10 / green-70 | saved state, success |
 | `#f1c21b` / `#fcf4d6` / `#684e00` | yellow-30 / yellow-10 / yellow-70 | draft state, pending accent |
 | `#8e6a00` | — | inline warning text |
@@ -521,9 +570,11 @@ Carbon Gray 10 theme. Everything below is already a Carbon token — use the tok
 
 **Shadow** — surfaces `0 0.125rem 0.5rem rgb(0 0 0 / 8%)`; composer `0 -0.25rem 1rem rgb(0 0 0 / 18%)`; panel `-0.25rem 0 1rem rgb(0 0 0 / 18%)`; toast `0 0.125rem 0.5rem rgb(0 0 0 / 20%)`.
 
-**Borders** — hairlines `1px solid #e0e0e0`; interactive edges `1px solid #c6c6c6` (hover `#0f62fe`); field underline `1px solid #8d8d8d`; state accents `3px` left; composer top `4px solid #0f62fe`.
+**Borders** — use semantic hairline, interactive, field, and state roles. The
+composer is a writing surface rather than a branded four-pixel bar. Violet focus
+uses the theme focus role; gold is never a general border or focus color.
 
-**Z-index** — banner 120 · nav 100 · composer 90 · scrim 130 · panel 140 · toast 150.
+**Z-index** — banner 120 · header 100 · composer 90 · scrim 130 · panel 140 · toast 150.
 
 ## Assets
 

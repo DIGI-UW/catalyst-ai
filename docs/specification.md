@@ -1,12 +1,14 @@
 # Catalyst product specification
 
-**Status:** Current product contract. The query notebook and binding Dashboard
-Builder design are accepted; the generic connection, Spark reference deployment,
+**Status:** Current product contract. The query notebook, frozen staff Workbench
+design, and binding Dashboard Builder design are accepted; implementation of
+the staff Workbench, the generic connection, the Spark reference deployment,
 and final Dashboard acceptance remain open.
 
-The [Workbench usability proposal](specs/staff-workbench-ux/spec.md) contains a
-reviewable mock, design deltas, and overlap analysis for the staff-facing UX
-upgrade. It is a proposed supplement, not a replacement for this contract.
+The [frozen staff Workbench design](specs/staff-workbench-ux/spec.md) is dated
+design evidence for this contract. Its accepted application behavior is
+incorporated below; delivery order and progress are owned by the validation
+harness Feature 008 plan and tasks.
 
 ## Purpose
 
@@ -66,6 +68,35 @@ Catalyst does not translate SQL between engines.
 
 ## Query workbench
 
+### Presentation and disclosure
+
+Catalyst is designed first for clinical and program staff who do not know SQL,
+and second for analysts. The initial Workbench leads with “What would you like
+to find out?”, the selected source, a short prepare/review/run explanation, and
+the question field. It does not lead with schema cards, model names, traces, or
+development navigation.
+
+The main navigation is **Explore** and **Saved work**. Saved work contains
+**Saved queries**, **Charts and tables**, and **Dashboards** while retaining the
+Dataset, Widget, and Dashboard domain names in APIs and evidence. Use a centered
+content surface instead of a permanent development-style sidebar.
+
+Complexity is hidden until requested and never discarded. **View options**
+contains Appearance and a visit-scoped, workspace-wide **Advanced mode** that
+defaults off. Switching it preserves the draft, editor selection, SQL,
+parameters, source, query and execution identities, results, selected profile,
+and focus. The same individual capabilities remain reachable through named
+disclosures in the simple view. Query settings exposes profile selection;
+exact model identities and traces remain available in technical details rather
+than as an always-visible badge.
+
+Appearance offers System, Light, and Dark using the existing theme preference.
+Light mode uses neutral surfaces, dark text, and restrained violet actions.
+Dark mode uses charcoal surfaces, off-white text, and violet actions and focus;
+purple is not used for body, navigation, or link text. A small OpenClinAI purple
+mark may use a tiny gold detail. Warning, error, and success colors retain their
+semantic meaning.
+
 ### Session creation
 
 The person selects one available source and one available model profile, asks a
@@ -122,6 +153,26 @@ Success retains typed columns, bounded rows, counts, source, dialect, readable
 schema reference, query identity, and timing. Failure retains the error returned
 by the database. A bad query or database error remains a valid observable result.
 
+### Question composer
+
+The initial question and follow-up forms share one presentation while retaining
+their existing request handlers and state owners. The composer stays at the
+bottom of Workbench and reserves its measured height so it never covers focused
+controls or the latest result. It starts at about three comfortable lines and
+supports native vertical resizing from about 72 pixels up to 40 percent of the
+viewport, capped at 360 pixels on desktop and lower on narrow screens. Expand
+and Restore are explicit keyboard-operable controls. The chosen size, entered
+text, selection, and focus survive preparation, resizing, failure, and retry
+for the active visit.
+
+The visible label is “Your question”, “Ask a follow-up”, or “Your answer” for a
+clarification. Follow-up context identifies the earlier question and selected
+query and states when an edited query is used. **Continue** prepares a candidate
+and never executes SQL; **Get results** is the explicit execution action.
+Command or Control plus Enter performs the same prepare action, while Enter
+inserts a newline. Busy and error states prevent duplicate requests, announce
+progress or failure, retain the draft, and provide Retry.
+
 ### Conversation and state
 
 A follow-up uses the current visible editor state, prior user instructions,
@@ -136,9 +187,15 @@ clears the active thread.
 
 ## Available data
 
-The compact Available data disclosure and full browser show every readable
-relation and column. The full browser remains searchable, filterable, and
-paginated and has clear empty, loading, unavailable, and error states.
+“What data is available?” opens a nonmodal companion that remains usable beside
+the question draft. It shows every readable relation, column, and declared type
+from the active connection. Search matches relation names, optional descriptions,
+column names, and exact identifiers. Browsing schema never retrieves source rows.
+The browser preserves the draft, selection, composer size, search, expanded
+relations, scroll position, and focus return. It is searchable, filterable, and
+paginated and has clear empty, no-match, loading, unavailable, and retry states.
+On narrow screens it becomes a full-height sheet without discarding either the
+draft or browser state.
 
 Refreshing schema discovery reflects current connection access. A changed
 schema is visible and recorded but does not by itself prevent application
@@ -226,27 +283,21 @@ Each included source receives one live end-to-end proof when integrated:
 The manual Spark query is a one-time materialization check. It does not become a
 second harness or per-run comparison path.
 
-## Program acceptance
+## Delivery authority
 
-### Phase 1 regression smoke
-
-The Phase 1 connection checkpoint includes one saved-query-to-Superset path. This
-smoke protects integration but does not complete Dashboard Builder.
-
-### Phase 3 Dashboard Builder
-
-Final acceptance compares the live Workbench, Dataset review/library, Widget
-review/library, Dashboard library/arrangement, and all publish/import states
-side by side with the binding design. It confirms profile selection, generation
-and failure evidence, Clear/Restore, complete Available data browsing, fixed
-composer/thread, one editor, review panels, multiple Widgets, and actionable
-publication states. The owner performs the final browser review.
+Program sequence, reference-environment integration, evidence, and owner gates
+are owned by the validation harness Feature 008 specification, plan, and tasks.
+Those documents apply this product contract without redefining application
+behavior.
 
 ## Accessibility
 
 All interactive controls remain keyboard operable with logical order, visible
 focus, usable announcements, Escape and focus return for overlays, reduced
-motion, and the accepted desktop and narrow-layout behavior.
+motion, and usable desktop, short-viewport, 640-, 390-, and 320-CSS-pixel
+layouts. Overlays contain focus, Escape closes them, and focus returns to their
+invoker or a named replacement. Composer resizing and disclosure changes do not
+obscure focused content.
 
 ## Out of scope
 

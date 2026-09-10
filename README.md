@@ -16,9 +16,9 @@ Optional descriptions may enrich the readable schema but cannot hide relations.
 
 ## Status
 
-The query notebook and binding Dashboard Builder design are accepted. The
-generic connection implementation, Spark reference
-deployment, and final Dashboard Builder acceptance remain open.
+The query notebook, frozen staff Workbench design, and binding Dashboard Builder
+design are accepted. Staff Workbench implementation, the generic connection,
+Spark reference deployment, and final Dashboard Builder acceptance remain open.
 
 The current runtime uses an engine-specific analytics adapter and generated
 schema metadata. It does not yet implement the generic connection or Spark
@@ -93,16 +93,16 @@ execution path.
 ## Documentation
 
 - [Product specification](docs/specification.md)
-- [Product roadmap](docs/roadmap.md)
+- [Historical product roadmap](docs/roadmap.md)
 - [Dashboard Builder design](docs/dashboard-builder-mvp-design.md)
 - [med-agent-hub client contract](docs/med-agent-hub.md)
 - [Development instructions](AGENTS.md)
 
 These files contain the current requirements.
 
-For review: [staff Workbench usability proposal and interactive mock](docs/specs/staff-workbench-ux/spec.md),
-including its overlap with current plans. This proposal has not replaced the
-binding design.
+The [frozen staff Workbench design and interactive mock](docs/specs/staff-workbench-ux/spec.md)
+are dated design evidence. Their accepted behavior is incorporated in the
+product specification and binding design.
 
 ## Repository layout
 
