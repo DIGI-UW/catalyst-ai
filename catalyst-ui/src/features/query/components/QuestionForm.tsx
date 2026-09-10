@@ -5,6 +5,7 @@ import type { QueryProfile } from "../types";
 import { QuestionComposerInput } from "./QuestionComposerInput";
 
 interface QuestionFormProps {
+  advancedMode?: boolean;
   question: string;
   busy: boolean;
   retry?: boolean;
@@ -29,6 +30,7 @@ const profileModelAliases = (profile: QueryProfile) =>
   );
 
 export const QuestionForm = ({
+  advancedMode = false,
   question,
   busy,
   retry = false,
@@ -41,9 +43,6 @@ export const QuestionForm = ({
 }: QuestionFormProps) => {
   const normalizedQuestion = question.trim();
   const availableProfiles = profiles.filter((profile) => profile.available);
-  // Which concrete models the selected profile actually runs. The recordings
-  // and the published cuts lean on this being on screen, so it stays visible
-  // even though it no longer crowds the option text.
   const selectedAliases = profileModelAliases(
     availableProfiles.find((profile) => profile.id === selectedProfileId) ??
       availableProfiles[0] ?? { roleModels: {} } as QueryProfile,
@@ -62,14 +61,6 @@ export const QuestionForm = ({
       aria-label="Query composer"
       data-query-composer-dock
     >
-      {/*
-        No heading. This used to read "Ask OpenELIS" whatever catalog the
-        session was grounded in -- wrong product on an OpenMRS session, and the
-        wrong relationship in any case: you ask questions about data that came
-        from a source, not the source itself. The surrounding empty state
-        already names the active source ("Ask a question about ..."), so the
-        honest fix is one label, not two.
-      */}
       <Form className="query-composer-form" onSubmit={handleSubmit}>
         <div className="query-composer">
           <QuestionComposerInput
@@ -85,12 +76,8 @@ export const QuestionForm = ({
           />
           <div className="query-composer__toolbar">
             {availableProfiles.length > 0 && (
-              /*
-               * Carbon's Select, not a bare <select> wearing a bottom border:
-               * the hand-rolled one missed the chevron, the layer background,
-               * the focus ring, and the disabled treatment that every other
-               * control on the page gets for free.
-               */
+              <details className="query-settings" open={advancedMode}>
+                <summary>Query settings</summary>
               <Select
                 id="catalyst-profile"
                 className="query-composer__profile"
@@ -119,6 +106,7 @@ export const QuestionForm = ({
                   />
                 ))}
               </Select>
+              </details>
             )}
             {profiles.length > 0 && availableProfiles.length === 0 && (
               <p className="query-composer__availability" role="status">

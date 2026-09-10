@@ -279,7 +279,7 @@ describe("Dashboard Builder supervised promotion", () => {
       />,
     );
 
-    await screen.findByRole("heading", { name: "Datasets" });
+    await screen.findByRole("heading", { name: "Saved queries" });
     await user.click(screen.getByRole("button", { name: "Review Count result" }));
     expect(screen.getByRole("heading", { name: "Review saved Dataset" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Results from Query v1" })).toBeVisible();
@@ -485,7 +485,7 @@ describe("Dashboard Builder supervised promotion", () => {
       />,
     );
 
-    await screen.findByRole("heading", { name: "Widgets" });
+    await screen.findByRole("heading", { name: "Charts and tables" });
     await user.click(screen.getByRole("button", { name: "New Widget" }));
     const dialog = screen.getByRole("dialog", { name: "Review panel" });
     expect(within(dialog).getByText("Suggested: Big number")).toBeVisible();
@@ -572,7 +572,7 @@ describe("Dashboard Builder supervised promotion", () => {
       />,
     );
 
-    await screen.findByRole("heading", { name: "Widgets" });
+    await screen.findByRole("heading", { name: "Charts and tables" });
     await user.click(screen.getByRole("button", { name: "Add Older table to dashboard" }));
     expect(screen.getByRole("checkbox", { name: "Older table" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "Count KPI" })).not.toBeChecked();

@@ -302,11 +302,11 @@ describe("TurnNotebook", () => {
     );
   });
 
-  it("centers the follow-up composer on the exact base and names its author and models", () => {
-    render(<TurnNotebook {...defaultProps} />);
+  it("keeps exact authorship and model choices available in Advanced mode", () => {
+    render(<TurnNotebook {...defaultProps} advancedMode />);
 
     expect(
-      screen.getByRole("heading", { name: "Refine [2]" }),
+      screen.getByRole("heading", { name: "Ask a follow-up" }),
     ).toBeVisible();
     expect(screen.getAllByText(/reviewer correction/i)[0]).toBeVisible();
     // "reviewer correction" now also labels the SQL block of the cell that
@@ -328,11 +328,12 @@ describe("TurnNotebook", () => {
         {...defaultProps}
         baseVersion={null}
         editorState="unresolved"
+        advancedMode
       />,
     );
 
     expect(
-      screen.getByRole("heading", { name: "Refine unresolved editor" }),
+      screen.getByRole("heading", { name: "Ask a follow-up" }),
     ).toBeVisible();
     expect(screen.getByText("Based on unresolved editor input")).toBeVisible();
     expect(screen.queryByText(/Query v0/i)).not.toBeInTheDocument();
@@ -1025,7 +1026,8 @@ describe("TurnNotebook", () => {
     expect(onGenerate).toHaveBeenCalledOnce();
   });
 
-  it("keeps one reachable composer and all actions grouped at narrow width and 200% text", () => {
+  it("keeps composer and query settings reachable in a narrow layout", async () => {
+    const user = userEvent.setup();
     Object.defineProperty(window, "innerWidth", {
       configurable: true,
       value: 320,
@@ -1034,11 +1036,12 @@ describe("TurnNotebook", () => {
 
     render(<TurnNotebook {...defaultProps} />);
 
-    const composer = screen.getByRole("region", { name: "Refine [2]" });
+    const composer = screen.getByRole("region", { name: "Ask a follow-up" });
     expect(composer).toBeVisible();
     expect(within(composer).getByRole("textbox", {
       name: "Ask a follow-up",
     })).toBeVisible();
+    await user.click(within(composer).getByText("Query settings"));
     expect(within(composer).getByRole("combobox", {
       name: "Model profile",
     })).toBeVisible();

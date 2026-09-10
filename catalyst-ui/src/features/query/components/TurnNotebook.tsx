@@ -1,5 +1,5 @@
 import { DataBase, WarningAltFilled } from "@carbon/icons-react";
-import { Button, Tag } from "@carbon/react";
+import { Button, Select, SelectItem, Tag } from "@carbon/react";
 import {
   useMemo,
   useState,
@@ -80,6 +80,7 @@ export interface NotebookGrounding {
 }
 
 interface TurnNotebookProps {
+  advancedMode?: boolean;
   turns: NotebookTurn[];
   session: WorkbenchSession;
   baseVersion: NotebookVersion | null;
@@ -250,6 +251,7 @@ const validationWord = (status: NotebookTurn["validationStatus"]) => {
 };
 
 export const TurnNotebook = ({
+  advancedMode = false,
   turns,
   session,
   baseVersion,
@@ -288,12 +290,7 @@ export const TurnNotebook = ({
     [profiles],
   );
   const noRevisionProfiles = revisionProfiles.length === 0;
-  const latestOrdinal = turns.at(-1)?.ordinal;
-  const composerTitle = lastRunFailed
-    ? "Last run failed"
-    : baseVersion
-      ? `Refine ${latestOrdinal ? `[${latestOrdinal}]` : "the current query"}`
-      : "Refine unresolved editor";
+  const composerTitle = lastRunFailed ? "Try again" : revisesNothing ? "Your answer" : "Ask a follow-up";
   const latestTurnId = turns.at(-1)?.turnId ?? null;
 
   const toggleTurn = (turnId: string, expanded: boolean) => {
@@ -694,15 +691,16 @@ export const TurnNotebook = ({
       >
         <div className="turn-composer__heading">
           <div className="turn-composer__title">
-            <h2 id="refine-query-title">{composerTitle}</h2>
-            {baseVersion ? (
+            <h2 id="refine-query-title" className="visually-hidden">{composerTitle}</h2>
+            <p>{draftDivergent ? "Using your edited query" : `Refining “${turns.at(-1)?.instruction ?? session.question}”`}</p>
+            {advancedMode && (baseVersion ? (
               <p>
                 {versionAuthor(baseVersion)}
                 {versionModel(baseVersion) ? ` — ${versionModel(baseVersion)}` : ""}
               </p>
             ) : (
               <p>Based on unresolved editor input</p>
-            )}
+            ))}
           </div>
           {editorState === "unresolved" && (
             <Tag type="warm-gray">Unresolved editor input</Tag>
@@ -733,29 +731,22 @@ export const TurnNotebook = ({
             onSubmit={onGenerate}
           />
           <div className="turn-composer__toolbar">
-            <label htmlFor="catalyst-followup-profile">
-              <span>Model profile</span>
-              <select
+            <details className="query-settings" open={advancedMode}>
+              <summary>Query settings</summary>
+              <Select
                 id="catalyst-followup-profile"
+                labelText="Model profile"
+                size="sm"
                 value={noRevisionProfiles ? "" : selectedProfileId}
                 disabled={busy || noRevisionProfiles}
                 onChange={(event) => onProfileChange(event.currentTarget.value)}
               >
-                {noRevisionProfiles && (
-                  <option value="">No revision-capable profile available</option>
-                )}
+                {noRevisionProfiles && <SelectItem value="" text="No revision-capable profile available" />}
                 {revisionProfiles.map((profile) => (
-                  <option
-                    key={profile.id}
-                    value={profile.id}
-                    label={profileOptionLabel(profile)}
-                    aria-label={profileOptionLabel(profile)}
-                  >
-                    {profile.label}
-                  </option>
+                  <SelectItem key={profile.id} value={profile.id} text={profileOptionLabel(profile)} />
                 ))}
-              </select>
-            </label>
+              </Select>
+            </details>
             {error && (
               <p className="turn-composer__error" role="alert">
                 {error}

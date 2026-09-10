@@ -805,7 +805,7 @@ const installDeterministicApi = async (
       return;
     }
 
-    // The rail names the session's source and lists recent sessions. Both
+    // The header names the session's source and lists recent sessions. Both
     // arrived with the v2 shell and had no mock, so every load 500'd twice.
     if (method === "GET" && path === "/v1/catalyst/data-sources") {
       await route.fulfill({
@@ -909,10 +909,6 @@ const tabTo = async (
   throw new Error(`${label} was not reachable within ${maxTabs} Tab presses`);
 };
 
-test.setTimeout(480_000);
-
-/**
- */
 const openComposer = async (page: Page): Promise<void> => {
   const instruction = page.getByRole("textbox", {
     name: "Ask a follow-up",
@@ -923,54 +919,57 @@ const openComposer = async (page: Page): Promise<void> => {
 test("question to iterative notebook to imported dashboard", async ({
   page,
 }, testInfo) => {
+  test.setTimeout(testInfo.project.name === "deterministic" ? 45_000 : 480_000);
   const useMockApi =
     testInfo.project.name === "deterministic" ||
     process.env.PLAYWRIGHT_USE_MOCK_API !== "false";
   const calls = useMockApi ? await installDeterministicApi(page) : null;
 
-  // Desktop for the flow; the responsive pass at the end drives it narrow.
-  // Below 672px the rail stops being a column, which is its own set of
-  // selectors and is checked there rather than woven through everything.
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/");
 
-  // ---------------------------------------------------------------- shell
-  // The top strip carries no label of its own now -- the demo banner it used
-  // to hold is gone -- so the rail is what proves the shell rendered.
-  const rail = page.getByRole("complementary", { name: "Catalyst" });
-  await expect(rail).toBeVisible();
-  const sections = rail.getByRole("navigation", { name: "Sections" });
-  for (const destination of ["Workbench", "Datasets", "Widgets", "Dashboards"]) {
-    await expect(sections.getByRole("button", { name: destination })).toBeVisible();
-  }
+  const header = page.getByRole("banner", { name: "Workspace navigation" });
+  await expect(header).toBeVisible();
+  const primary = header.getByRole("navigation", { name: "Primary" });
+  const sections = header.getByRole("navigation", { name: "Saved work" });
+  const navigate = async (destination: string) => {
+    if (destination === "Explore") {
+      await primary.getByRole("button", { name: "Explore" }).click();
+    } else {
+      await primary.getByRole("button", { name: "Saved work", exact: true }).click();
+      await sections.getByRole("button", { name: destination, exact: true }).click();
+    }
+  };
 
   if (useMockApi) {
-    await sections.getByRole("button", { name: "Datasets" }).click();
+    await navigate("Saved queries");
     await expect(page.getByText("No Datasets saved yet.", { exact: true })).toBeVisible();
-    await sections.getByRole("button", { name: "Widgets" }).click();
+    await navigate("Charts and tables");
     await expect(page.getByText("No Widgets saved yet.", { exact: true })).toBeVisible();
-    await sections.getByRole("button", { name: "Dashboards" }).click();
+    await navigate("Dashboards");
     await expect(page.getByText("No Dashboards saved yet.", { exact: true })).toBeVisible();
-    await sections.getByRole("button", { name: "Workbench" }).click();
+    await navigate("Explore");
   }
 
-  // ASK-04 — every runtime relation and column is reachable before asking,
-  // from the rail's DATA section rather than a disclosure in the page.
-  const dataSection = rail.getByRole("button", { name: /^DATA/ });
+  const dataSection = header.getByRole("button", { name: "What data is available?" });
   await dataSection.click();
   await expect(dataSection).toHaveAttribute("aria-expanded", "true");
-  await expect(rail.getByLabel("Filter columns")).toBeVisible();
-  await expect(rail.getByRole("cell", { name: "result_unit" })).toBeVisible();
-  // The two rail sections are mutually exclusive, so the thread comes back.
-  await rail.getByRole("button", { name: /^TURNS/ }).click();
+  await expect(header.getByLabel("Filter columns")).toBeVisible();
+  await expect(header.getByRole("cell", { name: "result_unit", exact: true })).toBeVisible();
+  await dataSection.click();
+
+  // This existing analyst regression deliberately exercises the SQL tools.
+  await header.getByText(/View options/).click();
+  await header.getByRole("checkbox", { name: /Advanced mode/ }).check();
+  await header.getByText(/View options/).click();
 
   // ---------------------------------------------------- ask the question
   await expect(page.getByLabel("Model profile")).toBeEnabled();
   await page.getByLabel("Your question").fill(query);
   await page.getByRole("button", { name: "Continue" }).click();
 
-  // The composer names the cell it refines, not a query version.
-  await expect(page.getByRole("heading", { name: /^Refine \[1\]$/ }))
+  // Preparation produces a draft and leaves execution to the user.
+  await expect(page.getByRole("textbox", { name: "Ask a follow-up" }))
     .toBeVisible({ timeout: useMockApi ? 10_000 : 420_000 });
   // ASK-01 — exactly one editable SQL control, and the question box is spent.
   await expect(page.getByRole("textbox", { name: "SQL query" })).toHaveCount(1);
@@ -1037,13 +1036,11 @@ test("question to iterative notebook to imported dashboard", async ({
     ).toBe(sessionId);
   }
 
-  // The run's result is that cell's dataset, in the cell, expanded, and the
-  // editor has stepped aside now that there is a result to read.
+  // The result appears with its originating turn; Advanced mode retains the editor.
   const datasetTile = page.locator(".query-turn__dataset").first();
   await expect(datasetTile).toBeVisible();
   await expect(datasetTile.getByText(/^Dataset from \[\d+\]$/)).toBeVisible();
-  await expect(page.getByRole("textbox", { name: "SQL query" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Edit query" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "SQL query" })).toBeVisible();
 
   if (useMockApi) {
     // The execution summary lives with the results now, not in the composer:
@@ -1084,7 +1081,7 @@ test("question to iterative notebook to imported dashboard", async ({
     );
     await page.getByRole("button", { name: "Continue" }).click();
 
-    await expect(page.getByRole("heading", { name: /^Refine \[\d+\]$/ }))
+    await expect(page.getByRole("textbox", { name: "Ask a follow-up" }))
       .toBeVisible();
     await expect(page.getByRole("textbox", { name: "SQL query" }))
       .toContainText("result_unit");
@@ -1140,14 +1137,14 @@ test("question to iterative notebook to imported dashboard", async ({
     await widgetReview.getByRole("button", { name: "Save Widget" }).click();
     await expect(page.getByText(/Latest viral load results.*saved to Widgets\./)).toBeVisible();
 
-    await sections.getByRole("button", { name: "Widgets" }).click();
-    await expect(page.getByRole("heading", { level: 1, name: "Widgets" }))
+    await navigate("Charts and tables");
+    await expect(page.getByRole("heading", { level: 1, name: "Charts and tables" }))
       .toBeVisible();
     await expect(page.getByRole("heading", { name: "Latest viral load results" }))
       .toBeVisible();
     await expect(page.getByText("Time-series line", { exact: true })).toBeVisible();
 
-    await sections.getByRole("button", { name: "Dashboards" }).click();
+    await navigate("Dashboards");
     await page.getByRole("button", { name: "New Dashboard" }).click();
     const dashboardReview = page.getByRole("dialog", { name: "Review panel" });
     await dashboardReview.getByLabel("Dashboard name").fill("Virology dashboard");
@@ -1165,10 +1162,7 @@ test("question to iterative notebook to imported dashboard", async ({
 
     // Only a receipt for this exact bundle may claim the import happened.
     await page.reload();
-    await page.getByRole("complementary", { name: "Catalyst" })
-      .getByRole("navigation", { name: "Sections" })
-      .getByRole("button", { name: "Dashboards" })
-      .click();
+    await navigate("Dashboards");
     await expect(page.getByRole("heading", { name: "Virology dashboard" }))
       .toBeVisible();
     await expect(page.getByText("Imported", { exact: true })).toBeVisible();
@@ -1180,13 +1174,8 @@ test("question to iterative notebook to imported dashboard", async ({
       .toHaveCount(0);
 
     // ------------------------------------------------- the thread restores
-    const railAfterReload = page.getByRole("complementary", { name: "Catalyst" });
-    await railAfterReload
-      .getByRole("navigation", { name: "Sections" })
-      .getByRole("button", { name: "Workbench" })
-      .click();
-    // The section names itself, above the session it is showing.
-    await expect(page.getByText("Workbench", { exact: true }).first()).toBeVisible();
+    await navigate("Explore");
+    await page.getByText("Query settings", { exact: true }).click();
     await expect(page.getByRole("heading", { level: 1, name: query })).toBeVisible();
     // Every turn is a cell, numbered by position, and the thread carries them
     // all rather than hiding earlier ones behind a summary.
@@ -1216,20 +1205,13 @@ test("question to iterative notebook to imported dashboard", async ({
     await expect(closeButtons.first()).toBeFocused();
     await page.keyboard.press("Escape");
 
-    // Every section is reachable by keyboard alone. The labels are the
-    // buttons' own text now, so tabbing to them and reading the name is the
-    // same check a screen-reader user performs.
-    await page.locator("body").press("Tab");
-    const railSections = page
-      .getByRole("complementary", { name: "Catalyst" })
-      .getByRole("navigation", { name: "Sections" });
-    for (const destination of ["Workbench", "Datasets", "Widgets", "Dashboards"]) {
-      await tabTo(
-        page,
-        railSections.getByRole("button", { name: destination }),
-        `${destination} navigation`,
-      );
+    // Both levels of navigation are keyboard operable.
+    await tabTo(page, primary.getByRole("button", { name: "Saved work", exact: true }), "Saved work navigation");
+    await page.keyboard.press("Enter");
+    for (const destination of ["Saved queries", "Charts and tables", "Dashboards"]) {
+      await tabTo(page, sections.getByRole("button", { name: destination }), `${destination} navigation`);
     }
+    await navigate("Explore");
 
     // ------------------------------------------------------- responsive
     const expectNoHorizontalOverflow = async (label: string) => {
@@ -1244,12 +1226,6 @@ test("question to iterative notebook to imported dashboard", async ({
     for (const width of [320, 390, 640]) {
       await page.setViewportSize({ width, height: 720 });
       await page.evaluate("window.scrollTo(0, window.scrollY)");
-      // Below the breakpoint the rail stacks: it stops reserving a column,
-      // so the shell must not keep padding a gutter that is no longer there.
-      await expect.poll(() => page.locator(".dashboard-builder-shell").evaluate(
-        (element) => element.ownerDocument.defaultView!
-          .getComputedStyle(element).paddingLeft,
-      )).toBe("0px");
       await expectNoHorizontalOverflow(`${width}px Workbench`);
       // The composer and its explicit size control remain directly reachable.
       await expect(page.locator("#refine-openelis")).toBeVisible();
@@ -1261,11 +1237,8 @@ test("question to iterative notebook to imported dashboard", async ({
         }),
       ).toBeVisible();
 
-      const stackedSections = page
-        .getByRole("complementary", { name: "Catalyst" })
-        .getByRole("navigation", { name: "Sections" });
-      await stackedSections.getByRole("button", { name: "Datasets" }).click();
-      await expect(page.getByRole("heading", { level: 1, name: "Datasets" }))
+      await navigate("Saved queries");
+      await expect(page.getByRole("heading", { level: 1, name: "Saved queries" }))
         .toBeVisible();
       await expect(page.getByText("Viral load with units", { exact: true })).toBeVisible();
       await expectNoHorizontalOverflow(`${width}px Dataset library`);
@@ -1278,8 +1251,8 @@ test("question to iterative notebook to imported dashboard", async ({
       await page.keyboard.press("Escape");
       await expect(savedDatasetReview).toBeFocused();
 
-      await stackedSections.getByRole("button", { name: "Widgets" }).click();
-      await expect(page.getByRole("heading", { level: 1, name: "Widgets" }))
+      await navigate("Charts and tables");
+      await expect(page.getByRole("heading", { level: 1, name: "Charts and tables" }))
         .toBeVisible();
       await expectNoHorizontalOverflow(`${width}px Widget library`);
       const responsiveWidgetTrigger = page.getByRole("button", { name: "New Widget" });
@@ -1289,17 +1262,17 @@ test("question to iterative notebook to imported dashboard", async ({
       await page.keyboard.press("Escape");
       await expect(responsiveWidgetTrigger).toBeFocused();
 
-      await stackedSections.getByRole("button", { name: "Dashboards" }).click();
+      await navigate("Dashboards");
       await expect(page.getByRole("heading", { level: 1, name: "Dashboards" }))
         .toBeVisible();
       await expectNoHorizontalOverflow(`${width}px Dashboard library`);
 
-      await stackedSections.getByRole("button", { name: "Workbench" }).click();
+      await navigate("Explore");
     }
   }
 
   // Still the same session at the end of the run as at the start.
   await expect(
-    page.getByRole("complementary", { name: "Catalyst" }),
+    page.getByRole("banner", { name: "Workspace navigation" }),
   ).toBeVisible();
 });

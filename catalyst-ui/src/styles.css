@@ -1,19 +1,4 @@
-/*
- * Project tokens: Carbon palette steps the Gray 10 theme binds to no semantic
- * name.
- *
- * These are literal values and therefore theme-blind, which is a constraint
- * rather than an oversight: every one is either intentionally fixed across
- * themes (the demo banner is dark in both) or applies to a disabled control,
- * where WCAG does not require contrast. Anything that must follow the theme
- * uses a --cds-* token instead. Two earlier entries here -- a purple and a
- * blue tint standing in for AI and selected surfaces -- were exactly that
- * mistake: they stayed light while text went near-white in Gray 100, and the
- * SQL in a model-authored cell became invisible. They are Carbon's
- * theme-aware ai-popover-background and layer-selected-01 now. Authored once here, by their palette names, so `features/query/**`
- * holds no colour literals and every value still traces to a Carbon ramp.
- * See specs/008-catalyst-query-workbench/token-map.md.
- */
+/* Shared palette; component styles consume semantic tokens. */
 :root {
   --catalyst-surface-inverse: #262626; /* gray90 — demo banner, deliberately not themed */
   --catalyst-text-on-inverse: #f4f4f4; /* gray10 */
@@ -28,7 +13,7 @@
 }
 
 :root {
-  --dashboard-nav-width: 15rem;
+  --dashboard-nav-width: 0px;
   font-synthesis: none;
   scroll-padding-block: 4rem 5rem;
   text-rendering: optimizeLegibility;
@@ -65,9 +50,7 @@ body {
 .application {
   min-height: 100vh;
   min-height: 100dvh;
-  background:
-    linear-gradient(135deg, rgb(15 98 254 / 5%) 0, transparent 32rem),
-    var(--cds-background);
+  background: var(--cds-background);
   color: var(--cds-text-primary);
 }
 
@@ -126,35 +109,15 @@ input {
 
 .app-shell {
   width: 100%;
-  padding: 1rem 1.5rem 5rem;
-  margin: 0;
+  max-width: 58.75rem;
+  padding: 2.25rem 2rem 5rem;
+  margin: 0 auto;
 }
 
 .dashboard-builder-shell {
   min-height: 100vh;
   min-height: 100dvh;
-  padding-left: var(--dashboard-nav-width);
-}
 
-/*
- * Below 672px the rail stops being a column: it becomes a full-width block
- * above the notebook, and the notebook and composer run edge to edge.
- */
-.dashboard-builder-shell--stacked {
-  /*
-   * Zeroing the width both removes the rail's gutter and pulls the fixed
-   * composer, which tracks the same variable, back to the left edge. The demo
-   * banner is sticky, so it already occupies its own space here.
-   */
-  --dashboard-nav-width: 0px;
-
-  display: flex;
-  flex-direction: column;
-  padding-left: 0;
-}
-
-.dashboard-builder-shell--stacked .app-shell {
-  padding: 1rem 0 5rem;
 }
 
 .app-shell--with-query-dock {
@@ -278,13 +241,7 @@ input {
   line-height: 1.5;
 }
 
-/*
- * Wraps rather than relying on a viewport breakpoint. The composer starts at
- * the rail's edge, so how much room this toolbar has depends on the rail width
- * as much as the window: at 700px the content column is ~412px and a row
- * layout squeezed the profile name down to "Catalyst ...". Wrapping is driven
- * by the space actually available.
- */
+/* Wrap controls to the space available in the composer. */
 .query-composer__toolbar {
   display: flex;
   align-items: end;
@@ -1022,120 +979,84 @@ input {
   max-width: 42rem;
 }
 
-/*
- * What can be asked about, at full width. This screen used to carry a
- * 34rem summary card naming a single relation and a count; on a wide display
- * that left most of the page empty while the thing the screen exists to
- * answer -- what is in here? -- stayed behind a rail section.
- */
-.workbench-catalog {
-  margin-top: 2rem;
+/* Approved staff Workbench palette applied to existing Carbon components. */
+.application {
+  --catalyst-brand: #4b2e83;
+  --catalyst-shadow: #24133f0c;
+  --cds-background: #fafafa;
+  --cds-layer-01: #ffffff;
+  --cds-field-01: #f6f5f7;
+  --cds-text-primary: #252329;
+  --cds-text-secondary: #625e68;
+  --cds-text-helper: #625e68;
+  --cds-border-subtle-01: #e1dfe4;
+  --cds-border-subtle-02: #e1dfe4;
+  --cds-border-strong-01: #867b91;
+  --cds-button-primary: #7540d0;
+  --cds-button-primary-hover: #6330b7;
+  --cds-button-primary-active: #5923ac;
+  --cds-button-tertiary: #6d35c3;
+  --cds-link-primary: #6d35c3;
+  --cds-link-primary-hover: #5923ac;
+  --cds-border-interactive: #7540d0;
+  --cds-focus: #7540d0;
+  --cds-layer-hover-01: #f1f0f3;
+  --cds-layer-selected-01: #f1f0f3;
 }
-
-.workbench-catalog__heading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--cds-border-subtle-01);
-  margin-bottom: 1rem;
-  gap: 1rem;
-  flex-wrap: wrap;
+.application[data-theme="g100"] {
+  --catalyst-shadow: #00000033;
+  --cds-background: #19191c;
+  --cds-layer-01: #222225;
+  --cds-field-01: #29282d;
+  --cds-text-primary: #eeeef0;
+  --cds-text-secondary: #b8b5bf;
+  --cds-text-helper: #b8b5bf;
+  --cds-border-subtle-01: #414047;
+  --cds-border-subtle-02: #414047;
+  --cds-border-strong-01: #85818e;
+  --cds-button-primary: #8b4cf0;
+  --cds-button-primary-hover: #8040e1;
+  --cds-button-primary-active: #7540d0;
+  --cds-button-tertiary: #eeeef0;
+  --cds-link-primary: #eeeef0;
+  --cds-link-primary-hover: #ffffff;
+  --cds-border-interactive: #bb99ff;
+  --cds-focus: #bb99ff;
+  --cds-layer-hover-01: #303035;
+  --cds-layer-selected-01: #303035;
 }
-
-.workbench-catalog__heading h2 {
-  margin: 0;
-  color: var(--cds-text-primary);
-  font-size: var(--cds-heading-compact-02-font-size, 1rem);
-  font-weight: var(--cds-heading-compact-02-font-weight, 600);
+.application .cds--btn { border-radius: 0.4375rem; }
+.dashboard-builder-shell .query-card { border: 1px solid var(--cds-border-subtle-01); border-radius: 0.875rem; box-shadow: none; }
+.dashboard-builder-shell :is(.query-card--question, .turn-composer) {
+  left: 50%; right: auto; bottom: 1.25rem; width: calc(100% - 3rem); max-width: 54.75rem;
+  max-height: min(65dvh, 34rem); padding: 1rem 1.375rem; transform: translateX(-50%);
+  border: 1px solid var(--cds-border-strong-01); border-radius: 1rem;
+  box-shadow: 0 0.375rem 1.5rem var(--catalyst-shadow);
 }
-
-.workbench-catalog__all {
-  border: 0;
-  background: none;
-  color: var(--cds-link-primary);
-  font-family: inherit;
-  font-size: var(--cds-body-compact-01-font-size, 0.875rem);
-  cursor: pointer;
+.dashboard-builder-shell .query-composer { border: 0; background: transparent; }
+.dashboard-builder-shell .query-composer__toolbar { padding-inline: 0; border: 0; }
+.dashboard-builder-shell .question-composer-input__heading { padding-inline: 0; }
+.dashboard-builder-shell .question-composer-input__heading label { font-size: 1.0625rem; font-weight: 500; }
+.dashboard-builder-shell .question-composer-input > textarea { padding-inline: 0; }
+.workbench-header--welcome { text-align: center; padding-block: 1rem; }
+.workbench-header--welcome h1 { max-width: 38rem; margin-inline: auto; font-size: 2.5rem; }
+.workbench-header--welcome > p { margin-block: 0.75rem; }
+.workbench-header--welcome .workbench-empty__note { max-width: 34rem; margin: 0.75rem auto; font-size: 1rem; }
+.query-settings { min-width: 0; max-width: 100%; }
+.query-settings summary,
+.workbench-sql-disclosure > summary { min-height: 2.75rem; padding: 0.75rem 0; cursor: pointer; color: var(--cds-link-primary); font-size: 0.875rem; }
+.query-settings summary:focus-visible,
+.workbench-sql-disclosure > summary:focus-visible { outline: 2px solid var(--cds-focus); outline-offset: 2px; }
+.query-settings[open] { flex: 1 1 24rem; }
+.query-settings .cds--select-input { width: 100%; max-width: 100%; }
+.workbench-run { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-top: 1rem; }
+.workbench-run p { flex: 1 1 16rem; color: var(--cds-text-secondary); font-size: 0.8125rem; }
+.dashboard-builder-shell .turn-composer__title { flex-wrap: wrap; gap: 0.25rem 1rem; }
+@media (max-width: 42rem) {
+  .app-shell { padding: 1.5rem 0.75rem 5rem; }
+  .workbench-header--welcome h1 { font-size: 2rem; }
+  .dashboard-builder-shell :is(.query-card--question, .turn-composer) { width: calc(100% - 1.5rem); bottom: 0.5rem; padding: 0.75rem; }
 }
-
-.workbench-catalog__all:focus-visible {
-  outline: 2px solid var(--cds-focus);
-  outline-offset: 2px;
-}
-
-.workbench-catalog__grid {
-  display: grid;
-  padding: 0;
-  margin: 0;
-  gap: 1rem;
-  grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
-  list-style: none;
-}
-
-.workbench-catalog__relation {
-  display: flex;
-  width: 100%;
-  height: 100%;
-  flex-direction: column;
-  align-items: flex-start;
-  padding: 1rem;
-  border: 1px solid var(--cds-border-subtle-01);
-  border-left: 3px solid var(--cds-border-interactive);
-  background: var(--cds-layer-01);
-  color: inherit;
-  font-family: inherit;
-  gap: 0.5rem;
-  text-align: left;
-  cursor: pointer;
-}
-
-.workbench-catalog__relation:hover {
-  background: var(--cds-layer-hover-01);
-}
-
-.workbench-catalog__relation:focus-visible {
-  outline: 2px solid var(--cds-focus);
-  outline-offset: -2px;
-}
-
-.workbench-catalog__name code {
-  color: var(--cds-text-primary);
-  font-family: "IBM Plex Mono", "Menlo", monospace;
-  font-size: var(--cds-body-compact-01-font-size, 0.875rem);
-  font-weight: 600;
-}
-
-.workbench-catalog__count {
-  color: var(--cds-text-helper);
-  font-size: var(--cds-label-01-font-size, 0.75rem);
-}
-
-.workbench-catalog__grain {
-  color: var(--cds-text-secondary);
-  font-size: var(--cds-label-01-font-size, 0.75rem);
-  line-height: 1.5;
-}
-
-.workbench-catalog__columns {
-  display: flex;
-  flex-wrap: wrap;
-  margin-top: auto;
-  gap: 0.25rem;
-  padding-top: 0.25rem;
-}
-
-.workbench-catalog__columns code {
-  padding: 0.0625rem 0.375rem;
-  border: 1px solid var(--cds-border-subtle-02);
-  background: var(--cds-background);
-  color: var(--cds-text-secondary);
-  font-family: "IBM Plex Mono", "Menlo", monospace;
-  font-size: var(--cds-label-01-font-size, 0.75rem);
-}
-
-.workbench-catalog__columns em {
-  color: var(--cds-text-helper);
-  font-size: var(--cds-label-01-font-size, 0.75rem);
-  font-style: normal;
+@media (max-height: 32rem) {
+  .dashboard-builder-shell :is(.query-card--question, .turn-composer) { position: static; width: 100%; margin: 1rem auto; transform: none; max-height: none; }
 }

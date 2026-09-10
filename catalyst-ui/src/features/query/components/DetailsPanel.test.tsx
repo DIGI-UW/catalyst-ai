@@ -145,9 +145,7 @@ const defaultProps = {
   tab: "validation" as const,
   developerMode: false,
   stacked: false,
-  railWidth: 240,
   onTabChange: vi.fn(),
-  onDeveloperModeChange: vi.fn(),
   onClose: vi.fn(),
 };
 
@@ -181,18 +179,13 @@ describe("DetailsPanel", () => {
     expect(screen.getByText("validator r14 · 61 ms")).toBeVisible();
   });
 
-  it("hides identifiers until developer mode asks for them", async () => {
-    const user = userEvent.setup();
-    const onDeveloperModeChange = vi.fn();
+  it("uses the workspace Advanced mode to reveal identifiers", () => {
     const { rerender } = render(
       <DetailsPanel {...defaultProps} tab="evidence" evidence={evidence} />,
     );
 
     expect(screen.queryByText(/^request /)).not.toBeInTheDocument();
-    await user.click(
-      screen.getByLabelText(/Developer mode/, { exact: false }),
-    );
-    expect(onDeveloperModeChange).not.toHaveBeenCalled();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
 
     rerender(
       <DetailsPanel
@@ -200,7 +193,6 @@ describe("DetailsPanel", () => {
         tab="evidence"
         evidence={evidence}
         developerMode
-        onDeveloperModeChange={onDeveloperModeChange}
       />,
     );
     expect(screen.getByText(/^request aaaa…aaaa$/)).toBeVisible();
