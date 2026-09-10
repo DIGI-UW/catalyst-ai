@@ -3,33 +3,32 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Catalyst · Workbench design</title>
+  <title>Catalyst · Explore your data</title>
   <link rel="stylesheet" href="mock.css">
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
-  <aside class="rail" aria-label="Catalyst navigation">
+  <header class="app-header">
     <a class="brand" href="?state=empty"><span class="brand-mark" aria-hidden="true">C</span> Catalyst</a>
-    <nav aria-label="Sections">
-      <button data-section="workbench" aria-current="page">Workbench</button>
-      <button data-section="datasets">Datasets <span>Saved queries</span></button>
-      <button data-section="widgets">Widgets <span>Charts and tables</span></button>
-      <button data-section="dashboards">Dashboards</button>
+    <nav aria-label="Main navigation">
+      <button class="nav-button" data-section="workbench" aria-current="page">Explore</button>
+      <button class="nav-button" data-section="datasets" id="saved-nav">Saved work</button>
     </nav>
-    <div class="rail-context"><p class="label">CURRENT SOURCE</p><strong id="rail-source">OpenELIS Laboratory</strong><p>One source per session</p><button class="secondary" data-dialog="source">New session</button></div>
-    <div class="rail-footer">Demo data<br><span>Not for clinical decisions</span></div>
-  </aside>
+    <div class="source-context"><span>Using <strong id="rail-source">OpenELIS Laboratory</strong></span><button class="text-button" data-dialog="source">Change data</button></div>
+  </header>
   <main id="main" tabindex="-1">
-    <header class="page-header"><div><p class="eyebrow" id="eyebrow">WORKBENCH</p><h1 id="page-title">Laboratory activity</h1><p id="page-description">Ask, review, and explore your data.</p></div><button class="secondary" data-dialog="data">Browse available data</button></header>
+    <header class="page-header"><div><p class="eyebrow" id="eyebrow">EXPLORE YOUR DATA</p><h1 id="page-title">What would you like to find out?</h1><p id="page-description">Start with a question, in your own words.</p></div><div class="page-tools"><button class="text-button" data-dialog="data">What data is available?</button><button class="text-button" id="advanced-toggle" aria-expanded="false" aria-controls="advanced-tools">Show advanced tools</button></div></header>
+    <section id="advanced-tools" class="advanced-tools" aria-label="Advanced tools" hidden><p>AI profile: <strong id="profile-summary">Gemma + Qwen</strong></p><button class="text-button" data-dialog="ai">Query settings</button><p class="small muted">SQL and technical details stay open while you work. All data remains available through the data browser.</p></section>
+    <nav id="library-nav" class="library-nav" aria-label="Saved work" hidden><button data-section="datasets">Saved queries</button><button data-section="widgets">Charts and tables</button><button data-section="dashboards">Dashboards</button></nav>
     <section id="content" aria-label="Workspace"></section>
   </main>
   <section id="composer" class="composer" aria-label="Question composer">
-    <div class="composer-heading"><label for="question" id="question-label">Ask a follow-up</label><button id="expand" class="text-button" type="button" aria-expanded="false" aria-controls="question">Expand writing area</button></div>
-    <p class="context" id="question-context">Refining “Count completed tests by month” · query 1</p>
+    <div class="composer-heading"><label for="question" id="question-label">Your question</label><button id="expand" class="text-button" type="button" aria-expanded="false" aria-controls="question">Expand writing area</button></div>
+    <p class="context" id="question-context"></p>
     <form id="question-form">
-      <textarea id="question" rows="3" aria-describedby="question-context question-help" placeholder="Describe what you want to find out"></textarea>
-      <div class="composer-actions"><button class="text-button" type="button" data-dialog="ai">AI: Gemma + Qwen</button><button id="prepare" type="submit">Prepare query</button></div>
-      <p id="question-help">Prepares a query for review. Use Run query to retrieve results. Ctrl / ⌘ + Enter to prepare.</p>
+      <textarea id="question" rows="3" aria-describedby="question-context question-help" placeholder="Write your question here…"></textarea>
+      <div class="composer-actions"><button class="text-button" type="button" data-dialog="ai">Query settings</button><button id="prepare" type="submit">Continue <span aria-hidden="true">→</span></button></div>
+      <p id="question-help">Review the request before retrieving data. Ctrl / ⌘ + Enter to continue.</p>
       <p id="composer-error" class="error-text" role="alert" hidden>Enter a question first.</p>
     </form>
   </section>

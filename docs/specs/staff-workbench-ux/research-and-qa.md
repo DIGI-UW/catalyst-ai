@@ -53,36 +53,56 @@ framework or claim that longstanding guidance is newly invented.
 | [W3C: Target size](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html) | Respect the 24 CSS-pixel minimum or applicable spacing exceptions; the mock's action buttons use larger targets. |
 | [W3C: Focus not obscured](https://www.w3.org/WAI/WCAG22/Understanding/focus-not-obscured-minimum.html) | Fixed content must not conceal focused controls. Reserve real layout space for the composer and check focused result actions. |
 
+## Applying the guidance to a simpler default
+
+The default exposes the user's task, with technical and construction tools
+available on demand. This is progressive disclosure, not capability removal.
+The [capability inventory](spec.md#complexity-is-disclosed-not-removed) is the
+implementation safeguard. An optional advanced view keeps tools open across
+steps; it shares the same data and draft state.
+
+| Additional source checked 9 September 2026 | Application |
+| --- | --- |
+| [NHS design principles](https://service-manual.nhs.uk/design-system/design-principles) | Respect people's emotional and technical needs; avoid transferring system complexity to them; test with real people. Use a task-centered screen rather than an inventory of internal objects. |
+| [GOV.UK: Writing for user interfaces](https://www.gov.uk/service-manual/design/writing-for-user-interfaces) | Prefer short, approachable copy and repair interfaces that need lengthy explanation. Move model/version terminology to its relevant controls; use familiar actions and contextual help. |
+| [NN/g: Progressive disclosure](https://www.nngroup.com/articles/progressive-disclosure/) | Keep secondary capabilities clearly discoverable and avoid deep layers. Individual SQL/settings controls remain directly reachable, while advanced view can keep them open. |
+| [NN/g: Empty states in complex applications](https://www.nngroup.com/articles/empty-state-interface-design/?lm=button-states-communicate-interaction&pt=article) | Explain what someone can do and give a direct starting action. The landing screen leads to a question; empty libraries offer the next available step. |
+
+These sources support the hierarchy and disclosure strategy. They do not prove
+that a warm neutral palette, green accent or rounded composer is inherently
+better for Catalyst. Those are design hypotheses for the staff/analyst review.
+Keep errors, source identity and limitations visible; reduce interface chrome
+without manufacturing reassuring explanations of SQL.
+
 ## Mock checks actually performed
 
-Served this directory with Python's standard HTTP server; no build, dependency
-installation, model calls, database access or credentials were needed.
+The final shell was served with Python's standard HTTP server, without builds,
+dependencies, model calls, database access or credentials.
 
 | Check | Observed result |
 | --- | --- |
-| Native vertical resize, direct desktop mock at 1280 × 720 | Eight-line draft resized from 88 to 138 px. Expand reached 288 px; Restore returned to 138 px. All eight lines survived each action. |
-| Expand/Restore in preview frame | Eight-line draft expanded from 88 to 248 px and restored to 88 px at the initially measured 620 px frame height; draft retained. |
-| Actual 320, 390, 640 and 1280 CSS-pixel frame widths | Root width equaled scroll width at every size: no page-level horizontal overflow. After removing the preview border, frame height was 622 px. The narrow navigation scrolls within its own row. |
-| Expanded input at all four widths | Prepare remained within the frame (button bottoms approximately 598, 564, 582 and 582 px respectively). Review results could be opened at every width; main content scrolls independently above the composer. |
-| Panel keyboard handling | Shift+Tab from first control wrapped to last; Tab from last wrapped to first. Escape returned focus to the actual Review results and save trigger. |
-| Explicit preparation | Ctrl+Enter changed the fixture to Query ready for review with a separate Run action. This exercised no AI or SQL. |
-| Source and model choice | Starting an OpenMRS session changed the visible source. Selecting the writer-only fixture profile changed the compact AI label. |
-| Save and reuse fixture | Edited Dataset and Widget names appeared in their libraries; selected Table presentation was retained in the Widget description. Add to dashboard and Publish reached Waiting for import. Nothing was persisted or published outside this page. |
-| Failure and limitation fixtures | Inspected Limited results, Database error, Clarification, Unable to answer, Imported and Import failed. Open dashboard appears in the imported fixture; a failed import does not expose it. |
-| JavaScript syntax | `node --check docs/specs/staff-workbench-ux/mock.js` passed. |
-| Artifact integrity | Local Markdown/HTML references and HTML ID uniqueness checked; `git diff --check` passed. |
+| Resize and prepare shortcut | Native drag visibly increased the eight-line writing area. Expand/Restore worked; Ctrl+Enter prepared a candidate containing all eight lines, with Get results still a separate action. |
+| Advanced view retains work | Edited SQL and a follow-up question remained intact after Hide/Show advanced tools. SQL stayed visible after Get results; exact SQL and technical information were open in result review. |
+| Actual 320, 390, 640 and 1280 CSS-pixel frame widths | Root width equaled scroll width at each size. At 622 px height, expanded input left Continue within the frame (bottom approximately 555, 555, 573 and 588 px). View results remained reachable at every width. |
+| Review keyboard handling | Shift+Tab from first control wrapped to last; Tab from last wrapped to first. Escape returned focus to the actual View results trigger. |
+| Retained capability checks | Single SQL editor, explicit Get results, full-table review, exact diagnostic and unknown AI review status remain reachable in the final layout. |
+| Save-to-dashboard flow retested on final shell | Saved a named query through View results, opened Saved work, created a named Table, and reached Waiting for import through Add to dashboard and Publish. These are mock transitions, not external writes. |
+| Other fixture states, checked before shell revision | Limited/error/clarification/unsupported/imported/failed fixtures were inspected. Their backend behavior is not implemented in this mock. |
+| Earlier source/profile checks, before shell revision | OpenMRS session selection changed the source and explicit model choice changed the selected profile. Final design presents the exact profile in Query settings and advanced view instead of a default badge. |
+| JavaScript syntax and artifact integrity | JavaScript syntax, local links, unique HTML IDs, whitespace and image signatures checked. No production test suite was run. |
 
-QA found two mock defects and they were corrected before this record: the
-enlarged composer covered a result button, and native dialog focus could leave
-the preview iframe. The final mock uses CSS grid to allocate content/composer
-space, caps narrow-screen input growth, and wraps focus at panel boundaries.
-Browser automation also produced intermittent selector timeouts; direct-page
-resize checks and the completed width/focus checks above are the observations
-used here, not an assertion of a clean automation-console log.
+The initial mock had two issues repaired during QA: its growing composer covered
+a result action, and native dialog focus could leave the preview iframe. The
+final layout allocates content/composer space in CSS grid, caps narrow-screen
+input growth, and wraps focus at panel boundaries. Intermittent browser-tool
+selector timeouts occurred; completed interactions and observed DOM states are
+the evidence used here, not a claim of a clean automation console.
 
-![Desktop mock after returning from result review](preview-desktop.jpg)
+![Simple question screen](preview-desktop.jpg)
 
-The screenshot and preview use fictional data. They do not depict an actual
+![Advanced tools kept open](preview-advanced.jpg)
+
+Screenshots and preview use fictional data. They do not depict an actual
 clinical result or a newly deployed application.
 
 ## Remaining implementation verification
