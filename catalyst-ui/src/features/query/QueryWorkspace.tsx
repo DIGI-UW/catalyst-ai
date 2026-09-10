@@ -1619,6 +1619,7 @@ export const QueryWorkspace = ({
         <QuestionForm
           question={question}
           busy={state.kind === "submitting"}
+          retry={state.kind === "error"}
           disabled={questionIsLocked || noAvailableProfiles}
           onQuestionChange={setQuestion}
           onSubmit={submitQuestion}

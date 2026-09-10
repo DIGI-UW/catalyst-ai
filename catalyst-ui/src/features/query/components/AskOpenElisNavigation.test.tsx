@@ -195,7 +195,7 @@ describe("Ask OpenELIS reachability navigation", () => {
       behavior: "auto",
       block: "center",
     });
-    expect(screen.getByLabelText("Question")).toHaveFocus();
+    expect(screen.getByLabelText("Your question")).toHaveFocus();
     expect(document.body.contains(jump)).toBe(true);
   });
 
@@ -205,13 +205,13 @@ describe("Ask OpenELIS reachability navigation", () => {
       <>
         <section id="ask-openelis">
           <h1 id="question-title">Ask OpenELIS</h1>
-          <textarea id="catalyst-question" aria-label="Question" disabled />
+          <textarea id="catalyst-question" aria-label="Your question" disabled />
         </section>
         <section id="refine-openelis">
           <h2 id="refine-query-title">Refine Query v2</h2>
           <textarea
             id="catalyst-followup"
-            aria-label="Follow-up instruction"
+            aria-label="Ask a follow-up"
           />
         </section>
         <AskOpenElisNavigation />
@@ -228,7 +228,7 @@ describe("Ask OpenELIS reachability navigation", () => {
     expect(jump).toHaveAccessibleDescription(/below/i);
     jump.focus();
     await user.keyboard("{Enter}");
-    expect(screen.getByLabelText("Follow-up instruction")).toHaveFocus();
+    expect(screen.getByLabelText("Ask a follow-up")).toHaveFocus();
   });
 
   it("refreshes the sticky label when the mounted follow-up heading changes", async () => {
@@ -238,7 +238,7 @@ describe("Ask OpenELIS reachability navigation", () => {
           <h2 id="refine-query-title">Refine Query v{version}</h2>
           <textarea
             id="catalyst-followup"
-            aria-label="Follow-up instruction"
+            aria-label="Ask a follow-up"
           />
         </section>
         <AskOpenElisNavigation />

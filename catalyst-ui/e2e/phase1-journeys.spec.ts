@@ -23,8 +23,8 @@ async function openHivSession(page: Page) {
 }
 
 async function ask(page: Page, question: string) {
-  await page.getByLabel("Question").fill(question);
-  await page.getByRole("button", { name: "Generate query" }).click();
+  await page.getByLabel("Your question").fill(question);
+  await page.getByRole("button", { name: "Continue" }).click();
 }
 
 test("journey 1: patient names -> ready -> validate -> execute -> table", async ({
@@ -59,11 +59,11 @@ test("journey 2: ambiguous ask -> clarification -> frozen answer -> ready; refre
   ).toBeVisible({ timeout: 300_000 });
 
   await page
-    .getByRole("textbox", { name: "Follow-up instruction" })
+    .getByRole("textbox", { name: "Your answer" })
     .fill(
       "The last 90 days, and only CD4 count, CD4 percentage, and HIV viral load.",
     );
-  await page.getByRole("button", { name: "Generate next query" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByText(/SELECT/i).first()).toBeVisible({
     timeout: 300_000,
   });
@@ -96,9 +96,9 @@ test("journey 3: conversation instructions survive reload; addresses are unsuppo
 
   // The later regroup must honor that earlier instruction without repeating it.
   await page
-    .getByRole("textbox", { name: "Follow-up instruction" })
+    .getByRole("textbox", { name: "Ask a follow-up" })
     .fill("Regroup that by patient gender as well as medication name.");
-  await page.getByRole("button", { name: "Generate next query" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByText(/do_not_perform/i).first()).toBeVisible({
     timeout: 300_000,
   });
@@ -106,9 +106,9 @@ test("journey 3: conversation instructions survive reload; addresses are unsuppo
   // And an unanswerable request declines with no SQL, keeping the previous
   // selected version in place.
   await page
-    .getByRole("textbox", { name: "Follow-up instruction" })
+    .getByRole("textbox", { name: "Ask a follow-up" })
     .fill("Now show each patient's home address.");
-  await page.getByRole("button", { name: "Generate next query" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
   await expect(
     page.getByText(/does not (contain|record)|unsupported|no .*address/i).first(),
   ).toBeVisible({ timeout: 300_000 });

@@ -1,11 +1,13 @@
 import { ArrowRight } from "@carbon/icons-react";
-import { Button, Form, Select, SelectItem, TextArea } from "@carbon/react";
+import { Button, Form, Select, SelectItem } from "@carbon/react";
 import { type FormEvent } from "react";
 import type { QueryProfile } from "../types";
+import { QuestionComposerInput } from "./QuestionComposerInput";
 
 interface QuestionFormProps {
   question: string;
   busy: boolean;
+  retry?: boolean;
   disabled?: boolean;
   onQuestionChange: (question: string) => void;
   onSubmit: (question: string) => void;
@@ -29,6 +31,7 @@ const profileModelAliases = (profile: QueryProfile) =>
 export const QuestionForm = ({
   question,
   busy,
+  retry = false,
   disabled = false,
   onQuestionChange,
   onSubmit,
@@ -57,6 +60,7 @@ export const QuestionForm = ({
       id="ask-openelis"
       className="query-card query-card--question"
       aria-label="Query composer"
+      data-query-composer-dock
     >
       {/*
         No heading. This used to read "Ask OpenELIS" whatever catalog the
@@ -68,26 +72,17 @@ export const QuestionForm = ({
       */}
       <Form className="query-composer-form" onSubmit={handleSubmit}>
         <div className="query-composer">
-          <div className="query-composer__input">
-            {/*
-              The label is carried for assistive tech but not drawn: on a wide
-              composer a lone "Question" sat in the top-left corner of the box
-              with nothing beside it, reading as a stray fragment rather than a
-              field label. The placeholder and the surrounding empty state
-              already say what goes here.
-            */}
-            <TextArea
-              id="catalyst-question"
-              labelText="Question"
-              hideLabel
-              placeholder="Describe the data you want to explore"
-              value={question}
-              rows={2}
-              autoFocus
-              disabled={busy || disabled}
-              onChange={(event) => onQuestionChange(event.currentTarget.value)}
-            />
-          </div>
+          <QuestionComposerInput
+            id="catalyst-question"
+            label="Your question"
+            placeholder="Describe the data you want to explore"
+            value={question}
+            autoFocus
+            disabled={busy || disabled}
+            submitDisabled={!normalizedQuestion || busy || disabled}
+            onChange={onQuestionChange}
+            onSubmit={() => onSubmit(normalizedQuestion)}
+          />
           <div className="query-composer__toolbar">
             {availableProfiles.length > 0 && (
               /*
@@ -135,7 +130,7 @@ export const QuestionForm = ({
               renderIcon={ArrowRight}
               disabled={!normalizedQuestion || busy || disabled}
             >
-              {busy ? "Generating query…" : "Generate query"}
+              {busy ? "Preparing…" : retry ? "Retry" : "Continue"}
             </Button>
           </div>
         </div>

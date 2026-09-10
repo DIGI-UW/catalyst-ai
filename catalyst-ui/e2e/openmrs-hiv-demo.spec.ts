@@ -56,14 +56,14 @@ test("OpenMRS HIV/ART: ask, then add patient demographic detail", async ({
   // opens on a question that was simply always there. Typing it is the beat
   // that establishes this is a plain-language question, not a canned query.
   await page
-    .getByLabel("Question")
+    .getByLabel("Your question")
     .pressSequentially(
       "Show CD4 count results since 2026-01-01 with patient, value, and observed date",
       { delay: 28 },
     );
   timing.mark("question-typed");
   await page.waitForTimeout(1_200);
-  await page.getByRole("button", { name: "Generate query" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
   timing.mark("generate-clicked");
 
   await expect(
@@ -104,13 +104,13 @@ test("OpenMRS HIV/ART: ask, then add patient demographic detail", async ({
   // iterative refinement, not a fresh question.
   await openComposer(page);
   await page
-    .getByRole("textbox", { name: "Follow-up instruction" })
+    .getByRole("textbox", { name: "Ask a follow-up" })
     .pressSequentially("Also include the patient's gender and birth date", {
       delay: 28,
     });
   timing.mark("followup-typed");
   await page.waitForTimeout(1_200);
-  await page.getByRole("button", { name: "Generate next query" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
   timing.mark("generate-clicked-2");
 
   await expect(

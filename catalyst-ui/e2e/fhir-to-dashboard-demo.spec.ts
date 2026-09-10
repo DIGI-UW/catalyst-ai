@@ -289,12 +289,12 @@ test("FHIR endpoint to a published Superset dashboard", async ({
     .getByLabel("Model profile")
     .selectOption("catalyst-query-gemma-4-12b-qwen2.5-14b-checked");
   await type(
-    page.getByLabel("Question"),
+    page.getByLabel("Your question"),
     "How many patients are in this dataset?",
   );
   timing.mark("question-typed");
   await dwell(1_200);
-  await page.getByRole("button", { name: "Generate query" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
   timing.mark("generate-clicked");
 
   await expect(
@@ -356,12 +356,12 @@ test("FHIR endpoint to a published Superset dashboard", async ({
   // ---- Act 3: refine it in conversation -----------------------------------
   await openComposer(page);
   await type(
-    page.getByRole("textbox", { name: "Follow-up instruction" }),
+    page.getByRole("textbox", { name: "Ask a follow-up" }),
     "Now break that count down by gender, highest first",
   );
   timing.mark("followup-typed");
   await dwell(1_200);
-  await page.getByRole("button", { name: "Generate next query" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
   timing.mark("generate-clicked-2");
 
   await expect(

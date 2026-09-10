@@ -1,12 +1,9 @@
 import { DataBase, WarningAltFilled } from "@carbon/icons-react";
 import { Button, Tag } from "@carbon/react";
 import {
-  useEffect,
   useMemo,
-  useRef,
   useState,
   type FormEvent,
-  type KeyboardEvent,
   type ReactNode,
 } from "react";
 import type {
@@ -20,6 +17,7 @@ import { lineDiffSummary } from "../lineDiff";
 import { highlightSql } from "./sqlHighlight";
 import { formatSql } from "./sqlEditorSupport";
 import { ExecutionResult } from "./WorkbenchPanel";
+import { QuestionComposerInput } from "./QuestionComposerInput";
 import "./TurnNotebook.css";
 
 /** The layout both diff sides share; unformattable text stays as written. */
@@ -278,120 +276,11 @@ export const TurnNotebook = ({
   const [turnVisibilityOverrides, setTurnVisibilityOverrides] = useState<
     Record<string, boolean>
   >({});
-  // Borrowed from a browser's URL bar with the direction inverted: the newest
-  // turn is at the bottom, so scrolling up into history hides the composer and
-  // scrolling back down toward now returns it.
-  const [scrollMode, setScrollMode] = useState<"full" | "line" | "tucked">(
-    "full",
-  );
-  const [composerFocused, setComposerFocused] = useState(false);
   // Each executed turn shows its own result. Minimising is per cell, because
   // "I have seen this one" is a judgement about that turn, not the thread.
   const [minimisedResults, setMinimisedResults] = useState<
     Record<string, boolean>
   >({});
-  const composerRef = useRef<HTMLTextAreaElement>(null);
-
-  // An action bar that disappears at the wrong moment costs more than the
-  // space it saves, so these states hold it open regardless of scrolling.
-  const composerPinned =
-    instruction.trim().length > 0 ||
-    composerFocused ||
-    busy ||
-    lastRunFailed;
-
-  useEffect(() => {
-    if (composerPinned) return;
-
-    // Two things caused flicker before: the mode was recomputed from the sign
-    // of every individual scroll event, so any jitter near a threshold flipped
-    // it; and the thresholds were single values, so hovering on one oscillated.
-    // Intent is now accumulated until it is unambiguous, each state has to be
-    // clearly left before it changes, and at most one decision is made per
-    // frame.
-    const INTENT = 24; // px of consistent travel before the mode may change
-    const NEAR_END = 200; // scrolling down within this: full
-    const LEAVE_END = 320; // once full, only leave beyond this
-    const FAR_BACK = 560; // scrolling up beyond this: tucked
-    const LEAVE_FAR = 440; // once tucked, only leave inside this
-
-    let lastY = window.scrollY;
-    let intent = 0;
-    let frame = 0;
-
-    const measure = () => {
-      frame = 0;
-      const y = window.scrollY;
-      const delta = y - lastY;
-      lastY = y;
-      // Reverse of travel abandons the intent that was building.
-      intent = Math.sign(intent) === Math.sign(delta) ? intent + delta : delta;
-      if (Math.abs(intent) < INTENT) return;
-
-      const gap =
-        document.documentElement.scrollHeight - (y + window.innerHeight);
-
-      // Read out of the mutable accumulator before handing React an updater:
-      // the updater runs later, by which time `intent` has been reset.
-      intent = 0;
-
-      setScrollMode((current) => {
-        // Position, not travel direction. catalyst#35 survived an
-        // accumulated-intent gate because a real browser applies momentum: an
-        // 8px wheel tick scrolls far enough to satisfy any travel threshold,
-        // so a wobble at the end read as "up, then down, then up" and the
-        // composer flickered full/line/full. Where you *are* cannot wobble
-        // like that, and it is a measurement the composer's own height cannot
-        // invert. Bands overlap, so leaving a mode needs more than entering
-        // it, and `line` is the middle band rather than a one-pixel edge.
-        if (gap < NEAR_END) return "full";
-        if (gap > FAR_BACK) return "tucked";
-        if (current === "full") return gap < LEAVE_END ? "full" : "line";
-        if (current === "tucked") return gap > LEAVE_FAR ? "tucked" : "line";
-        return "line";
-      });
-    };
-
-    const onScroll = () => {
-      if (frame === 0) frame = window.requestAnimationFrame(measure);
-    };
-
-    // A page that cannot scroll has no history to be scrolled back into, so
-    // "tucked" and "line" describe a position that no longer exists — and no
-    // scroll gesture can clear them, because a page with nothing to scroll
-    // emits no scroll events. Content shrinking below the viewport is the way
-    // in: the editor stepping aside when a run lands does it routinely, and it
-    // became routine once the editor started presenting SQL laid out.
-    const settleWhenUnscrollable = () => {
-      if (document.documentElement.scrollHeight <= window.innerHeight) {
-        lastY = 0;
-        intent = 0;
-        setScrollMode("full");
-      }
-    };
-
-    settleWhenUnscrollable();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", settleWhenUnscrollable);
-    const observer =
-      typeof ResizeObserver === "undefined"
-        ? null
-        : new ResizeObserver(settleWhenUnscrollable);
-    observer?.observe(document.documentElement);
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", settleWhenUnscrollable);
-      observer?.disconnect();
-      if (frame !== 0) window.cancelAnimationFrame(frame);
-    };
-  }, [composerPinned]);
-
-  const composerMode = composerPinned ? "full" : scrollMode;
-
-  const restoreComposer = () => {
-    setScrollMode("full");
-    window.requestAnimationFrame(() => composerRef.current?.focus());
-  };
   const revisionProfiles = useMemo(
     () => profiles.filter(
       (profile) => profile.available && profile.revisionCapable === true,
@@ -415,17 +304,6 @@ export const TurnNotebook = ({
   };
 
   const handleSubmit = (event: FormEvent) => {
-    event.preventDefault();
-    if ((editorEmpty && !revisesNothing) || busy || noRevisionProfiles) return;
-    onGenerate();
-  };
-
-  // The tucked composer has always shown a ⌘↵ hint; this is what makes it true.
-  // Ctrl is accepted alongside Command so the shortcut works on a keyboard that
-  // has no Command key. Enter on its own still starts a new line: an instruction
-  // is prose, and prose sometimes runs to a second line.
-  const handleComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key !== "Enter" || !(event.metaKey || event.ctrlKey)) return;
     event.preventDefault();
     if ((editorEmpty && !revisesNothing) || busy || noRevisionProfiles) return;
     onGenerate();
@@ -807,34 +685,11 @@ export const TurnNotebook = ({
         )}
       </ol>
 
-      {/*
-        A stable slot: rendering the pill as a bare sibling shifted every
-        following child's position, so React remounted the composer each time
-        it appeared or vanished — losing focus and flickering mid-scroll.
-      */}
-      <div className="turn-composer__jump-slot">
-        {composerMode === "tucked" && (
-        <button
-          type="button"
-          className="turn-composer__jump"
-          onClick={() => {
-            setScrollMode("full");
-            window.scrollTo({
-              top: document.documentElement.scrollHeight,
-              behavior: "smooth",
-            });
-          }}
-        >
-          ↓ back to [{turns.length}] · ask
-        </button>
-        )}
-      </div>
-
       <section
         id="refine-openelis"
         className="turn-composer"
         aria-labelledby="refine-query-title"
-        data-mode={composerMode}
+        data-query-composer-dock
         data-failed={lastRunFailed ? "true" : undefined}
       >
         <div className="turn-composer__heading">
@@ -853,38 +708,29 @@ export const TurnNotebook = ({
             <Tag type="warm-gray">Unresolved editor input</Tag>
           )}
         </div>
-        <button
-          type="button"
-          id="refine-openelis-toggle"
-          className="turn-composer__restore"
-          aria-expanded={composerMode === "full"}
-          aria-controls="refine-openelis-body"
-          onClick={restoreComposer}
-        >
-          <span>{composerTitle}</span>
-          <span aria-hidden="true">⌘↵</span>
-          <span aria-hidden="true">▴</span>
-        </button>
         <form
           id="refine-openelis-body"
           className="turn-composer__form"
-          hidden={composerMode !== "full"}
           onSubmit={handleSubmit}
         >
-          <label className="visually-hidden" htmlFor="catalyst-followup">
-            Follow-up instruction
-          </label>
-          <textarea
+          <QuestionComposerInput
             id="catalyst-followup"
-            ref={composerRef}
-            rows={2}
+            label={revisesNothing ? "Your answer" : "Ask a follow-up"}
+            placeholder={
+              revisesNothing
+                ? "Answer the question so Catalyst can prepare the query"
+                : "Ask another question or describe what you want changed"
+            }
             value={instruction}
             disabled={busy}
-            onFocus={() => setComposerFocused(true)}
-            onBlur={() => setComposerFocused(false)}
-            onKeyDown={handleComposerKeyDown}
-            onChange={(event) => onInstructionChange(event.currentTarget.value)}
-            placeholder="Ask a question, or say how you want the current query changed"
+            submitDisabled={
+              !instruction.trim() ||
+              (editorEmpty && !revisesNothing) ||
+              busy ||
+              noRevisionProfiles
+            }
+            onChange={onInstructionChange}
+            onSubmit={onGenerate}
           />
           <div className="turn-composer__toolbar">
             <label htmlFor="catalyst-followup-profile">
@@ -927,14 +773,23 @@ export const TurnNotebook = ({
             )}
             <Button
               type="submit"
-              disabled={(editorEmpty && !revisesNothing) || busy || noRevisionProfiles}
+              disabled={
+                !instruction.trim() ||
+                (editorEmpty && !revisesNothing) ||
+                busy ||
+                noRevisionProfiles
+              }
               aria-describedby={
                 noRevisionProfiles
                   ? "catalyst-followup-profile-unavailable"
                   : undefined
               }
             >
-              {generating ? "Generating next query…" : "Generate next query"}
+              {generating
+                ? "Preparing…"
+                : lastRunFailed || error
+                  ? "Retry"
+                  : "Continue"}
             </Button>
           </div>
           {noRevisionProfiles && (

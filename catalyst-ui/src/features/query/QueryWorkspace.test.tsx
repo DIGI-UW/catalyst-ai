@@ -228,7 +228,7 @@ describe("Dashboard Builder Ask shell", () => {
       expect(within(sections).getByRole("button", { name })).toBeVisible();
     }
     expect(screen.queryByText(/example questions/i)).not.toBeInTheDocument();
-    await waitFor(() => expect(screen.getByLabelText("Question")).toHaveFocus());
+    await waitFor(() => expect(screen.getByLabelText("Your question")).toHaveFocus());
 
     // DATA and TURNS are mutually exclusive: whichever is open owns the
     // rail's free height, so neither can paint over the section nav.
@@ -273,8 +273,8 @@ describe("Dashboard Builder Ask shell", () => {
     const user = userEvent.setup();
     render(<QueryWorkspace api={client} />);
 
-    await user.type(screen.getByLabelText("Question"), session.question);
-    await user.click(screen.getByRole("button", { name: "Generate query" }));
+    await user.type(screen.getByLabelText("Your question"), session.question);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(await screen.findByRole("textbox", { name: "SQL query" })).toBeVisible();
     expect(screen.getAllByRole("textbox", { name: "SQL query" })).toHaveLength(1);
@@ -417,10 +417,10 @@ describe("Dashboard Builder Ask shell", () => {
     );
 
     await user.type(
-      await screen.findByLabelText("Question"),
+      await screen.findByLabelText("Your question"),
       "How many CD4 results?",
     );
-    await user.click(screen.getByRole("button", { name: "Generate query" }));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
 
     // The question seeds that session rather than opening a second one.
     await waitFor(() =>
@@ -780,10 +780,10 @@ describe("Dashboard Builder Ask shell", () => {
     render(<QueryWorkspace api={client} />);
 
     await user.type(
-      await screen.findByRole("textbox", { name: "Follow-up instruction" }),
+      await screen.findByRole("textbox", { name: "Ask a follow-up" }),
       "Split it by test type",
     );
-    await user.click(screen.getByRole("button", { name: "Generate next query" }));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
 
     // A cell appears in the thread, where the answer will be -- not merely a
     // busy label on the button, which may be scrolled out of sight.
@@ -800,7 +800,7 @@ describe("Dashboard Builder Ask shell", () => {
       await screen.findByText(/query review was not valid JSON/),
     ).toBeVisible();
     expect(
-      screen.getByRole("textbox", { name: "Follow-up instruction" }),
+      screen.getByRole("textbox", { name: "Ask a follow-up" }),
     ).toHaveValue("Split it by test type");
   });
 
@@ -847,10 +847,10 @@ describe("Dashboard Builder Ask shell", () => {
 
     await screen.findByText(/Which date window/);
     await user.type(
-      await screen.findByRole("textbox", { name: "Follow-up instruction" }),
+      await screen.findByRole("textbox", { name: "Your answer" }),
       "The last 90 days, and only CD4 count.",
     );
-    await user.click(screen.getByRole("button", { name: "Generate next query" }));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
 
     await waitFor(() => expect(client.createWorkbenchTurn).toHaveBeenCalled());
     const [, request] = (client.createWorkbenchTurn as ReturnType<typeof vi.fn>)

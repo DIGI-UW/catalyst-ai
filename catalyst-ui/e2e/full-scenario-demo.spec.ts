@@ -172,12 +172,12 @@ test("plain-language question to a published Superset dashboard", async ({
     .getByLabel("Model profile")
     .selectOption("catalyst-query-gemma-4-12b-qwen2.5-14b-checked");
   await type(
-    page.getByLabel("Question"),
+    page.getByLabel("Your question"),
     "Show viral load results since 2026-01-01 with patient, value, and observed date",
   );
   timing.mark("question-typed");
   await dwell(1_200);
-  await page.getByRole("button", { name: "Generate query" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
   timing.mark("generate-clicked");
 
   await expect(
@@ -212,32 +212,21 @@ test("plain-language question to a published Superset dashboard", async ({
   await saveDataset(detailDataset);
   timing.mark("dataset-saved-1");
 
-  /** Reach the follow-up composer the way a person does.
-   *
-   * After the dataset-review detour the composer is tucked: its restore
-   * toggle is CSS-hidden and the top-right jump control only scrolls. The
-   * affordance that actually restores it is the floating "↓ back to [n] ·
-   * ask" pill, whose click sets the composer mode directly.
-   */
   const ensureComposerOpen = async () => {
-    const composer = page.locator("#refine-openelis");
-    if ((await composer.getAttribute("data-mode")) === "full") return;
-    const jumpPill = page.locator(".turn-composer__jump");
-    const toggle = page.locator("#refine-openelis-toggle");
-    if (await jumpPill.isVisible()) await jumpPill.click();
-    else if (await toggle.isVisible()) await toggle.click();
-    await expect(composer).toHaveAttribute("data-mode", "full");
+    await expect(
+      page.getByRole("textbox", { name: "Ask a follow-up" }),
+    ).toBeVisible();
   };
 
   // ---- Act 2: refine in conversation ---------------------------------------
   await ensureComposerOpen();
   await type(
-    page.getByRole("textbox", { name: "Follow-up instruction" }),
+    page.getByRole("textbox", { name: "Ask a follow-up" }),
     "Now replace the detail rows with counts across the full dataset by test name. Call the count column result_count and put the highest count first",
   );
   timing.mark("followup-typed");
   await dwell(1_200);
-  await page.getByRole("button", { name: "Generate next query" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
   timing.mark("generate-clicked-2");
 
   await expect(

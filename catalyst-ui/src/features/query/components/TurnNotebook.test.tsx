@@ -1,4 +1,4 @@
-import { act, render, screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
@@ -220,60 +220,6 @@ const defaultProps = {
   onOpenDetails: vi.fn(),
 };
 
-/**
- * Drive the scroll listener the composer's state machine reads. The handler
- * decides at most once per frame, so the frame has to be flushed.
- */
-const scrollTo = async ({
-  y,
-  scrollHeight,
-  innerHeight,
-}: {
-  y: number;
-  scrollHeight: number;
-  innerHeight: number;
-}) => {
-  Object.defineProperty(window, "scrollY", { configurable: true, value: y });
-  Object.defineProperty(document.documentElement, "scrollHeight", {
-    configurable: true,
-    value: scrollHeight,
-  });
-  Object.defineProperty(window, "innerHeight", {
-    configurable: true,
-    value: innerHeight,
-  });
-  await act(async () => {
-    window.dispatchEvent(new Event("scroll"));
-    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
-  });
-};
-
-/**
- * The page becomes shorter than the viewport, with no scroll event — because
- * there is nothing left to scroll. A resize is the only signal a browser gives
- * for this, so it is the only one the component can act on.
- */
-const shrinkBelowViewport = async ({
-  scrollHeight,
-  innerHeight,
-}: {
-  scrollHeight: number;
-  innerHeight: number;
-}) => {
-  Object.defineProperty(document.documentElement, "scrollHeight", {
-    configurable: true,
-    value: scrollHeight,
-  });
-  Object.defineProperty(window, "innerHeight", {
-    configurable: true,
-    value: innerHeight,
-  });
-  await act(async () => {
-    window.dispatchEvent(new Event("resize"));
-    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
-  });
-};
-
 afterEach(() => {
   document.documentElement.style.fontSize = "";
   Object.defineProperty(window, "innerWidth", {
@@ -322,7 +268,7 @@ describe("TurnNotebook", () => {
       within(opened).queryByRole("button", { name: /generate/i }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getAllByRole("textbox", { name: "Follow-up instruction" }),
+      screen.getAllByRole("textbox", { name: "Ask a follow-up" }),
     ).toHaveLength(1);
 
     await user.click(first);
@@ -442,11 +388,11 @@ describe("TurnNotebook", () => {
     );
 
     const instruction = screen.getByRole("textbox", {
-      name: "Follow-up instruction",
+      name: "Ask a follow-up",
     });
     instruction.focus();
     expect(instruction).toHaveFocus();
-    await user.click(screen.getByRole("button", { name: "Generate next query" }));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
     expect(onGenerate).toHaveBeenCalledOnce();
   });
 
@@ -462,7 +408,7 @@ describe("TurnNotebook", () => {
     );
 
     const instruction = screen.getByRole("textbox", {
-      name: "Follow-up instruction",
+      name: "Ask a follow-up",
     });
     instruction.focus();
 
@@ -487,7 +433,7 @@ describe("TurnNotebook", () => {
       />,
     );
 
-    screen.getByRole("textbox", { name: "Follow-up instruction" }).focus();
+    screen.getByRole("textbox", { name: "Ask a follow-up" }).focus();
     await user.keyboard("{Enter}");
 
     expect(onGenerate).not.toHaveBeenCalled();
@@ -501,7 +447,7 @@ describe("TurnNotebook", () => {
       <TurnNotebook {...defaultProps} editorEmpty onGenerate={onGenerate} />,
     );
 
-    screen.getByRole("textbox", { name: "Follow-up instruction" }).focus();
+    screen.getByRole("textbox", { name: "Ask a follow-up" }).focus();
     await user.keyboard("{Meta>}{Enter}{/Meta}");
 
     expect(onGenerate).not.toHaveBeenCalled();
@@ -780,123 +726,16 @@ describe("TurnNotebook", () => {
     expect(screen.queryByText(/unreviewed/i)).not.toBeInTheDocument();
   });
 
-  it("collapses as you scroll up into history and returns as you scroll back", async () => {
-    const user = userEvent.setup();
+  it("keeps the follow-up composer visible while reading earlier turns", () => {
     render(<TurnNotebook {...defaultProps} />);
+    window.dispatchEvent(new Event("scroll"));
 
-    const composerMode = () =>
-      document.getElementById("refine-openelis")!.getAttribute("data-mode");
-    const instruction = screen.getByRole("textbox", {
-      name: "Follow-up instruction",
-    });
-    expect(composerMode()).toBe("full");
-
-    // Land at the end of the thread, then scroll up into history: the
-    // composer tucks to a lip and offers a way back rather than stranding you.
-    await scrollTo({ y: 3200, scrollHeight: 4000, innerHeight: 800 });
-    expect(composerMode()).toBe("full");
-    await scrollTo({ y: 0, scrollHeight: 4000, innerHeight: 800 });
-    expect(composerMode()).toBe("tucked");
-    expect(instruction.closest("form")).toHaveAttribute("hidden");
-    const jump = screen.getByRole("button", { name: /back to \[2\] · ask/ });
-    expect(jump).toBeVisible();
-
-    // Scrolling back down toward now brings it back in full.
-    await scrollTo({ y: 3200, scrollHeight: 4000, innerHeight: 800 });
-    expect(composerMode()).toBe("full");
-    expect(instruction.closest("form")).not.toHaveAttribute("hidden");
-    expect(screen.getAllByRole("textbox", { name: "Follow-up instruction" }))
-      .toHaveLength(1);
-
-    // Scrolling up out of the end band drops it to one line, which is the
-    // manual way back. It takes a real scroll rather than a few pixels: at the
-    // very end a wobble must not change anything (catalyst#35), so `line` is
-    // the middle band, not the first pixel above the bottom.
-    await scrollTo({ y: 2800, scrollHeight: 4000, innerHeight: 800 });
-    expect(composerMode()).toBe("line");
-    await user.click(screen.getByRole("button", { name: /Refine \[2\]/ }));
-    expect(composerMode()).toBe("full");
-  });
-
-  it("does not flicker while scroll jitters below the intent gate", async () => {
-    // catalyst#35. Up-then-down near the end legitimately moves full <-> line
-    // (scrolling up to the lip is a documented affordance), so the guard is
-    // not "never change" -- it is that *jitter* changes nothing. Wobbles under
-    // the 24px intent gate, straddling the full/line boundary, must leave the
-    // mode exactly where it was.
-    render(<TurnNotebook {...defaultProps} />);
-    const mode = () =>
-      document.getElementById("refine-openelis")!.getAttribute("data-mode");
-
-    const H = 4000;
-    const V = 800;
-    await scrollTo({ y: 3200, scrollHeight: H, innerHeight: V });
-    expect(mode()).toBe("full");
-    // Settle deliberately at the boundary first — that scroll is a real
-    // gesture, not jitter, and whatever it lands on is the baseline.
-    await scrollTo({ y: 3010, scrollHeight: H, innerHeight: V });
-    const settled = mode();
-
-    // gap = H - (y + V): 3010 -> 190, just inside NEAR_END. Each step below is
-    // 4-16px, all under the 24px gate, crossing the boundary repeatedly.
-    const jitter = [3002, 3010, 2998, 3006, 3002, 3010];
-    const seen: string[] = [];
-    for (const y of jitter) {
-      await scrollTo({ y, scrollHeight: H, innerHeight: V });
-      seen.push(mode()!);
-    }
-
-    expect(seen.every((value) => value === settled)).toBe(true);
-  });
-
-  it("keeps the line mode reachable", async () => {
-    // C4: the fix must not collapse three modes into two.
-    render(<TurnNotebook {...defaultProps} />);
-    const mode = () =>
-      document.getElementById("refine-openelis")!.getAttribute("data-mode");
-
-    await scrollTo({ y: 3200, scrollHeight: 4000, innerHeight: 800 });
-    expect(mode()).toBe("full");
-    // gap 400: inside the middle band, past full's leave threshold.
-    await scrollTo({ y: 2800, scrollHeight: 4000, innerHeight: 800 });
-    expect(mode()).toBe("line");
-  });
-
-  it("comes back when the page stops being scrollable at all", async () => {
-    render(<TurnNotebook {...defaultProps} />);
-    const composerMode = () =>
-      document.getElementById("refine-openelis")!.getAttribute("data-mode");
-
-    // Scroll up into history, so the composer is tucked away.
-    await scrollTo({ y: 3200, scrollHeight: 4000, innerHeight: 800 });
-    await scrollTo({ y: 0, scrollHeight: 4000, innerHeight: 800 });
-    expect(composerMode()).toBe("tucked");
-
-    // Now the content shrinks below the viewport — the editor closing after a
-    // run does exactly this. The mode only ever moved on a scroll event, and a
-    // page that cannot scroll produces none, so the composer stayed tucked
-    // with no gesture able to bring it back.
-    await shrinkBelowViewport({ scrollHeight: 500, innerHeight: 800 });
-    expect(composerMode()).toBe("full");
-  });
-
-  it("never hides the composer at a moment that would cost an action", async () => {
-    // Typed text, a run in flight, and a failed last run each pin it open:
-    // an action bar that disappears at the wrong moment costs more than the
-    // space it saves.
-    for (const props of [
-      { instruction: "only released results" },
-      { busy: true },
-      { lastRunFailed: true },
-    ]) {
-      const view = render(<TurnNotebook {...defaultProps} {...props} />);
-      await scrollTo({ y: 0, scrollHeight: 4000, innerHeight: 800 });
-      expect(document.getElementById("refine-openelis")).toHaveAttribute(
-        "data-mode",
-        "full",
-      );
-      view.unmount();
-    }
+    expect(
+      screen.getByRole("textbox", { name: "Ask a follow-up" }),
+    ).toBeVisible();
+    expect(document.getElementById("refine-openelis-body")).not.toHaveAttribute(
+      "hidden",
+    );
   });
 
   it("retains a valid unselected writer on a failed turn without replacing the base", async () => {
@@ -1115,30 +954,36 @@ describe("TurnNotebook", () => {
       screen.getByText(/No revision-capable model profile is currently available/i),
     ).toBeVisible();
     expect(screen.getByRole("combobox", { name: "Model profile" })).toBeDisabled();
-    const generate = screen.getByRole("button", { name: "Generate next query" });
+    const generate = screen.getByRole("button", { name: "Continue" });
     expect(generate).toBeDisabled();
     await user.click(generate);
     expect(onGenerate).not.toHaveBeenCalled();
   });
 
-  it("disables refinement only for an empty editor, not unresolved nonempty input", () => {
+  it("requires an instruction and a query unless answering a clarification", () => {
     const { rerender } = render(
-      <TurnNotebook {...defaultProps} editorEmpty editorState="empty" />,
+      <TurnNotebook
+        {...defaultProps}
+        instruction="Narrow the date range"
+        editorEmpty
+        editorState="empty"
+      />,
     );
     expect(
-      screen.getByRole("button", { name: "Generate next query" }),
+      screen.getByRole("button", { name: "Continue" }),
     ).toBeDisabled();
 
     rerender(
       <TurnNotebook
         {...defaultProps}
+        instruction="Narrow the date range"
         editorEmpty={false}
         editorState="unresolved"
       />,
     );
     expect(screen.getByText(/Unresolved editor input/i)).toBeVisible();
     expect(
-      screen.getByRole("button", { name: "Generate next query" }),
+      screen.getByRole("button", { name: "Continue" }),
     ).toBeEnabled();
   });
 
@@ -1149,6 +994,7 @@ describe("TurnNotebook", () => {
     render(
       <TurnNotebook
         {...defaultProps}
+        instruction="Keep only final results"
         onGenerate={onGenerate}
         onInstructionChange={onInstructionChange}
       />,
@@ -1167,13 +1013,13 @@ describe("TurnNotebook", () => {
     expect(selector).toHaveFocus();
 
     const instruction = screen.getByRole("textbox", {
-      name: "Follow-up instruction",
+      name: "Ask a follow-up",
     });
     instruction.focus();
     await user.keyboard("Keep only final results");
     expect(onInstructionChange).toHaveBeenCalled();
 
-    const generate = screen.getByRole("button", { name: "Generate next query" });
+    const generate = screen.getByRole("button", { name: "Continue" });
     generate.focus();
     await user.keyboard("{Enter}");
     expect(onGenerate).toHaveBeenCalledOnce();
@@ -1191,16 +1037,16 @@ describe("TurnNotebook", () => {
     const composer = screen.getByRole("region", { name: "Refine [2]" });
     expect(composer).toBeVisible();
     expect(within(composer).getByRole("textbox", {
-      name: "Follow-up instruction",
+      name: "Ask a follow-up",
     })).toBeVisible();
     expect(within(composer).getByRole("combobox", {
       name: "Model profile",
     })).toBeVisible();
     expect(within(composer).getByRole("button", {
-      name: "Generate next query",
+      name: "Continue",
     })).toBeVisible();
     expect(screen.getAllByRole("textbox", {
-      name: "Follow-up instruction",
+      name: "Ask a follow-up",
     })).toHaveLength(1);
   });
 
@@ -1265,4 +1111,25 @@ describe("TurnNotebook", () => {
     expect(screen.getByText(/no home address/)).toBeVisible();
     expect(screen.queryByText("generation failed")).not.toBeInTheDocument();
   });
+  it("labels a clarification response as the person's answer", () => {
+    render(<TurnNotebook {...defaultProps} revisesNothing editorEmpty />);
+
+    expect(screen.getByRole("textbox", { name: "Your answer" })).toBeVisible();
+  });
+
+  it("keeps a failed instruction available for retry", () => {
+    render(
+      <TurnNotebook
+        {...defaultProps}
+        instruction="Keep only final results"
+        error="The request timed out."
+      />,
+    );
+
+    expect(screen.getByRole("textbox", { name: "Ask a follow-up" })).toHaveValue(
+      "Keep only final results",
+    );
+    expect(screen.getByRole("button", { name: "Retry" })).toBeEnabled();
+  });
+
 });
