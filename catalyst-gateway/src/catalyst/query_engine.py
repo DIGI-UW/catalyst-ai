@@ -126,12 +126,14 @@ def _request_payload(
     deterministic_findings: Optional[list[dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     instruction = str(request.messages[0]["content"])
+    # Prefix caching can only reuse context before the first changed token.
+    # Keep the complete source/schema ahead of each new question and trace ID.
     payload: Dict[str, Any] = {
-        "question": instruction,
         "target": _canonical_target(extension),
         "catalog": extension["catalog"],
         "policy": extension["policy"],
         "requiredOutputContract": extension["requiredOutputContract"],
+        "question": instruction,
         "correlation": extension["correlation"],
     }
     if extension.get("contractVersion") == "catalyst.query.request.v2":
