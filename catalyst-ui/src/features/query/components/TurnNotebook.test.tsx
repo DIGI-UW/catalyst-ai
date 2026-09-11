@@ -759,6 +759,25 @@ describe("TurnNotebook", () => {
     );
   });
 
+  it.each(["approve", "reject", "missing"])("uses the recorded reviewer decision %s", (decision) => {
+    const reviewedVersion = {
+      ...modelVersion,
+      provenance: {
+        generationValidation: { status: "passed", checks: [{ name: "field-grounding", status: "passed" }] },
+        modelCollaboration: { reviewer: { model: "qwen2.5-14b", ...(decision === "missing" ? {} : { decision }) } },
+      },
+    };
+    const turn = { ...initialTurn, outputVersions: [{ selected: true, role: "writer" as const, contractValid: true, version: reviewedVersion }] };
+    render(<TurnNotebook {...defaultProps} turns={[turn]} />);
+    if (decision === "approve") {
+      expect(screen.queryByText("unreviewed")).not.toBeInTheDocument();
+      expect(screen.getByText("AI reviewed")).toBeVisible();
+    } else {
+      expect(screen.getByText("unreviewed")).toBeVisible();
+      expect(screen.queryByText("AI reviewed")).not.toBeInTheDocument();
+    }
+  });
+
   it("retains a valid unselected writer on a failed turn without replacing the base", async () => {
     const user = userEvent.setup();
     const onOpenDetails = vi.fn();

@@ -16,16 +16,22 @@ and execution use the visible interface. Each source's proof records its saved
 versions, publication and originating execution. This is delivery evidence;
 model comparison and owner acceptance remain separate.
 
-It runs two ways, and they are **the same steps**:
+It runs with or without recording holds:
 
 | | project | video | dwells | what it is for |
 |---|---|---|---|---|
 | **e2e** | `deterministic` | off | none | does the whole path still work end to end |
 | **video** | `demo-video` | 1280×720 | yes | raw footage for a published cut |
 
-The only difference is `dwell()`, which holds the frame long enough to read
-something and is a no-op outside the video project. A demo that diverges from
-the test stops being evidence that the product works.
+`dwell()` holds the frame long enough to read something and is a no-op outside
+the video project. Set `CATALYST_DEMO_STORY=true` for the public walkthrough:
+the model creates and refines SQL, then the user saves, reuses, visualizes and
+publishes it. One brief OpenELIS follow-up asks the model to fix supplied broken
+SQL. The public story never deliberately breaks a working query in the editor.
+The default regression journey retains the database-error/retry assertions.
+Both journeys run in either project and compare native Superset results with
+the originating execution. The public story also requires recorded reviewer
+decisions, visible review status, and execution of the model-authored version.
 
 ## Prerequisites
 
@@ -101,5 +107,6 @@ speed before publishing; raw evidence remains private.
 | `CATALYST_HARNESS_DIR` | — | required root of the Harness checkout that owns the running isolated stack |
 | `CATALYST_DEMO_RUN_ID` | a random UUID | unique suffix for this run's retained builder artifacts |
 | `CATALYST_DEMO_PROFILE` | configured UI default | optionally selects an explicit available profile; the session records the selection |
+| `CATALYST_DEMO_STORY` | `false` | use the public story with one supplied-SQL repair across both sources; requires a reviewer profile |
 | `DEMO_MILESTONES_DIR` | `demo-milestones` | private destination for each source's measured timings |
 | `SUPERSET_ADMIN_USERNAME` / `_PASSWORD` | `admin` / `admin` | Superset sign-in |

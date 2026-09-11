@@ -755,6 +755,13 @@
   white-space: nowrap;
 }
 
+.query-turn__reviewed {
+  flex: none;
+  color: var(--cds-text-secondary);
+  font-size: var(--cds-helper-text-01-font-size, 0.75rem);
+  white-space: nowrap;
+}
+
 .turn-composer__error {
   flex-basis: 100%;
   margin: 0;
