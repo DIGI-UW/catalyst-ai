@@ -614,6 +614,7 @@ describe("Catalyst query workflow", () => {
     expect(api.submitQuestion).toHaveBeenCalledWith(
       QUESTION,
       "catalyst-query-gemma-e4b",
+      expect.any(AbortSignal),
     );
     expect(await screen.findByRole("heading", { name: "Review query" })).toBeVisible();
     expect(screen.getByLabelText("Your question")).toBeDisabled();
@@ -690,7 +691,7 @@ describe("Catalyst query workflow", () => {
     expect(screen.getByText("gemma-e4b")).toBeVisible();
     await user.type(screen.getByLabelText("Your question"), "Show viral load results");
     await user.click(screen.getByRole("button", { name: "Continue" }));
-    expect(api.submitQuestion).toHaveBeenCalledWith("Show viral load results", "catalyst-query-gemma-e4b");
+    expect(api.submitQuestion).toHaveBeenCalledWith("Show viral load results", "catalyst-query-gemma-e4b", expect.any(AbortSignal));
     expect(api.getDatasetOverview).not.toHaveBeenCalled();
     expect(api.getDatasetRows).not.toHaveBeenCalled();
   });
@@ -713,7 +714,7 @@ describe("Catalyst query workflow", () => {
       "catalyst-query-gemma-e4b",
       undefined,
       undefined,
-      undefined,
+      expect.any(AbortSignal),
       undefined,
     );
     expect(api.submitQuestion).not.toHaveBeenCalled();
@@ -1385,6 +1386,7 @@ describe("Catalyst query workflow", () => {
         EMPTY_SESSION_ID,
         "Count creatinine results",
         "catalyst-query-gemma-4-12b",
+        expect.any(AbortSignal),
       ),
     );
     expect(api.createWorkbenchTurn).not.toHaveBeenCalled();
@@ -1459,6 +1461,7 @@ describe("Catalyst query workflow", () => {
         EMPTY_SESSION_ID,
         "Count recent results",
         "catalyst-query-gemma-e4b",
+        expect.any(AbortSignal),
       ),
     );
   });
@@ -1822,6 +1825,7 @@ describe("Catalyst query workflow", () => {
     expect(api.submitQuestion).toHaveBeenCalledWith(
       QUESTION,
       "catalyst-query-gemma-e4b",
+      expect.any(AbortSignal),
     );
   });
 
@@ -1861,7 +1865,7 @@ describe("Catalyst query workflow", () => {
     expect(screen.queryByLabelText("Model profile")).not.toBeInTheDocument();
     await askQuestion();
 
-    expect(api.submitQuestion).toHaveBeenCalledWith(QUESTION);
+    expect(api.submitQuestion).toHaveBeenCalledWith(QUESTION, undefined, expect.any(AbortSignal));
     expect(screen.queryByText("Offline research profile")).not.toBeInTheDocument();
   });
 
@@ -2038,7 +2042,7 @@ describe("Catalyst query workflow", () => {
     await user.type(screen.getByLabelText("Your question"), `  ${QUESTION}  `);
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
-    await waitFor(() => expect(api.submitQuestion).toHaveBeenCalledWith(QUESTION));
+    await waitFor(() => expect(api.submitQuestion).toHaveBeenCalledWith(QUESTION, undefined, expect.any(AbortSignal)));
   });
 
   it("keeps the selected data source visible when only one source is registered", async () => {
@@ -2184,7 +2188,7 @@ describe("Catalyst query workflow", () => {
       "catalyst-query-gemma-4-12b",
       undefined,
       "openmrs-hiv",
-      undefined,
+      expect.any(AbortSignal),
       undefined,
     );
 

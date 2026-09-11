@@ -181,7 +181,10 @@ Question preparation has one configurable deadline covering source/profile
 preparation, waiting for the model, generation, repairs, and optional review.
 A lost request or expired deadline cancels outstanding model work and records
 the claimed turn as failed without changing the selected query or prior result.
-The session becomes available for another turn. Preparation never executes SQL.
+The session becomes available for another turn. **Stop preparing** in the initial
+or follow-up composer cancels its request, keeps the text and selected query,
+and returns focus to the input with a Retry action. Unmounting the Workbench also
+cancels its outstanding request. Preparation never executes SQL.
 
 ### Conversation and state
 

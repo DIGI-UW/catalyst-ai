@@ -102,6 +102,8 @@ interface TurnNotebookProps {
   onInstructionChange: (instruction: string) => void;
   onProfileChange: (profileId: string) => void;
   onGenerate: () => void;
+  onCancel?: () => void;
+  notice?: string | null;
   /** Open the Details panel scoped to this turn, on a chosen tab. */
   onOpenDetails: (turnId: string, tab?: DetailsTab) => void;
   /** Take the candidate a failed turn retained into the editor. */
@@ -269,6 +271,8 @@ export const TurnNotebook = ({
   onInstructionChange,
   onProfileChange,
   onGenerate,
+  onCancel,
+  notice,
   onOpenDetails,
   onEditAttempt,
   onReviewResult,
@@ -732,7 +736,13 @@ export const TurnNotebook = ({
                 <WarningAltFilled aria-hidden="true" />
               </span>
             )}
-            <Button
+            {generating && onCancel ? <Button type="button" kind="tertiary" onClick={(event) => {
+              // Aborting can restore the submit button before this click ends.
+              event.preventDefault();
+              onCancel();
+            }}>
+              Stop preparing
+            </Button> : <Button
               type="submit"
               disabled={
                 !instruction.trim() ||
@@ -748,11 +758,12 @@ export const TurnNotebook = ({
             >
               {generating
                 ? "Preparing…"
-                : lastRunFailed || error
+                : lastRunFailed || error || notice
                   ? "Retry"
                   : "Continue"}
-            </Button>
+            </Button>}
           </div>
+          {notice && <p className="query-composer__help" role="status">{notice}</p>}
           {noRevisionProfiles && (
             <p id="catalyst-followup-profile-unavailable" role="status">
               No revision-capable model profile is currently available. Load a
