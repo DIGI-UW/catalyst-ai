@@ -12,6 +12,8 @@ interface QuestionFormProps {
   disabled?: boolean;
   onQuestionChange: (question: string) => void;
   onSubmit: (question: string) => void;
+  onCancel?: () => void;
+  notice?: string | null;
   profiles?: QueryProfile[];
   selectedProfileId?: string;
   onProfileChange?: (profileId: string) => void;
@@ -37,6 +39,8 @@ export const QuestionForm = ({
   disabled = false,
   onQuestionChange,
   onSubmit,
+  onCancel,
+  notice,
   profiles = [],
   selectedProfileId,
   onProfileChange,
@@ -113,15 +117,23 @@ export const QuestionForm = ({
                 No configured model profile is currently available.
               </p>
             )}
-            <Button
+            {busy && onCancel ? <Button type="button" kind="tertiary" onClick={(event) => {
+              // Aborting can restore the submit button before this click ends.
+              event.preventDefault();
+              onCancel();
+            }}>
+              Stop preparing
+            </Button> : <Button
               type="submit"
               renderIcon={ArrowRight}
               disabled={!normalizedQuestion || busy || disabled}
             >
               {busy ? "Preparing…" : retry ? "Retry" : "Continue"}
-            </Button>
+            </Button>}
           </div>
-          <p className="query-composer__help">Review the request before retrieving data. Ctrl / ⌘ + Enter to continue.</p>
+          <p className="query-composer__help" role={notice ? "status" : undefined}>
+            {notice ?? "Review the request before retrieving data. Ctrl / ⌘ + Enter to continue."}
+          </p>
         </div>
       </Form>
     </section>

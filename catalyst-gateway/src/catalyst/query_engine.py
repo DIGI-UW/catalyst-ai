@@ -34,6 +34,7 @@ from typing import Any, AsyncIterator, Dict, Mapping, Optional, Tuple
 import httpx
 import rfc8785
 
+from .generation_lifecycle import GenerationCancelled, remaining_generation_seconds
 from .query_lint import lint_candidate
 from .query_schemas import (
     CANDIDATE_VALIDATOR as _CANDIDATE_VALIDATOR,
@@ -167,10 +168,12 @@ async def _backend_chat(
     payload: Dict[str, Any] = {"messages": messages}
     if response_format is not None:
         payload["response_format"] = dict(response_format)
+    remaining = remaining_generation_seconds(_HUB_TIMEOUT_SECONDS)
     resp = await client.post(
         f"{_HUB_QUERY_PROFILE_URL}/{profile_id}/roles/{role}/generate",
         json=payload,
-        timeout=_HUB_TIMEOUT_SECONDS,
+        headers={"X-Request-Timeout-Seconds": str(remaining)},
+        timeout=remaining,
     )
     if not resp.is_success:
         detail: Any = None
@@ -1386,7 +1389,7 @@ async def execute_query_profile(
             )
             _attach_model_evidence(result, request, invocations)
             _write_trace(request, extension, result, steps)
-            raise
+            raise GenerationCancelled(exc, result) from exc
         except Exception as exc:
             logger.warning("Catalyst query generation failed: %s", exc)
             if isinstance(exc, (TimeoutError, httpx.TimeoutException)):
@@ -1767,7 +1770,7 @@ async def execute_query_profile(
                     )
                     _attach_model_evidence(result, request, invocations)
                     _write_trace(request, extension, result, steps)
-                    raise
+                    raise GenerationCancelled(exc, result) from exc
                 except Exception as exc:
                     logger.warning("Catalyst query review failed: %s", exc)
                     if is_revision and collaborative_review:

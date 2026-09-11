@@ -649,7 +649,16 @@ export const QueryWorkspace = ({
     setFollowupError,
     followupBusy,
     setFollowupBusy,
+    generationNotice,
+    setGenerationNotice,
   } = useRunActions();
+  const generationRequest = useRef<AbortController | null>(null);
+  useEffect(() => () => {
+    const controller = generationRequest.current;
+    generationRequest.current = null;
+    controller?.abort();
+  }, []);
+  const stopPreparation = () => generationRequest.current?.abort();
   const {
     evidence: generationEvidence,
     loadingTurnId: generationEvidenceLoadingTurnId,
@@ -686,6 +695,7 @@ export const QueryWorkspace = ({
     setDetailsTurnId(null);
     setWorkbenchError(null);
     setFollowupError(null);
+    setGenerationNotice(null);
     if (api.getWorkbenchTurns) {
       void api.getWorkbenchTurns(session.sessionId)
         .then(setWorkbenchTimeline)
@@ -698,6 +708,7 @@ export const QueryWorkspace = ({
     setDetailsTurnId,
     setFollowupError,
     setFollowupInstruction,
+    setGenerationNotice,
     setEditorOpen,
     setProfileId,
     setQuestion,
@@ -770,22 +781,27 @@ export const QueryWorkspace = ({
   }, [api, pollIntervalMs, state, setState]);
 
   const submitQuestion = async (normalizedQuestion: string) => {
+    if (generationRequest.current) return;
+    const controller = new AbortController();
+    generationRequest.current = controller;
     if (window.innerWidth < 896) setWorkspaceSection(null);
     setState({ kind: "submitting" });
     setWorkbenchError(null);
+    setGenerationNotice(null);
     try {
       if (
         workbenchSession &&
         !sessionHasWork &&
         api.askWorkbenchSessionQuestion
       ) {
-        adoptWorkbenchSession(
-          await api.askWorkbenchSessionQuestion(
-            workbenchSession.sessionId,
-            normalizedQuestion,
-            (queryOptions && selectedAvailableProfileId) || undefined,
-          ),
+        const session = await api.askWorkbenchSessionQuestion(
+          workbenchSession.sessionId,
+          normalizedQuestion,
+          (queryOptions && selectedAvailableProfileId) || undefined,
+          controller.signal,
         );
+        controller.signal.throwIfAborted();
+        adoptWorkbenchSession(session);
         setState({ kind: "idle" });
         return;
       }
@@ -795,9 +811,10 @@ export const QueryWorkspace = ({
           (queryOptions && selectedAvailableProfileId) || undefined,
           undefined,
           dataSourceId || undefined,
-          undefined,
+          controller.signal,
           draftSessionName.trim() || undefined,
         );
+        controller.signal.throwIfAborted();
         setWorkbenchSession(session);
         rememberActiveWorkbenchSession(session.sessionId);
         const draft = sessionEditorDraft(session);
@@ -811,16 +828,18 @@ export const QueryWorkspace = ({
             : true,
         );
         if (api.getWorkbenchTurns) {
-          setWorkbenchTimeline(await api.getWorkbenchTurns(session.sessionId));
+          const timeline = await api.getWorkbenchTurns(session.sessionId, controller.signal);
+          controller.signal.throwIfAborted();
+          setWorkbenchTimeline(timeline);
         } else {
           setWorkbenchTimeline(null);
         }
         setState({ kind: "idle" });
         return;
       }
-      const response = queryOptions && profileId
-        ? await api.submitQuestion(normalizedQuestion, profileId)
-        : await api.submitQuestion(normalizedQuestion);
+      const response = await api.submitQuestion(normalizedQuestion,
+        (queryOptions && profileId) || undefined, controller.signal);
+      controller.signal.throwIfAborted();
       if (isPreview(response)) {
         setState({ kind: "preview", preview: response, executing: false });
       } else if (response.contractVersion === "catalyst.query.v1") {
@@ -829,7 +848,16 @@ export const QueryWorkspace = ({
         setState({ kind: "policy-outcome", outcome: response });
       }
     } catch (error) {
-      setState({ kind: "error", message: messageFromError(error) });
+      if (generationRequest.current !== controller) return;
+      if (controller.signal.aborted) {
+        setState({ kind: "idle" });
+        setGenerationNotice("Preparation stopped. Your question is still here.");
+        requestAnimationFrame(() => document.getElementById("catalyst-question")?.focus());
+      } else {
+        setState({ kind: "error", message: messageFromError(error) });
+      }
+    } finally {
+      if (generationRequest.current === controller) generationRequest.current = null;
     }
   };
 
@@ -861,7 +889,8 @@ export const QueryWorkspace = ({
   // source before any question exists, so the source you are targeting is
   // settled before you decide what to ask.
   const startNewSession = async () => {
-    if (followupBusy || !api.createWorkbenchSession) return;
+    if (generationRequest.current || followupBusy || !api.createWorkbenchSession) return;
+    setGenerationNotice(null);
     setSessionMenu("closed");
     if (selectedAvailableProfileId) {
       setProfileId(selectedAvailableProfileId);
@@ -1035,6 +1064,7 @@ export const QueryWorkspace = ({
 
   const generateNextWorkbenchQuery = async () => {
     if (
+      generationRequest.current ||
       followupBusy ||
       workbenchBusy ||
       !workbenchSession ||
@@ -1054,8 +1084,11 @@ export const QueryWorkspace = ({
       return;
     }
 
+    const controller = new AbortController();
+    generationRequest.current = controller;
     if (window.innerWidth < 896) setWorkspaceSection(null);
     setFollowupBusy(true);
+    setGenerationNotice(null);
     setWorkbenchError(null);
     setFollowupError(null);
     setWorkbenchAnnouncement("");
@@ -1097,7 +1130,9 @@ export const QueryWorkspace = ({
       const turn = await api.createWorkbenchTurn(
         workbenchSession.sessionId,
         request,
+        controller.signal,
       );
+      controller.signal.throwIfAborted();
       setWorkbenchTimeline((current) => {
         if (!current || current.sessionId !== workbenchSession.sessionId) {
           return current;
@@ -1114,8 +1149,9 @@ export const QueryWorkspace = ({
       });
 
       const restored = api.getWorkbenchSession
-        ? await api.getWorkbenchSession(workbenchSession.sessionId)
+        ? await api.getWorkbenchSession(workbenchSession.sessionId, controller.signal)
         : workbenchSession;
+      controller.signal.throwIfAborted();
       setWorkbenchSession(restored);
       const draft = sessionEditorDraft(restored);
       setWorkbenchSql(draft ? editorReadySql(draft.sql) : workbenchSql);
@@ -1124,9 +1160,9 @@ export const QueryWorkspace = ({
           workbenchParameters,
       );
       if (api.getWorkbenchTurns) {
-        setWorkbenchTimeline(
-          await api.getWorkbenchTurns(workbenchSession.sessionId),
-        );
+        const timeline = await api.getWorkbenchTurns(workbenchSession.sessionId, controller.signal);
+        controller.signal.throwIfAborted();
+        setWorkbenchTimeline(timeline);
       }
       if (
         turn.status === "completed" &&
@@ -1145,7 +1181,17 @@ export const QueryWorkspace = ({
           requestAnimationFrame(() => document.getElementById("catalyst-followup")?.focus());
         }
       }
-      if (turn.status === "failed") {
+      const writerAnswered =
+        turn.failure?.code === "needs_clarification" ||
+        turn.failure?.code === "unsupported";
+      if (turn.status === "failed" && writerAnswered) {
+        setWorkbenchAnnouncement(
+          turn.failure?.code === "needs_clarification"
+            ? "Catalyst needs one more detail. Update your question and continue."
+            : "Catalyst cannot answer this from the selected data. You can refine the question or browse Available data.",
+        );
+        requestAnimationFrame(() => document.getElementById("catalyst-followup")?.focus());
+      } else if (turn.status === "failed") {
         // A turn that comes back failed is not an error to throw, so it used
         // to be treated as success: nothing was said, the instruction was
         // cleared, and the failed cell was filed wherever the ordering put
@@ -1161,13 +1207,18 @@ export const QueryWorkspace = ({
         setFollowupInstruction("");
       }
     } catch (error) {
-      // No turn was created, so no cell exists to carry this: the composer
-      // that submitted it is the only honest place to say so. A turn that
-      // comes back *failed* is reported by its own cell instead — saying it
-      // twice is the duplication the composer was just cleared of.
-      setFollowupError(messageFromError(error));
+      if (generationRequest.current !== controller) return;
+      if (controller.signal.aborted) {
+        setGenerationNotice("Preparation stopped. Your question is still here.");
+        requestAnimationFrame(() => document.getElementById("catalyst-followup")?.focus());
+      } else {
+        setFollowupError(messageFromError(error));
+      }
     } finally {
-      setFollowupBusy(false);
+      if (generationRequest.current === controller) {
+        generationRequest.current = null;
+        setFollowupBusy(false);
+      }
     }
   };
 
@@ -1380,7 +1431,7 @@ export const QueryWorkspace = ({
   };
 
   const openRecentSession = async (sessionId: string) => {
-    if (switchingSession || followupBusy || workbenchBusy ||
+    if (generationRequest.current || switchingSession || followupBusy || workbenchBusy ||
         sessionId === workbenchSession?.sessionId || !api.getWorkbenchSession) return;
     setSwitchingSession(true);
     setSessionSwitchError(null);
@@ -1552,7 +1603,7 @@ export const QueryWorkspace = ({
         onDraftSessionNameChange={setDraftSessionName}
         onDraftDataSourceChange={setDataSourceId}
         onStartSession={startNewSession}
-        newSessionDisabled={followupBusy || workbenchBusy !== null}
+        newSessionDisabled={state.kind === "submitting" || followupBusy || workbenchBusy !== null}
         themePreference={themePreference}
         onThemePreferenceChange={onThemePreferenceChange ?? (() => undefined)}
         advancedMode={advancedMode}
@@ -1633,10 +1684,12 @@ export const QueryWorkspace = ({
           advancedMode={advancedMode}
           question={question}
           busy={state.kind === "submitting"}
-          retry={state.kind === "error"}
+          retry={state.kind === "error" || Boolean(generationNotice)}
           disabled={questionIsLocked || noAvailableProfiles}
           onQuestionChange={setQuestion}
           onSubmit={submitQuestion}
+          onCancel={stopPreparation}
+          notice={generationNotice}
           profiles={queryOptions?.profiles ?? []}
           selectedProfileId={selectedAvailableProfileId}
           onProfileChange={setProfileId}
@@ -1690,6 +1743,8 @@ export const QueryWorkspace = ({
           onInstructionChange={setFollowupInstruction}
           onProfileChange={setProfileId}
           onGenerate={generateNextWorkbenchQuery}
+          onCancel={stopPreparation}
+          notice={generationNotice}
           onOpenDetails={openDetails}
           onEditAttempt={editRetainedAttempt}
           onReviewResult={(executionId) => openDatasetReview.current?.(executionId)}

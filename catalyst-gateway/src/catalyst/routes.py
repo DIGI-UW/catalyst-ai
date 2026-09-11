@@ -1,11 +1,42 @@
 from __future__ import annotations
 
+import asyncio
+import math
+import os
+from collections.abc import Coroutine
 from typing import Any
 
 from fastapi import FastAPI, Query, Request
 from fastapi.responses import JSONResponse
 
 from .service import CatalystService, ServiceResponse
+from .generation_lifecycle import cancellation_details, run_generation
+
+_GENERATION_TIMEOUT_SECONDS = float(
+    os.getenv("CATALYST_GENERATION_TIMEOUT_SECONDS", "120")
+)
+if not math.isfinite(_GENERATION_TIMEOUT_SECONDS) or _GENERATION_TIMEOUT_SECONDS <= 0:
+    raise ValueError("CATALYST_GENERATION_TIMEOUT_SECONDS must be positive and finite.")
+
+
+async def _generation_response(
+    request: Request, operation: Coroutine[Any, Any, ServiceResponse]
+) -> JSONResponse:
+    try:
+        return _json_response(
+            await run_generation(request, operation, _GENERATION_TIMEOUT_SECONDS)
+        )
+    except asyncio.CancelledError as error:
+        if not error.args or error.args[0] not in {
+            "generation_timeout",
+            "generation_cancelled",
+        }:
+            raise
+        code, message = cancellation_details(error)
+        return JSONResponse(
+            status_code=504 if code == "generation_timeout" else 499,
+            content={"error": {"code": code, "message": message}},
+        )
 
 
 def _json_response(response: ServiceResponse) -> JSONResponse:
@@ -39,7 +70,7 @@ def install_catalyst_routes(app: FastAPI, service: CatalystService) -> None:
         payload = await _request_object(request)
         if isinstance(payload, JSONResponse):
             return payload
-        return _json_response(await service.submit_question(payload))
+        return await _generation_response(request, service.submit_question(payload))
 
     @app.get("/v1/catalyst/data-sources")
     async def data_sources() -> JSONResponse:
@@ -76,7 +107,9 @@ def install_catalyst_routes(app: FastAPI, service: CatalystService) -> None:
         payload = await _request_object(request)
         if isinstance(payload, JSONResponse):
             return payload
-        return _json_response(await service.create_workbench_session(payload))
+        return await _generation_response(
+            request, service.create_workbench_session(payload)
+        )
 
     @app.get("/v1/catalyst/workbench/sessions")
     async def list_workbench_sessions(limit: int = 20) -> JSONResponse:
@@ -104,8 +137,8 @@ def install_catalyst_routes(app: FastAPI, service: CatalystService) -> None:
         payload = await _request_object(request)
         if isinstance(payload, JSONResponse):
             return payload
-        return _json_response(
-            await service.ask_workbench_session_question(session_id, payload)
+        return await _generation_response(
+            request, service.ask_workbench_session_question(session_id, payload)
         )
 
     @app.post("/v1/catalyst/workbench/sessions/{session_id}/guidance")
@@ -137,7 +170,9 @@ def install_catalyst_routes(app: FastAPI, service: CatalystService) -> None:
         payload = await _request_object(request)
         if isinstance(payload, JSONResponse):
             return payload
-        return _json_response(await service.create_workbench_turn(session_id, payload))
+        return await _generation_response(
+            request, service.create_workbench_turn(session_id, payload)
+        )
 
     @app.get(
         "/v1/catalyst/workbench/sessions/{session_id}/turns/"
