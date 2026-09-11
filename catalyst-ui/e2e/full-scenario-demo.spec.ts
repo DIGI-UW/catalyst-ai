@@ -14,6 +14,7 @@ import { runSupersetImport } from "./support/superset-import";
 // Run with one worker: both sources share the operator's current outbox pointer.
 test.describe.configure({ mode: "serial" });
 test.setTimeout(1_800_000);
+test.use({ colorScheme: "light" });
 
 for (const source of ["openelis", "openmrs-hiv"]) {
   test(`${source}: question to saved work and a rendered Dashboard`, async ({ page }, info) => {
@@ -157,12 +158,15 @@ for (const source of ["openelis", "openmrs-hiv"]) {
         .toBe(dataset.configuration.parameterizedSql);
       expect(executionRequests).toBe(2);
       await page.getByText(/View options/).click();
-      await page.getByRole("radio", { name: "Dark", exact: true }).check();
+      // Keep public recordings visually consistent; the ordinary run still
+      // exercises dark appearance with the same saved-work assertions.
+      await page.getByRole("radio", { name: filming ? "Light" : "Dark", exact: true }).check();
       await page.getByText("Advanced mode", { exact: true }).click();
       await page.keyboard.press("Escape");
       await expect(page.locator("#catalyst-advanced-mode")).toBeChecked();
+      await expect(page.locator(".application")).toHaveAttribute("data-theme", filming ? "g10" : "g100");
       timing.mark("reused-sql");
-      await page.screenshot({ path: info.outputPath("reused-sql-dark.png") });
+      await page.screenshot({ path: info.outputPath(`reused-sql-${filming ? "light" : "dark"}.png`) });
       await dwell(8000);
       // Exercise a real engine failure in the copied draft. The saved version
       // stays intact, and correcting the draft must not lose its typed values.
