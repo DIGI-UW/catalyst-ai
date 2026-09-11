@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from copy import deepcopy
 
+import pytest
+
 from src.catalyst.query_lint import lint_candidate
 
 
@@ -334,3 +336,27 @@ def test_distinct_on_satisfies_latest_per_patient_grain():
         )
         == []
     )
+
+
+@pytest.mark.parametrize(
+    ("sql", "expected", "sql_repair"),
+    [
+        (f"SELECT COUNT(*) FROM {VIEW}", ["count"], True),
+        (f"SELECT COUNT(*) AS result_count FROM {VIEW}", ["count"], False),
+        (f"SELECT patient_id, result_value FROM {VIEW}", ["patient_id"], True),
+    ],
+)
+def test_projection_repair_scope_preserves_named_complete_sql(
+    sql, expected, sql_repair
+):
+    from src.catalyst.query_parse import _allowed_patch_paths
+
+    candidate = _candidate()
+    candidate.update(
+        sql=sql, parameters=[], expectedColumns=[{"name": name} for name in expected]
+    )
+    findings = lint_candidate(candidate, _extension())
+    assert [item["code"] for item in findings] == ["output.projection_mismatch"]
+    paths = _allowed_patch_paths(candidate, findings)
+    assert ("/sql" in paths) is sql_repair
+    assert "/expectedColumns/0/name" in paths

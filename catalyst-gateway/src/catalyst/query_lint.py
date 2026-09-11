@@ -451,7 +451,13 @@ def lint_candidate(
                 code="output.projection_mismatch",
                 stage="output_agreement",
                 severity="error",
-                path="expectedColumns",
+                path="sql"
+                if any(
+                    not isinstance(item, (exp.Column, exp.Alias))
+                    for item in statement.expressions
+                )
+                or len(projected) != len(expected)
+                else "expectedColumns",
                 message="Projected SQL columns and expectedColumns must agree in order.",
                 evidence=f"projected={projected}; expected={expected}",
                 suggestedAction="Alias projections or update expectedColumns to match exactly.",
