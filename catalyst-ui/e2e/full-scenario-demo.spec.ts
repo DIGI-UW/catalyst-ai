@@ -408,7 +408,7 @@ for (const source of ["openelis", "openmrs-hiv"]) {
       writeFileSync(info.outputPath("proof.json"), JSON.stringify({ source, dataset, reused, first, revised, bundle, dashboardUrl, failedExecution, execution: reusedExecution }, null, 2));
     } finally {
       await Promise.allSettled(pending);
-      writeFileSync(info.outputPath("requests-and-results.json"), JSON.stringify({ source, executionRequests, executions, evidence }, null, 2));
+      writeFileSync(info.outputPath("requests-and-results.json"), JSON.stringify({ source, executionRequests, executions, evidence, sessions: recordedSessions }, null, 2));
       timing.save();
     }
   });
