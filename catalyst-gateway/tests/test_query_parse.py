@@ -178,6 +178,66 @@ def test_parse_and_apply_patch_replaces_anchored_sql_text():
     assert patched["sql"].endswith("WHERE x = 2")
 
 
+def test_parse_and_apply_patch_collapses_exact_duplicate_sql_edits():
+    base = {
+        "status": "ready",
+        "sql": "SELECT COUNT(*) FROM openelis.patient",
+        "parameters": [],
+        "expectedColumns": [{"name": "count"}],
+    }
+    findings = [{"code": "output.projection_mismatch", "path": "expectedColumns"}]
+    operation = {
+        "findingCode": "output.projection_mismatch",
+        "op": "replace_text",
+        "path": "/sql",
+        "oldValue": "SELECT COUNT(*) FROM openelis.patient",
+        "replacement": "SELECT COUNT(*) AS count FROM openelis.patient",
+    }
+
+    patched = _parse_and_apply_patch(
+        json.dumps({"patches": [operation, operation]}),
+        base,
+        findings,
+        ["/expectedColumns/0/name", "/sql"],
+    )
+
+    assert patched["sql"] == "SELECT COUNT(*) AS count FROM openelis.patient"
+    assert base["sql"] == "SELECT COUNT(*) FROM openelis.patient"
+
+
+def test_parse_and_apply_patch_rejects_conflicting_edits_to_the_same_sql():
+    base = {
+        "status": "ready",
+        "sql": "SELECT COUNT(*) FROM openelis.patient",
+        "parameters": [],
+        "expectedColumns": [{"name": "count"}],
+    }
+    findings = [{"code": "output.projection_mismatch", "path": "expectedColumns"}]
+    operation = {
+        "findingCode": "output.projection_mismatch",
+        "op": "replace_text",
+        "path": "/sql",
+        "oldValue": "SELECT COUNT(*) FROM openelis.patient",
+    }
+    patch = json.dumps(
+        {
+            "patches": [
+                {
+                    **operation,
+                    "replacement": "SELECT COUNT(*) AS count FROM openelis.patient",
+                },
+                {
+                    **operation,
+                    "replacement": "SELECT COUNT(*) AS total FROM openelis.patient",
+                },
+            ]
+        }
+    )
+
+    with pytest.raises(QueryPatchError, match="overlap"):
+        _parse_and_apply_patch(patch, base, findings, ["/sql"])
+
+
 def test_parse_and_apply_patch_rejects_out_of_scope_path():
     base = {
         "status": "ready",
