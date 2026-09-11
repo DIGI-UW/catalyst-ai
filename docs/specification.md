@@ -177,6 +177,12 @@ Command or Control plus Enter performs the same prepare action, while Enter
 inserts a newline. Busy and error states prevent duplicate requests, announce
 progress or failure, retain the draft, and provide Retry.
 
+Question preparation has one configurable deadline covering source/profile
+preparation, waiting for the model, generation, repairs, and optional review.
+A lost request or expired deadline cancels outstanding model work and records
+the claimed turn as failed without changing the selected query or prior result.
+The session becomes available for another turn. Preparation never executes SQL.
+
 ### Conversation and state
 
 A follow-up uses the current visible editor state, prior user instructions,

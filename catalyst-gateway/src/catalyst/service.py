@@ -21,6 +21,7 @@ from .contracts import ContractError, ContractRegistry
 from .dialects import resolve_dialect_adapter
 from .digest import canonical_sha256, query_digest, utf8_sha256
 from .hub import HubError
+from .generation_lifecycle import cancellation_details
 from .policy import (
     QueryInvariantError,
     SqlPolicy,
@@ -917,6 +918,9 @@ class CatalystService:
                 hub_evidence=(hub_evidence if isinstance(hub_evidence, dict) else None),
             )
             generation = ServiceResponse(200, hub_generation.query)
+        except asyncio.CancelledError as error:
+            self._record_cancelled_generation(store, initial_turn["turnId"], error)
+            raise
         except HubError as error:
             generation = self._error(502, error.code, str(error))
             if error.raw_output is not None:
@@ -1627,6 +1631,9 @@ class CatalystService:
             return self._workbench_terminal_turn_response(
                 store, session_id, completed["turnId"]
             )
+        except asyncio.CancelledError as error:
+            self._record_cancelled_generation(store, claimed["turnId"], error)
+            raise
         except HubError as error:
             failed = store.fail_turn(
                 claimed["turnId"],
@@ -1661,6 +1668,24 @@ class CatalystService:
             return self._workbench_terminal_turn_response(
                 store, session_id, failed["turnId"]
             )
+
+    @staticmethod
+    def _record_cancelled_generation(
+        store: WorkbenchStore, turn_id: str, error: asyncio.CancelledError
+    ) -> None:
+        code, message = cancellation_details(error)
+        evidence = getattr(error, "evidence", {})
+        invocations = evidence.get("modelInvocations", [])
+        role = invocations[-1]["role"] if invocations else "writer"
+        store.fail_turn(
+            turn_id,
+            stage="reviewer_transport" if role == "reviewer" else "writer_transport",
+            code=code,
+            message=message,
+            raw_evidence=json.dumps(evidence) if evidence else None,
+            hub_response=evidence or None,
+            invocations=invocations,
+        )
 
     async def create_workbench_version(
         self,
