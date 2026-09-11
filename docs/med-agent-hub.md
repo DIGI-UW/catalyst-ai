@@ -115,6 +115,12 @@ Catalyst does not silently reduce the readable schema to a hand-picked subset.
 If a selected model cannot accept the required request, generation fails with a
 clear context error rather than sending a different schema.
 
+Role messages place the stable target, complete schema, policy, and output
+contract before the changing question, correlation IDs, and revision context.
+This makes their shared prefix reusable by a capable model server; it does not
+cache answers or replace live schema discovery. Actual reuse and timing remain
+deployment measurements, including when requests alternate between sources.
+
 Catalyst never sends Hub:
 
 - source credentials or connection strings;
