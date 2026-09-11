@@ -288,6 +288,39 @@ async def test_writer_only_finalizes_without_review():
 
 
 @pytest.mark.asyncio
+async def test_exact_duplicate_repair_applies_once_without_a_third_model_call():
+    initial = {
+        "status": "ready",
+        "sql": f"SELECT COUNT(*) FROM {VIEW_NAME}",
+        "parameters": [],
+        "expectedColumns": [
+            {"name": "count", "logicalType": "integer", "nullable": True}
+        ],
+    }
+    operation = {
+        "findingCode": "output.projection_mismatch",
+        "op": "replace_text",
+        "path": "/sql",
+        "oldValue": initial["sql"],
+        "replacement": f"SELECT COUNT(*) AS count FROM {VIEW_NAME}",
+    }
+
+    result = await _run(
+        _writer_only_profile(),
+        [initial, {"patches": [operation, operation]}],
+    )
+
+    assert result["status"] == "ready"
+    assert result["sql"] == operation["replacement"]
+    invocations = result["_hubEvidence"]["modelInvocations"]
+    assert [item["outcome"] for item in invocations] == [
+        "validation_failed",
+        "succeeded",
+    ]
+    assert len(invocations) == 2
+
+
+@pytest.mark.asyncio
 async def test_projection_name_repair_keeps_the_model_sql_intact():
     candidate = _ready_candidate()
     candidate["expectedColumns"][1]["name"] = "reported_at"

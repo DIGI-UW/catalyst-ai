@@ -1163,7 +1163,13 @@ def _parse_and_apply_patch(
 
     current_codes = {str(finding.get("code")) for finding in findings}
     allowed = set(allowed_paths)
-    operations = list(value["patches"])
+    operations: list[dict[str, Any]] = []
+    seen_operations: set[str] = set()
+    for operation in value["patches"]:
+        signature = json.dumps(operation, sort_keys=True, separators=(",", ":"))
+        if signature not in seen_operations:
+            operations.append(operation)
+            seen_operations.add(signature)
     for operation in operations:
         if operation["findingCode"] not in current_codes:
             raise QueryPatchError(

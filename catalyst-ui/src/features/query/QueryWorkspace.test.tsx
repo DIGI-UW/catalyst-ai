@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryWorkspace } from "./QueryWorkspace";
 import type { CatalystApi } from "./api";
 import type {
@@ -218,6 +218,93 @@ const openSessionMenu = async (user: ReturnType<typeof userEvent.setup>) => {
 
 
 describe("Dashboard Builder Ask shell", () => {
+  beforeEach(() => window.localStorage.clear());
+  it.each(["new session", "empty session"])("stops preparation in a %s and retries the retained question", async (mode) => {
+    const client = api();
+    const user = userEvent.setup();
+    let requestSignal: AbortSignal | undefined;
+    const pending = (signal?: AbortSignal) => {
+      requestSignal = signal;
+      return new Promise<WorkbenchSession>((_resolve, reject) => {
+        signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+      });
+    };
+    if (mode === "empty session") {
+      const empty = await client.createWorkbenchSession!("");
+      client.getWorkbenchSession = vi.fn().mockResolvedValue(empty);
+      window.localStorage.setItem("catalyst.workbench.activeSessionId", empty.sessionId);
+      client.askWorkbenchSessionQuestion = vi.fn().mockImplementationOnce((_id, _question, _profile, signal) => pending(signal)).mockResolvedValue(session);
+    } else {
+      client.createWorkbenchSession = vi.fn().mockImplementationOnce((_question, _profile, _state, _source, signal) => pending(signal)).mockResolvedValue(session);
+    }
+    render(<QueryWorkspace api={client} />);
+    if (mode === "empty session") await waitFor(() => expect(client.getWorkbenchSession).toHaveBeenCalled());
+    const input = await screen.findByRole("textbox", { name: "Your question" });
+    await user.type(input, "Count results by test");
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(await screen.findByRole("button", { name: "Stop preparing" }));
+    expect(requestSignal?.aborted).toBe(true);
+    await waitFor(() => expect(input).toBeEnabled());
+    expect(input).toHaveValue("Count results by test");
+    await waitFor(() => expect(input).toHaveFocus());
+    expect(screen.getByRole("status")).toHaveTextContent("Preparation stopped. Your question is still here.");
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByRole("textbox", { name: "Ask a follow-up" })).toBeVisible();
+    expect(client.executeWorkbenchVersion).not.toHaveBeenCalled();
+    expect(client.executePreview).not.toHaveBeenCalled();
+  });
+
+  it("stops a follow-up without replacing the selected query or discarding the instruction", async () => {
+    const client = api();
+    const user = userEvent.setup();
+    let requestSignal: AbortSignal | undefined;
+    client.createWorkbenchTurn = vi.fn().mockImplementationOnce((_id, _request, signal) => {
+      requestSignal = signal;
+      return new Promise((_resolve, reject) => {
+        signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+      });
+    }).mockResolvedValue(timeline.turns[0]);
+    window.localStorage.setItem("catalyst.workbench.activeSessionId", session.sessionId);
+    render(<QueryWorkspace api={client} />);
+    const input = await screen.findByRole("textbox", { name: "Ask a follow-up" });
+    const editor = screen.getByRole("textbox", { name: "SQL query" });
+    const sql = editor.textContent;
+    await user.type(input, "Split it by test type");
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(await screen.findByRole("button", { name: "Stop preparing" }));
+    expect(requestSignal?.aborted).toBe(true);
+    await waitFor(() => expect(input).toBeEnabled());
+    expect(input).toHaveValue("Split it by test type");
+    expect(editor.textContent).toBe(sql);
+    await waitFor(() => expect(input).toHaveFocus());
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(input).toHaveValue(""));
+    expect(client.createWorkbenchTurn).toHaveBeenCalledTimes(2);
+    const retried = vi.mocked(client.createWorkbenchTurn!).mock.calls[1];
+    expect(retried?.[1].instruction).toBe("Split it by test type");
+    expect(retried?.[1].observedBase?.versionId).toBe(version.versionId);
+    expect(retried?.[2]?.aborted).toBe(false);
+    expect(client.createWorkbenchVersion).not.toHaveBeenCalled();
+    expect(client.executeWorkbenchVersion).not.toHaveBeenCalled();
+  });
+
+  it("aborts question preparation when the workspace unmounts", async () => {
+    const client = api();
+    const user = userEvent.setup();
+    let requestSignal: AbortSignal | undefined;
+    client.createWorkbenchSession = vi.fn().mockImplementation((_question, _profile, _state, _source, signal) => {
+      requestSignal = signal;
+      return new Promise((_resolve, reject) => {
+        signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+      });
+    });
+    const view = render(<QueryWorkspace api={client} />);
+    await user.type(screen.getByRole("textbox", { name: "Your question" }), "Count patients");
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    view.unmount();
+    expect(requestSignal?.aborted).toBe(true);
+  });
+
   it("groups saved work and retains the question across navigation", async () => {
     const user = userEvent.setup();
     const client = api();
@@ -449,6 +536,7 @@ describe("Dashboard Builder Ask shell", () => {
         "empty-session",
         "How many CD4 results?",
         "catalyst-query",
+        expect.any(AbortSignal),
       ),
     );
   });
@@ -829,6 +917,52 @@ describe("Dashboard Builder Ask shell", () => {
     expect(
       screen.getByRole("textbox", { name: "Ask a follow-up" }),
     ).toHaveValue("Split it by test type");
+  });
+
+  it("treats a clarification request as the next step, not a composer error", async () => {
+    const user = userEvent.setup();
+    const client = api();
+    const clarificationTurn = {
+      ...timeline.turns[0]!,
+      turnId: "77777777-7777-4777-8777-777777777777",
+      ordinal: 2,
+      kind: "followup" as const,
+      instruction: "Give me a useful overview of this dataset.",
+      status: "failed" as const,
+      selectedVersionId: null,
+      outputVersions: [],
+      resultingCurrentVersion: null,
+      writerOutcome: "needs_clarification" as const,
+      failure: {
+        stage: "writer_decision",
+        code: "needs_clarification",
+        message: "Would you like a schema description or a summary of key counts?",
+      },
+      createdAt: "2026-08-06T00:09:00Z",
+    };
+    client.createWorkbenchTurn = vi.fn().mockResolvedValue(clarificationTurn);
+    client.getWorkbenchTurns = vi
+      .fn()
+      .mockResolvedValue({ ...timeline, turns: [...timeline.turns, clarificationTurn] });
+    window.localStorage.setItem(
+      "catalyst.workbench.activeSessionId",
+      session.sessionId,
+    );
+    render(<QueryWorkspace api={client} />);
+
+    await user.type(
+      await screen.findByRole("textbox", { name: "Ask a follow-up" }),
+      clarificationTurn.instruction,
+    );
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(
+      await screen.findByText("Catalyst needs one more detail. Update your question and continue."),
+    ).toBeVisible();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    const followup = screen.getByRole("textbox", { name: "Ask a follow-up" });
+    expect(followup).toHaveValue(clarificationTurn.instruction);
+    await waitFor(() => expect(followup).toHaveFocus());
   });
 
   it("answers the writer's question when there is no query to revise", async () => {
