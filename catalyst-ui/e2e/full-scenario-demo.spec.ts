@@ -129,6 +129,8 @@ for (const source of ["openelis", "openmrs-hiv"]) {
           .find(version => version.versionId === execution.versionId)).toBeDefined();
         const version = recordedSessions.flatMap(session => session.versions)
           .find(item => item.versionId === execution.versionId)!;
+        expect(recordedSessions.filter(session => session.sessionId === execution.sessionId)
+          .flatMap(session => session.versions).some(item => item.authorType === "human")).toBe(false);
         expect(version.authorType).not.toBe("human");
         expect(execution.query).toEqual({ sql: version.sql, parameters: version.parameters });
         const collaboration = version.provenance.modelCollaboration as { reviewer?: { model?: string; decision?: string } };

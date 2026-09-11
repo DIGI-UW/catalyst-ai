@@ -33,7 +33,7 @@ def normalize_sql_layout(sql: str) -> str:
 
     def push(text: str) -> None:
         nonlocal pending_space
-        if pending_space and out:
+        if pending_space and out and out[-1][-1] not in "(," and text[0] not in "(),":
             out.append(" ")
         pending_space = False
         out.append(text)
