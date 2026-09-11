@@ -54,7 +54,15 @@ class FullScenarioDemoContractTests(unittest.TestCase):
         self.assertIn('for (const source of ["openelis", "openmrs-hiv"])', self.spec)
         self.assertIn("for (const row of reusedExecution.result!.rows)", self.spec)
         self.assertIn(
-            'await expect(renderedRow.getByRole("cell").nth(1)).toHaveText(cells[1])',
+            'const renderedRows = await table.getByRole("row").evaluateAll',
+            self.spec,
+        )
+        self.assertIn(
+            "rendered.length === cells.length",
+            self.spec,
+        )
+        self.assertIn(
+            "rendered.every((cell, index) => displayed(cell) === displayed(cells[index]!))",
             self.spec,
         )
         self.assertIn("execution: reusedExecution", self.spec)
