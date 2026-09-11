@@ -321,6 +321,34 @@ async def test_exact_duplicate_repair_applies_once_without_a_third_model_call():
 
 
 @pytest.mark.asyncio
+async def test_projection_name_repair_keeps_the_model_sql_intact():
+    candidate = _ready_candidate()
+    candidate["expectedColumns"][1]["name"] = "reported_at"
+    correction = {
+        "patches": [
+            {
+                "findingCode": "output.projection_mismatch",
+                "op": "replace",
+                "path": "/expectedColumns/1/name",
+                "value": "release_date",
+            }
+        ]
+    }
+
+    result = await _run(_writer_only_profile(), [candidate, correction])
+
+    assert result["status"] == "ready"
+    assert result["sql"] == _ready_candidate()["sql"]
+    assert [column["name"] for column in result["expectedColumns"]] == [
+        "viral_load_value",
+        "release_date",
+    ]
+    invocations = result["_hubEvidence"]["modelInvocations"]
+    assert len(invocations) == 2
+    assert invocations[1]["role"] == "writer"
+
+
+@pytest.mark.asyncio
 async def test_reviewed_path_runs_writer_then_reviewer():
     result = await _run(_reviewed_profile(), [_ready_candidate(), _approve_review()])
 

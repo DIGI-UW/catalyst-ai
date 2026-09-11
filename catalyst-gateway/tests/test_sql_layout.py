@@ -26,6 +26,24 @@ def test_keyword_case_is_layout() -> None:
     assert sql_layout_matches("SELECT a FROM t", "select A from T")
 
 
+def test_spark_formatter_punctuation_does_not_create_a_human_edit() -> None:
+    model = (
+        "SELECT date_trunc('month', obs_date) AS month, count(*) AS result_count "
+        "FROM openmrs_hiv.observation_flat GROUP BY 1"
+    )
+    formatted = (
+        "SELECT\n  date_trunc ('month', obs_date) AS MONTH,\n"
+        "  count(*) AS result_count\nFROM\n  openmrs_hiv.observation_flat\n"
+        "GROUP BY\n  1"
+    )
+    assert sql_layout_matches(model, formatted)
+    assert not sql_layout_matches(model, formatted.replace("'month'", "'year'"))
+
+
+def test_separate_operator_tokens_remain_distinct() -> None:
+    assert not sql_layout_matches("SELECT a - - b FROM t", "SELECT a -- b FROM t")
+
+
 def test_a_real_change_is_not_layout() -> None:
     assert not sql_layout_matches(
         "SELECT test_name FROM analytics.lab_results",

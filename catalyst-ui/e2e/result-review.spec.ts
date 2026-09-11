@@ -6,6 +6,9 @@ test("one result table with disclosed provenance and preserved draft and focus",
   await page.goto("/");
   const draft = page.getByRole("textbox", { name: "Ask a follow-up" });
   await draft.fill("Keep the missing months visible");
+  // Make the result stale through a real edit, not automatic SQL formatting.
+  await page.getByRole("button", { name: "Edit query", exact: true }).click();
+  await page.getByRole("textbox", { name: "SQL query", exact: true }).fill("SELECT 17 AS edited_query");
   const trigger = page.getByRole("button", { name: "Review results" }).last();
   await expect(page.locator(".query-turn table")).toHaveCount(0);
   await trigger.click();

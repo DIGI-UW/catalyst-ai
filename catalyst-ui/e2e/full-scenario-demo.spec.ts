@@ -4,7 +4,9 @@ import { expect, test, type Locator } from "@playwright/test";
 import type {
   DashboardBuilderEntity,
   DashboardPublication,
+  TaggedCell,
   WorkbenchExecution,
+  WorkbenchSession,
 } from "../src/features/query/types";
 import { DemoMilestones } from "./support/demo-milestones";
 import { runSupersetImport } from "./support/superset-import";
@@ -37,6 +39,7 @@ for (const source of ["openelis", "openmrs-hiv"]) {
   test(`${source}: question to saved work and a rendered Dashboard`, async ({ page }, info) => {
     test.skip(process.env.PLAYWRIGHT_LIVE !== "true", "Requires the real stack and CATALYST_HARNESS_DIR.");
     const filming = info.project.name === "demo-video";
+    const productStory = process.env.CATALYST_DEMO_STORY === "true";
     const timing = new DemoMilestones(`full-scenario-${source}`);
     const label = source === "openelis" ? "Laboratory" : "OpenMRS";
     const runId = process.env.CATALYST_DEMO_RUN_ID?.trim() || randomUUID().slice(0, 8);
@@ -50,7 +53,7 @@ for (const source of ["openelis", "openmrs-hiv"]) {
           ],
           question: "Count CD4 count results from 2026-01-01 through 2026-12-31 by month. Return month and result_count.",
           schemaSearch: "observation",
-          followup: "Break those monthly CD4 count results down by patient gender, including missing gender. Keep the same 2026 date range. Return month, gender, and result_count.",
+          followup: "Break those same CD4 results down by patient gender, including missing gender. Count each result once so the monthly totals stay the same. Keep the 2026 date range. Return month, gender, and result_count.",
           expectedColumns: ["MONTH", "gender", "result_count"],
           chartKinds: ["table", "grouped_bar"],
         }
@@ -69,6 +72,7 @@ for (const source of ["openelis", "openmrs-hiv"]) {
     const executions: WorkbenchExecution[] = [];
     const evidence: unknown[] = [];
     const pending: Promise<void>[] = [];
+    const recordedSessions: WorkbenchSession[] = [];
     let executionRequests = 0;
     page.on("request", request => {
       if (request.method() === "POST" && new URL(request.url()).pathname.endsWith("/execute")) executionRequests++;
@@ -76,6 +80,11 @@ for (const source of ["openelis", "openmrs-hiv"]) {
     page.on("response", response => {
       const request = response.request();
       const path = new URL(response.url()).pathname;
+      if (path.match(/\/workbench\/sessions(?:\/[^/]+)?$/) && response.ok()) {
+        pending.push(response.json().then(body => {
+          if (Array.isArray(body.versions)) recordedSessions.push(body as WorkbenchSession);
+        }));
+      }
       if (request.method() === "POST" && path.startsWith("/v1/catalyst/")) {
         pending.push(response.json().then(body => {
           evidence.push({ path, status: response.status(), request: request.postDataJSON(), response: body });
@@ -115,6 +124,21 @@ for (const source of ["openelis", "openmrs-hiv"]) {
       expect(execution.status).toBe("succeeded");
       expect(execution.result?.rows.length).toBeGreaterThan(0);
       expect(executionRequests).toBe(count);
+      if (productStory && button === "Get results") {
+        await expect.poll(() => recordedSessions.flatMap(session => session.versions)
+          .find(version => version.versionId === execution.versionId)).toBeDefined();
+        const version = recordedSessions.flatMap(session => session.versions)
+          .find(item => item.versionId === execution.versionId)!;
+        expect(recordedSessions.filter(session => session.sessionId === execution.sessionId)
+          .flatMap(session => session.versions).some(item => item.authorType === "human")).toBe(false);
+        expect(version.authorType).not.toBe("human");
+        expect(execution.query).toEqual({ sql: version.sql, parameters: version.parameters });
+        const collaboration = version.provenance.modelCollaboration as { reviewer?: { model?: string; decision?: string } };
+        expect(collaboration?.reviewer?.model).toBeTruthy();
+        expect(["approve", "repair"]).toContain(collaboration?.reviewer?.decision);
+        await expect(page.getByText("AI reviewed", { exact: true }).last()).toBeVisible();
+        await expect(page.locator(".query-turn__unreviewed")).toHaveCount(0);
+      }
       await page.getByRole("button", { name: "Review results", exact: true }).last().click();
       await expect(panel.getByRole("table", { name: "Result rows" })).toBeVisible();
       return execution;
@@ -156,7 +180,7 @@ for (const source of ["openelis", "openmrs-hiv"]) {
       expect(executionRequests).toBe(0);
       timing.mark("ready-1");
       await dwell(5000);
-      await showResults("Get results", 1);
+      const initial = await showResults("Get results", 1);
       timing.mark("result-1");
       await page.screenshot({ path: info.outputPath("result-1.png") });
       await dwell(8000);
@@ -179,10 +203,48 @@ for (const source of ["openelis", "openmrs-hiv"]) {
       expect(executionRequests).toBe(1);
       timing.mark("ready-2");
       await dwell(5000);
-      const grouped = await showResults("Get results", 2);
-      expect(grouped.result!.columns.map(column => column.name)).toEqual(scenario.expectedColumns);
+      let grouped = await showResults("Get results", 2);
+      expect(grouped.result!.columns.map(column => column.name.toLowerCase())).toEqual(scenario.expectedColumns.map(name => name.toLowerCase()));
+      // Adding a demographic breakdown must preserve the original population.
+      // A successful join and an AI approval do not establish that invariant.
+      const requiredValue = (cell: TaggedCell) => {
+        if (!("value" in cell)) throw new Error("Expected a non-null month or count");
+        return cell.value;
+      };
+      if (source === "openmrs-hiv") {
+        const monthlyTotals = new Map<string, number>();
+        for (const row of grouped.result!.rows) {
+          const month = String(requiredValue(row[0]!));
+          monthlyTotals.set(month, (monthlyTotals.get(month) ?? 0) + Number(requiredValue(row[2]!)));
+        }
+        expect([...monthlyTotals].sort()).toEqual(
+          initial.result!.rows.map(row => [String(requiredValue(row[0]!)), Number(requiredValue(row[1]!))]).sort(),
+        );
+      } else {
+        expect(grouped.result!.rows.reduce((sum, row) => sum + Number(requiredValue(row[1]!)), 0))
+          .toBe(Number(requiredValue(initial.result!.rows[0]![0]!)));
+      }
       timing.mark("result-2");
       await dwell(8000);
+      if (productStory && source === "openelis") {
+        await page.keyboard.press("Escape");
+        const expectedGroupedRows = grouped.result!.rows.map(row => JSON.stringify(row)).sort();
+        await type(followup, "Please fix this query from a colleague. It should count patients by gender: SELECT gender COUNT(*) AS patient_count FROM openelis.patient GROUP BY gender");
+        timing.mark("provided-sql");
+        await dwell(8000);
+        timing.mark("repair-prepare");
+        await page.getByRole("button", { name: "Continue", exact: true }).click();
+        await expect(followup).toHaveValue("", { timeout: 600000 });
+        await expect(page.getByRole("button", { name: "Get results", exact: true })).toBeEnabled();
+        expect(executionRequests).toBe(2);
+        timing.mark("repair-ready");
+        await dwell(5000);
+        grouped = await showResults("Get results", 3);
+        expect(grouped.result!.columns.map(column => column.name.toLowerCase())).toEqual(["gender", "patient_count"]);
+        expect(grouped.result!.rows.map(row => JSON.stringify(row)).sort()).toEqual(expectedGroupedRows);
+        timing.mark("repair-result");
+        await dwell(8000);
+      }
       const dataset = await saveQuery(queryTitle);
       timing.mark("saved-query");
       await followup.fill("Keep this question for later");
@@ -198,7 +260,7 @@ for (const source of ["openelis", "openmrs-hiv"]) {
       // without newlines even when the saved SQL is loaded correctly.
       await expect.poll(async () => (await editor.locator(".cm-line").allTextContents()).join("\n"))
         .toBe(dataset.configuration.parameterizedSql);
-      expect(executionRequests).toBe(2);
+      const beforeReuse = executionRequests;
       await page.getByText(/View options/).click();
       // Keep public recordings visually consistent; the ordinary run still
       // exercises dark appearance with the same saved-work assertions.
@@ -213,27 +275,30 @@ for (const source of ["openelis", "openmrs-hiv"]) {
       // Exercise a real engine failure in the copied draft. The saved version
       // stays intact, and correcting the draft must not lose its typed values.
       const savedSql = dataset.configuration.parameterizedSql as string;
-      const invalidSql = `SELECT catalyst_missing_column FROM (${savedSql.replace(/;\s*$/, "")}) AS saved_query`;
-      await editor.fill(invalidSql);
-      const failureResponse = page.waitForResponse(r => r.request().method() === "POST" && r.url().endsWith("/execute"));
-      await page.getByRole("button", { name: "Run query", exact: true }).click();
-      const failedResponse = await failureResponse;
-      expect(failedResponse.ok()).toBe(true);
-      const failedExecution = await failedResponse.json() as WorkbenchExecution;
-      expect(failedExecution.status).toBe("failed");
-      expect(failedExecution.query.sql).toBe(invalidSql);
-      expect(failedExecution.query.parameters).toEqual(grouped.query.parameters);
-      expect(failedExecution.databaseDiagnostic?.message).toContain("catalyst_missing_column");
-      expect(executionRequests).toBe(3);
-      const diagnostic = page.getByRole("alert").filter({ hasText: "catalyst_missing_column" }).first();
-      await diagnostic.scrollIntoViewIfNeeded();
-      await expect(diagnostic).toBeInViewport();
-      await expect.poll(async () => (await editor.locator(".cm-line").allTextContents()).join("\n")).toBe(invalidSql);
-      timing.mark("reuse-failed");
-      await page.screenshot({ path: info.outputPath("reuse-failed.png") });
-      await dwell(8000);
-      await editor.fill(savedSql);
-      const reusedExecution = await showResults("Run query", 4);
+      let failedExecution: WorkbenchExecution | null = null;
+      if (!productStory) {
+        const invalidSql = `SELECT catalyst_missing_column FROM (${savedSql.replace(/;\s*$/, "")}) AS saved_query`;
+        await editor.fill(invalidSql);
+        const failureResponse = page.waitForResponse(r => r.request().method() === "POST" && r.url().endsWith("/execute"));
+        await page.getByRole("button", { name: "Run query", exact: true }).click();
+        const failedResponse = await failureResponse;
+        expect(failedResponse.ok()).toBe(true);
+        failedExecution = await failedResponse.json() as WorkbenchExecution;
+        expect(failedExecution.status).toBe("failed");
+        expect(failedExecution.query.sql).toBe(invalidSql);
+        expect(failedExecution.query.parameters).toEqual(grouped.query.parameters);
+        expect(failedExecution.databaseDiagnostic?.message).toContain("catalyst_missing_column");
+        expect(executionRequests).toBe(3);
+        const diagnostic = page.getByRole("alert").filter({ hasText: "catalyst_missing_column" }).first();
+        await diagnostic.scrollIntoViewIfNeeded();
+        await expect(diagnostic).toBeInViewport();
+        await expect.poll(async () => (await editor.locator(".cm-line").allTextContents()).join("\n")).toBe(invalidSql);
+        timing.mark("reuse-failed");
+        await page.screenshot({ path: info.outputPath("reuse-failed.png") });
+        await dwell(8000);
+        await editor.fill(savedSql);
+      }
+      const reusedExecution = await showResults("Run query", beforeReuse + (productStory ? 1 : 2));
       expect(reusedExecution.query).toEqual(grouped.query);
       timing.mark("reused-result");
       await dwell(8000);
@@ -367,7 +432,7 @@ for (const source of ["openelis", "openmrs-hiv"]) {
       writeFileSync(info.outputPath("proof.json"), JSON.stringify({ source, dataset, reused, first, revised, bundle, dashboardUrl, failedExecution, execution: reusedExecution }, null, 2));
     } finally {
       await Promise.allSettled(pending);
-      writeFileSync(info.outputPath("requests-and-results.json"), JSON.stringify({ source, executionRequests, executions, evidence }, null, 2));
+      writeFileSync(info.outputPath("requests-and-results.json"), JSON.stringify({ source, executionRequests, executions, evidence, sessions: recordedSessions }, null, 2));
       timing.save();
     }
   });

@@ -162,7 +162,9 @@ export const normalizeSqlLayout = (sql: string): string => {
   let dollarTag: string | null = null;
 
   const pushLiteral = (text: string) => {
-    if (pendingSpace && out.length > 0) out += " ";
+    // Formatters may add space before a function's opening parenthesis or
+    // around argument separators. These boundaries already separate tokens.
+    if (pendingSpace && out.length > 0 && !/[(,]$/.test(out) && !/^[(),]/.test(text)) out += " ";
     pendingSpace = false;
     out += text;
   };

@@ -3,11 +3,13 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   editorContentMatchesVersion,
+  editorExpectedColumns,
   normalizeSqlLayout,
   parametersMatch,
   sqlLayoutMatches,
   workbenchEditorDigest,
 } from "./editorDigest";
+import { formatSql } from "./components/sqlEditorSupport";
 
 const featureSources = (directory: string): string[] =>
   readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -186,6 +188,20 @@ describe("normalizeSqlLayout", () => {
 });
 
 describe("editorContentMatchesVersion", () => {
+  it("retains the reviewed version and columns after Spark function formatting", () => {
+    const original = {
+      sql: "SELECT date_trunc('month', obs_date) AS month, count(*) AS result_count FROM openmrs_hiv.observation_flat WHERE code_display = :test_name GROUP BY 1",
+      parameters: [{ name: "test_name", type: "string" as const, source: "question" as const, value: "CD4 count" }],
+      expectedColumns: [{ name: "month", logicalType: "date-time" as const, nullable: true }],
+    };
+    const formatted = formatSql(original.sql, "spark");
+    expect(formatted).not.toBe(original.sql);
+    const columns = editorExpectedColumns(original, formatted);
+    expect(columns).toEqual(original.expectedColumns);
+    expect(editorContentMatchesVersion({ ...original, sql: formatted, expectedColumns: columns }, original as never)).toBe(true);
+    expect(sqlLayoutMatches(original.sql, original.sql.replace("'month'", "'day'"))).toBe(false);
+    expect(sqlLayoutMatches("SELECT a - - b", "SELECT a -- b")).toBe(false);
+  });
   const version = {
     sql: "SELECT a,   b FROM t",
     parameters: [],

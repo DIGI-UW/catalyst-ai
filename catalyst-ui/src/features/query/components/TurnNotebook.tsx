@@ -218,11 +218,16 @@ const cellAuthor = (turn: NotebookTurn): "model" | "human" | "reviewer" => {
 const isUnreviewed = (turn: NotebookTurn, version: NotebookVersion | null) => {
   if (turn.status !== "completed") return false;
   if (!turn.profileSnapshot.reviewer) return false;
+  if (!version || version.authorType === "human") return true;
   if (turn.outputVersions.some((output) => output.role === "reviewer")) {
     return false;
   }
   const provenance = (version?.provenance ?? {}) as Record<string, unknown>;
-  if (typeof provenance.collaborationRole === "string") return false;
+  if (provenance.collaborationRole === "reviewer") return false;
+  const collaboration = provenance.modelCollaboration as
+    | { reviewer?: { decision?: string } }
+    | undefined;
+  if (collaboration?.reviewer?.decision === "approve") return false;
   const validation = provenance.generationValidation as
     | { checks?: { name?: unknown }[] }
     | undefined;
@@ -343,9 +348,10 @@ export const TurnNotebook = ({
     // accessible name carries it in full alongside the run counter it is cited
     // by and the outcome the status dot encodes visually.
     const unreviewed = isUnreviewed(turn, version);
+    const reviewed = turn.status === "completed" && Boolean(turn.profileSnapshot.reviewer) && !unreviewed && !asksTheReader(turn);
     const headerLabel =
       `Query turn ${turn.ordinal}: ${turn.instruction} — ${outcome}` +
-      (unreviewed ? " — unreviewed" : "");
+      (unreviewed ? " — unreviewed" : reviewed ? " — AI reviewed" : "");
 
     return (
       <article
@@ -377,6 +383,7 @@ export const TurnNotebook = ({
             {unreviewed && (
               <span className="query-turn__unreviewed">unreviewed</span>
             )}
+            {reviewed && <span className="query-turn__reviewed">AI reviewed</span>}
             <span className="query-turn__outcome">{outcome}</span>
             <span className="query-turn__caret" aria-hidden="true">
               {expanded ? "▾" : "▸"}

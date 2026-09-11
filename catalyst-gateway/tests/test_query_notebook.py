@@ -665,6 +665,38 @@ def test_turn_claim_reuses_or_promotes_exact_editor_once(tmp_path: Path) -> None
     store.close()
 
 
+def test_formatted_function_call_keeps_model_base_for_followup(tmp_path: Path) -> None:
+    store = WorkbenchStore(tmp_path / "formatted-followup.sqlite3")
+    session = _session(store)
+    base = store.append_version(
+        session["sessionId"],
+        sql="SELECT date_trunc('month', obs_date) AS month FROM observations",
+        parameters=[],
+        expected_columns=[],
+        author_type="model",
+        provenance={"model": "gemma-4-12b"},
+    )
+    observed = {"versionId": base["versionId"], "queryDigest": base["queryDigest"]}
+    turn = store.claim_turn(
+        session["sessionId"],
+        instruction="Break down the same results by gender",
+        instruction_digest="1" * 64,
+        profile_snapshot=_profile(),
+        observed_base=observed,
+        editor_snapshot=_snapshot(
+            "SELECT\n  date_trunc ('month', obs_date) AS MONTH\nFROM\n  observations"
+        ),
+        revision_context={"contractVersion": "catalyst.query.revision-context.v1"},
+        hub_request_digest="2" * 64,
+        catalyst_trace_id="formatted-followup",
+    )
+    assert turn["snapshotClassification"] == "reused"
+    assert turn["effectiveBaseVersion"] == observed
+    assert turn["manualVersion"] is None
+    assert store.get_session(session["sessionId"])["versions"] == [base]
+    store.close()
+
+
 def test_manual_save_reuses_unchanged_current_and_promotes_dirty_once(
     tmp_path: Path,
 ) -> None:

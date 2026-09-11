@@ -47,7 +47,7 @@ test("saved SQL opens explicitly, keeps typed values and the earlier draft, and 
   await page.goto("/");
   const followup = page.getByRole("textbox", { name: "Ask a follow-up" });
   await followup.fill("Keep missing months in my earlier question");
-  await page.getByText("View or edit SQL", { exact: true }).click();
+  await page.getByRole("button", { name: "Edit query", exact: true }).click();
   const editor = page.getByRole("textbox", { name: "SQL query" });
   await editor.fill("SELECT 17 AS earlier_draft");
   await page.getByRole("button", { name: "Saved work", exact: true }).click();

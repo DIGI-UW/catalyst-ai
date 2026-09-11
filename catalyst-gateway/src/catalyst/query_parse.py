@@ -1063,7 +1063,9 @@ def _allowed_patch_paths(
         }:
             paths.add("/parameters/-")
         if path == "expectedColumns" or code == "output.projection_mismatch":
-            paths.add("/sql")
+            # SQL defines the actual result shape. A projection-name mismatch
+            # must correct the model's declared output names, never rewrite an
+            # otherwise valid query just to make its metadata agree.
             for index, column in enumerate(candidate.get("expectedColumns") or []):
                 if isinstance(column, Mapping) and "name" in column:
                     paths.add(f"/expectedColumns/{index}/name")
