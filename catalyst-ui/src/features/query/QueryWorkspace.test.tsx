@@ -960,9 +960,9 @@ describe("Dashboard Builder Ask shell", () => {
       await screen.findByText("Catalyst needs one more detail. Update your question and continue."),
     ).toBeVisible();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("textbox", { name: "Ask a follow-up" }),
-    ).toHaveValue(clarificationTurn.instruction);
+    const followup = screen.getByRole("textbox", { name: "Ask a follow-up" });
+    expect(followup).toHaveValue(clarificationTurn.instruction);
+    await waitFor(() => expect(followup).toHaveFocus());
   });
 
   it("answers the writer's question when there is no query to revise", async () => {
