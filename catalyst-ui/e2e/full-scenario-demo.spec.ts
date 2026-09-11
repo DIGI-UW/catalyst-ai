@@ -206,7 +206,8 @@ for (const source of ["openelis", "openmrs-hiv"]) {
       await dwell(8000);
       if (productStory && source === "openelis") {
         await page.keyboard.press("Escape");
-        await type(followup, "A colleague supplied this patient summary, but sex is not a field. Please fix it using the available data: SELECT sex AS gender, COUNT(*) AS patient_count FROM openelis.patient GROUP BY sex");
+        const expectedGroupedRows = grouped.result!.rows.map(row => JSON.stringify(row)).sort();
+        await type(followup, "Please fix this query from a colleague. It should count patients by gender: SELECT gender COUNT(*) AS patient_count FROM openelis.patient GROUP BY gender");
         timing.mark("provided-sql");
         await dwell(8000);
         timing.mark("repair-prepare");
@@ -218,6 +219,7 @@ for (const source of ["openelis", "openmrs-hiv"]) {
         await dwell(5000);
         grouped = await showResults("Get results", 3);
         expect(grouped.result!.columns.map(column => column.name.toLowerCase())).toEqual(["gender", "patient_count"]);
+        expect(grouped.result!.rows.map(row => JSON.stringify(row)).sort()).toEqual(expectedGroupedRows);
         timing.mark("repair-result");
         await dwell(8000);
       }
