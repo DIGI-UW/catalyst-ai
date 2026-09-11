@@ -416,7 +416,15 @@ payload = {
             "fhir": "itechuw/openelis-global-2-fhir@sha256:667680632b8fe491bb1955f3935751562e60933d3aea91d79256ccd4eac857c3",
         },
     },
-    "fhirDataPipes": {"commit": os.environ["DATA_PIPES_COMMIT"], "spark": False},
+    "fhirDataPipes": {
+        "commit": os.environ["DATA_PIPES_COMMIT"],
+        "outputFormat": "parquet",
+    },
+    "spark": {
+        "thriftServer": True,
+        "database": "openelis",
+        "registeredViews": json.loads(os.environ["PIPELINE_JSON"])["registeredViews"],
+    },
     "medAgentHub": {
         "commit": os.environ["HUB_COMMIT"],
         "source": os.environ["HUB_SOURCE"],

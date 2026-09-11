@@ -684,6 +684,9 @@ class MvpScriptContractTests(unittest.TestCase):
         ):
             self.assertIn(marker, script)
         self.assertIn('if body != "OK":', script)
+        self.assertIn('"outputFormat": "parquet"', script)
+        self.assertIn('"thriftServer": True', script)
+        self.assertNotIn('"spark": False', script)
 
 
 if __name__ == "__main__":
