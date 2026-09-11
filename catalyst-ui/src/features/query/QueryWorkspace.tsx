@@ -1181,7 +1181,17 @@ export const QueryWorkspace = ({
           requestAnimationFrame(() => document.getElementById("catalyst-followup")?.focus());
         }
       }
-      if (turn.status === "failed") {
+      const writerAnswered =
+        turn.failure?.code === "needs_clarification" ||
+        turn.failure?.code === "unsupported";
+      if (turn.status === "failed" && writerAnswered) {
+        setWorkbenchAnnouncement(
+          turn.failure?.code === "needs_clarification"
+            ? "Catalyst needs one more detail. Update your question and continue."
+            : "Catalyst cannot answer this from the selected data. You can refine the question or browse Available data.",
+        );
+        requestAnimationFrame(() => document.getElementById("catalyst-followup")?.focus());
+      } else if (turn.status === "failed") {
         // A turn that comes back failed is not an error to throw, so it used
         // to be treated as success: nothing was said, the instruction was
         // cleared, and the failed cell was filed wherever the ordering put

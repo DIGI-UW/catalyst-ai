@@ -919,6 +919,52 @@ describe("Dashboard Builder Ask shell", () => {
     ).toHaveValue("Split it by test type");
   });
 
+  it("treats a clarification request as the next step, not a composer error", async () => {
+    const user = userEvent.setup();
+    const client = api();
+    const clarificationTurn = {
+      ...timeline.turns[0]!,
+      turnId: "77777777-7777-4777-8777-777777777777",
+      ordinal: 2,
+      kind: "followup" as const,
+      instruction: "Give me a useful overview of this dataset.",
+      status: "failed" as const,
+      selectedVersionId: null,
+      outputVersions: [],
+      resultingCurrentVersion: null,
+      writerOutcome: "needs_clarification" as const,
+      failure: {
+        stage: "writer_decision",
+        code: "needs_clarification",
+        message: "Would you like a schema description or a summary of key counts?",
+      },
+      createdAt: "2026-08-06T00:09:00Z",
+    };
+    client.createWorkbenchTurn = vi.fn().mockResolvedValue(clarificationTurn);
+    client.getWorkbenchTurns = vi
+      .fn()
+      .mockResolvedValue({ ...timeline, turns: [...timeline.turns, clarificationTurn] });
+    window.localStorage.setItem(
+      "catalyst.workbench.activeSessionId",
+      session.sessionId,
+    );
+    render(<QueryWorkspace api={client} />);
+
+    await user.type(
+      await screen.findByRole("textbox", { name: "Ask a follow-up" }),
+      clarificationTurn.instruction,
+    );
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(
+      await screen.findByText("Catalyst needs one more detail. Update your question and continue."),
+    ).toBeVisible();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("textbox", { name: "Ask a follow-up" }),
+    ).toHaveValue(clarificationTurn.instruction);
+  });
+
   it("answers the writer's question when there is no query to revise", async () => {
     const user = userEvent.setup();
     const client = api();
