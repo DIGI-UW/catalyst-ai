@@ -32,6 +32,9 @@ The default regression journey retains the database-error/retry assertions.
 Both journeys run in either project and compare native Superset results with
 the originating execution. The public story also requires recorded reviewer
 decisions, visible review status, and execution of the model-authored version.
+The gender breakdown must preserve the original totals (by month for OpenMRS).
+This catches row multiplication from a join even when SQL executes successfully
+and the reviewer approves it; it is not a general clinical-correctness verdict.
 
 ## Prerequisites
 

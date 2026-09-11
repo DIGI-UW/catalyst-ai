@@ -4,6 +4,7 @@ import { expect, test, type Locator } from "@playwright/test";
 import type {
   DashboardBuilderEntity,
   DashboardPublication,
+  TaggedCell,
   WorkbenchExecution,
   WorkbenchSession,
 } from "../src/features/query/types";
@@ -52,7 +53,7 @@ for (const source of ["openelis", "openmrs-hiv"]) {
           ],
           question: "Count CD4 count results from 2026-01-01 through 2026-12-31 by month. Return month and result_count.",
           schemaSearch: "observation",
-          followup: "Break those monthly CD4 count results down by patient gender, including missing gender. Keep the same 2026 date range. Return month, gender, and result_count.",
+          followup: "Break those same CD4 results down by patient gender, including missing gender. Count each result once so the monthly totals stay the same. Keep the 2026 date range. Return month, gender, and result_count.",
           expectedColumns: ["MONTH", "gender", "result_count"],
           chartKinds: ["table", "grouped_bar"],
         }
@@ -177,7 +178,7 @@ for (const source of ["openelis", "openmrs-hiv"]) {
       expect(executionRequests).toBe(0);
       timing.mark("ready-1");
       await dwell(5000);
-      await showResults("Get results", 1);
+      const initial = await showResults("Get results", 1);
       timing.mark("result-1");
       await page.screenshot({ path: info.outputPath("result-1.png") });
       await dwell(8000);
@@ -202,6 +203,25 @@ for (const source of ["openelis", "openmrs-hiv"]) {
       await dwell(5000);
       let grouped = await showResults("Get results", 2);
       expect(grouped.result!.columns.map(column => column.name.toLowerCase())).toEqual(scenario.expectedColumns.map(name => name.toLowerCase()));
+      // Adding a demographic breakdown must preserve the original population.
+      // A successful join and an AI approval do not establish that invariant.
+      const requiredValue = (cell: TaggedCell) => {
+        if (!("value" in cell)) throw new Error("Expected a non-null month or count");
+        return cell.value;
+      };
+      if (source === "openmrs-hiv") {
+        const monthlyTotals = new Map<string, number>();
+        for (const row of grouped.result!.rows) {
+          const month = String(requiredValue(row[0]!));
+          monthlyTotals.set(month, (monthlyTotals.get(month) ?? 0) + Number(requiredValue(row[2]!)));
+        }
+        expect([...monthlyTotals].sort()).toEqual(
+          initial.result!.rows.map(row => [String(requiredValue(row[0]!)), Number(requiredValue(row[1]!))]).sort(),
+        );
+      } else {
+        expect(grouped.result!.rows.reduce((sum, row) => sum + Number(requiredValue(row[1]!)), 0))
+          .toBe(Number(requiredValue(initial.result!.rows[0]![0]!)));
+      }
       timing.mark("result-2");
       await dwell(8000);
       if (productStory && source === "openelis") {
