@@ -40,9 +40,32 @@ for (const source of ["openelis", "openmrs-hiv"]) {
     const timing = new DemoMilestones(`full-scenario-${source}`);
     const label = source === "openelis" ? "Laboratory" : "OpenMRS";
     const runId = process.env.CATALYST_DEMO_RUN_ID?.trim() || randomUUID().slice(0, 8);
-    const queryTitle = `${label} patient counts · ${runId}`;
-    const dashboardTitle = `${label} overview · ${runId}`;
-    const chartTitles = [`${label} patient table · ${runId}`, `${label} patients by gender · ${runId}`];
+    const scenario = source === "openmrs-hiv"
+      ? {
+          queryTitle: `OpenMRS CD4 monitoring · ${runId}`,
+          dashboardTitle: `OpenMRS CD4 monitoring overview · ${runId}`,
+          chartTitles: [
+            `OpenMRS CD4 monitoring table · ${runId}`,
+            `OpenMRS CD4 results by gender · ${runId}`,
+          ],
+          question: "Count CD4 count results from 2026-01-01 through 2026-12-31 by month. Return month and result_count.",
+          schemaSearch: "observation",
+          followup: "Break those monthly CD4 count results down by patient gender, including missing gender. Keep the same 2026 date range. Return month, gender, and result_count.",
+          expectedColumns: ["MONTH", "gender", "result_count"],
+          chartKinds: ["table", "grouped_bar"],
+        }
+      : {
+          queryTitle: `${label} patient counts · ${runId}`,
+          dashboardTitle: `${label} overview · ${runId}`,
+          chartTitles: [`${label} patient table · ${runId}`, `${label} patients by gender · ${runId}`],
+          question: "How many patients are there?",
+          schemaSearch: "patient",
+          followup: "Break down that patient count by gender, including patients with missing gender. Return gender and patient_count.",
+          expectedColumns: ["gender", "patient_count"],
+          chartKinds: ["table", "grouped_bar"],
+        };
+    const queryTitle = scenario.queryTitle;
+    const { dashboardTitle, chartTitles } = scenario;
     const executions: WorkbenchExecution[] = [];
     const evidence: unknown[] = [];
     const pending: Promise<void>[] = [];
@@ -101,14 +124,14 @@ for (const source of ["openelis", "openmrs-hiv"]) {
       const draft = page.getByRole("textbox", { name: "Your question", exact: true });
       await expect(draft).toBeVisible();
       timing.mark("source-selected");
-      await type(draft, "How many patients are there?");
+      await type(draft, scenario.question);
       await page.getByRole("button", { name: "Expand", exact: true }).click();
-      await expect(draft).toHaveValue("How many patients are there?");
+      await expect(draft).toHaveValue(scenario.question);
       timing.mark("question-typed");
       await dwell(5000);
       await page.getByRole("button", { name: "What data is available?" }).click();
       const browser = page.getByRole("complementary", { name: "Available data" });
-      await browser.getByRole("searchbox", { name: "Search tables and fields" }).fill("patient");
+      await browser.getByRole("searchbox", { name: "Search tables and fields" }).fill(scenario.schemaSearch);
       await expect(browser.locator(".cds--accordion__item").first()).toBeVisible({ timeout: 30000 });
       expect(executionRequests).toBe(0);
       timing.mark("schema-visible");
@@ -116,7 +139,7 @@ for (const source of ["openelis", "openmrs-hiv"]) {
       await dwell(8000);
       await browser.getByRole("button", { name: "Back to your question" }).click();
       await expect(draft).toBeFocused();
-      await expect(draft).toHaveValue("How many patients are there?");
+      await expect(draft).toHaveValue(scenario.question);
       await browser.getByRole("button", { name: "Close available data" }).click();
       await page.getByRole("button", { name: "Restore", exact: true }).click();
       // An explicit profile is honored exactly. Otherwise the existing UI's
@@ -145,7 +168,7 @@ for (const source of ["openelis", "openmrs-hiv"]) {
       await dwell(8000);
       await page.keyboard.press("Escape");
       const followup = page.getByRole("textbox", { name: "Ask a follow-up", exact: true });
-      await type(followup, "Break down that patient count by gender, including patients with missing gender. Return gender and patient_count.");
+      await type(followup, scenario.followup);
       timing.mark("followup-typed");
       await dwell(5000);
       timing.mark("prepare-2");
@@ -157,7 +180,7 @@ for (const source of ["openelis", "openmrs-hiv"]) {
       timing.mark("ready-2");
       await dwell(5000);
       const grouped = await showResults("Get results", 2);
-      expect(grouped.result!.columns.map(column => column.name)).toEqual(["gender", "patient_count"]);
+      expect(grouped.result!.columns.map(column => column.name)).toEqual(scenario.expectedColumns);
       timing.mark("result-2");
       await dwell(8000);
       const dataset = await saveQuery(queryTitle);
@@ -228,7 +251,7 @@ for (const source of ["openelis", "openmrs-hiv"]) {
       timing.mark("reuse-complete");
       await library("Charts and tables");
       const chartIds: string[] = [];
-      for (const [index, kind] of ["table", "grouped_bar"].entries()) {
+      for (const [index, kind] of scenario.chartKinds.entries()) {
         await page.getByRole("button", { name: "New chart or table", exact: true }).click();
         await panel.getByLabel("Saved query", { exact: true }).selectOption(reused.versionId);
         await panel.getByLabel("Chart name", { exact: true }).fill(chartTitles[index]!);
@@ -319,11 +342,23 @@ for (const source of ["openelis", "openmrs-hiv"]) {
       // do not open a second connection or use an obsolete fixture count.
       const table = page.getByRole("table").first();
       await expect(table).toBeVisible({ timeout: 120000 });
+      const renderedRows = await table.getByRole("row").evaluateAll(rows => rows.map(row =>
+        [...row.querySelectorAll('[role="cell"]')].map(cell => cell.textContent ?? ""),
+      ));
+      const displayed = (value: string) => value
+        .replace("T", " ")
+        .replace(/\.\d{3}Z$/, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
       for (const row of reusedExecution.result!.rows) {
         const cells = row.map(cell => cell.type === "null" ? "NULL" : String(cell.value));
-        const renderedRow = table.getByRole("row").filter({ has: page.getByText(cells[0], { exact: true }) });
-        // Superset labels cells with their column name, not their value.
-        await expect(renderedRow.getByRole("cell").nth(1)).toHaveText(cells[1]);
+        // Superset formats timestamps for display (space rather than ISO T),
+        // but every value of the originating row must remain visible together.
+        expect(renderedRows.some(rendered =>
+          rendered.length === cells.length
+          && rendered.every((cell, index) => displayed(cell) === displayed(cells[index]!)),
+        )).toBe(true);
       }
       timing.mark("dashboard-rendered");
       await dwell(8000);
