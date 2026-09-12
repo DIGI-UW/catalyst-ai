@@ -1,3 +1,4 @@
+import { Disclosure } from "./components/Disclosure";
 import { Renew } from "@carbon/icons-react";
 import { Button, CodeSnippet, InlineNotification, Modal, Tag } from "@carbon/react";
 import {
@@ -1637,7 +1638,7 @@ export const QueryWorkspace = ({
             <p className="eyebrow">{sessionHasWork ? "Explore" : "Explore your data"}</p>
             <h1 id="question-title" tabIndex={-1}>
               {sessionHasWork
-                ? (workbenchSession?.name ?? "").trim() || workbenchSession?.question || "Your question"
+                ? (workbenchSession?.name?.trim() && workbenchSession.name !== workbenchSession.question ? workbenchSession.name : "Your question")
                 : "What would you like to find out?"}
             </h1>
             {!sessionHasWork && <p>Start with a question, in your own words.</p>}
@@ -1670,9 +1671,9 @@ export const QueryWorkspace = ({
           </p>}
           {startingQuery && <div className="saved-query-origin">
             <p>Started from {startingQuery.title}. The saved query is unchanged; select {runActionLabel} when ready.</p>
-            <details><summary>Saved query reference</summary>
+            <Disclosure title="Saved query reference">
               <p>Version {startingQuery.versionId} · {startingQuery.dataSourceId} · {startingQuery.dialect ?? "Original dialect not recorded"}</p>
-            </details>
+            </Disclosure>
             {startingQuery.previousSessionId && <Button kind="ghost" size="sm"
               onClick={() => void openRecentSession(startingQuery.previousSessionId!)}>
               Return to previous draft
@@ -1698,16 +1699,14 @@ export const QueryWorkspace = ({
 
       {state.kind === "submitting" && (
         <ExecutionState
-          title={
-            usesWorkbench ? "Generating workbench draft" : "Preparing preview"
-          }
+          title="Preparing your question"
           message={
             usesWorkbench
-              ? "Catalyst is generating an editable SQL draft with the selected profile."
-              : "Catalyst is validating the question and proposed query."
+              ? "We’re preparing a query for you to review. No data has been retrieved."
+              : "We’re checking your question and proposed query. No data has been retrieved."
           }
           running
-          loadingDescription="Generating answer"
+          loadingDescription="Preparing…"
         />
       )}
 
@@ -1718,6 +1717,8 @@ export const QueryWorkspace = ({
             used to sit here was unstyled, unexplained, and confused every
             reader of the page, so the surface shipped without it. */}
         <TurnNotebook
+          sourceLabel={activeDataSourceLabel ?? undefined}
+          dialect={workbenchCatalog?.dialect ?? "sql"}
           advancedMode={advancedMode}
           turns={activeNotebookTurns}
           session={workbenchSession}

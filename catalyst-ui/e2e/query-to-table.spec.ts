@@ -983,12 +983,12 @@ test("question to iterative notebook to imported dashboard", async ({
   );
   await expect(page.getByRole("region", { name: "Iterative query notebook" }))
     .toBeVisible();
-  await expect(page.getByLabel("Your question")).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: "Your question", exact: true })).toHaveCount(0);
   await expect(page.getByRole("textbox", { name: "Ask a follow-up" }))
     .toBeVisible();
   // Run state lives in the thread, not the composer: the fresh query's cell
-  // says "not run" and the composer carries no grounding prose.
-  await expect(page.getByRole("region", { name: "Iterative query notebook" }).getByText(/not run/i).first()).toBeVisible();
+  // says "ready to get results" and the composer carries no grounding prose.
+  await expect(page.getByRole("region", { name: "Iterative query notebook" }).getByText("ready to get results", { exact: true }).first()).toBeVisible();
   await expect(page.locator(".turn-composer__grounding")).toHaveCount(0);
 
   if (useMockApi) {
@@ -1054,6 +1054,7 @@ test("question to iterative notebook to imported dashboard", async ({
     // the model-context note sits in the current cell's footer, and the
     // composer carries no grounding prose (only a ⚠ icon when stale — and the
     // editor matches the run here, so not even that).
+    await page.locator(".query-turn").filter({has: page.getByText("Result row values are not included in model context.", {exact: true})}).getByRole("button", {name: "View query details"}).click();
     await expect(
       page.getByText("Result row values are not included in model context."),
     ).toBeVisible();
@@ -1183,11 +1184,11 @@ test("question to iterative notebook to imported dashboard", async ({
     // ------------------------------------------------- the thread restores
     await navigate("Explore");
     await page.getByText("Query settings", { exact: true }).click();
-    await expect(page.getByRole("heading", { level: 1, name: query })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Your question" })).toBeVisible();
     // Every turn is a cell, numbered by position, and the thread carries them
     // all rather than hiding earlier ones behind a summary.
-    await expect(page.getByRole("button", { name: /Query turn 1/ })).toBeVisible();
-    await expect(page.getByRole("button", { name: /Query turn 2/ })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Query turn 1", exact: true })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Query turn 2", exact: true })).toBeVisible();
     await expect(page.getByRole("combobox", { name: "Model profile" }))
       .toHaveValue(revisionProfileId);
 

@@ -1,3 +1,4 @@
+import { Disclosure } from "./Disclosure";
 import { CheckmarkFilled, Close, DataBase, Renew } from "@carbon/icons-react";
 import { Button, InlineNotification, Select, SelectItem, Tag, TextInput } from "@carbon/react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -845,10 +846,9 @@ export const DashboardPublishPanel = ({
                 {parameters.length > 0 && <p className="builder-saved-card__parameters">
                   {parameters.map((parameter) => `${parameter.name} · ${parameter.type}`).join("; ")}
                 </p>}
-                <details className="builder-saved-card__details" open={advancedMode || undefined}>
-                  <summary>Query details</summary>
+                <Disclosure className="builder-saved-card__details" open={advancedMode || undefined} title="Query details">
                   <p>{Array.isArray(columns) ? columns.length : "Unknown"} columns · {String(rowCount?.returned ?? "Unknown")} rows · {parameters.length} parameters · Saved {dateLabel(dataset.createdAt)}</p>
-                </details>
+                </Disclosure>
                 <div className="builder-saved-card__actions">
                   <Button type="button" aria-label={`Review ${title}`}
                     onClick={(event) => {
@@ -1125,8 +1125,7 @@ export const DashboardPublishPanel = ({
                     compact
                     pageSize={25}
                   />
-                  <details className="builder-review__technical" open={advancedMode}>
-                    <summary>Technical details</summary>
+                  <Disclosure className="builder-review__technical" open={advancedMode} title="Technical details">
                     {!reviewedDataset && reviewedSession.executions.filter((run) => run.status === "succeeded").length > 1 && (
                       <Select id="review-recorded-result" labelText="Recorded result" value={reviewedExecution.executionId}
                         onChange={(event) => openPanel("dataset", undefined, event.currentTarget.value)}>
@@ -1191,22 +1190,20 @@ export const DashboardPublishPanel = ({
                         </ul>
                       )}
                     </section>
-                    <details className="builder-review__sql">
-                      <summary>Query v{reviewedVersion?.ordinal ?? "?"} SQL snapshot</summary>
+                    <Disclosure className="builder-review__sql" title={<>Query v{reviewedVersion?.ordinal ?? "?"} SQL snapshot</>}>
                       <pre>{reviewedExecution.query.sql}</pre>
-                    </details>
-                  </details>
+                    </Disclosure>
+                  </Disclosure>
                 </>
               )}
-              {panel === "dataset" && reviewedDataset && <details className="builder-review__sql">
-                <summary>Saved SQL and values</summary>
+              {panel === "dataset" && reviewedDataset && <Disclosure className="builder-review__sql" title="Saved SQL and values">
                 <pre>{String(reviewedDataset.configuration.parameterizedSql ?? "Saved SQL is unavailable.")}</pre>
                 <p>Source: {String(reviewedDatasetSource?.dataSourceId ?? "Unknown")} · Dialect: {String(reviewedDatasetSource?.dialect ?? "Not recorded")}</p>
                 <dl>{savedQueryDraft(reviewedDataset)?.parameters.map((parameter) => <div key={parameter.name}>
                   <dt>:{parameter.name} ({parameter.type})</dt><dd>{displayParameterValue(parameter.value)}</dd>
                 </div>)}</dl>
-                <details><summary>Recorded execution SQL</summary><pre>{String(reviewedDataset.configuration.compiledSql ?? "Not recorded")}</pre></details>
-              </details>}
+                <Disclosure title="Recorded execution SQL"><pre>{String(reviewedDataset.configuration.compiledSql ?? "Not recorded")}</pre></Disclosure>
+              </Disclosure>}
               {panel === "dataset" && datasetEvidenceLoading && (
                 <p role="status">Loading exact Dataset execution evidence…</p>
               )}

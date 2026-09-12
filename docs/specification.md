@@ -196,7 +196,23 @@ A follow-up uses the current visible editor state, prior user instructions,
 relevant failure information, and eligible verified examples from the same
 source and session. Earlier material cannot replace the current instruction.
 
-Earlier turns become readable summaries. Only the latest turn owns the editor.
+Every turn keeps its full question, source, outcome, and relevant limitations
+visible. A successful run also shows its returned-row count, returned field names
+(up to four, then a remaining-field count), and a direct result-review action.
+Empty, limited, stale, clarification, and failure outcomes remain distinguishable
+without opening query evidence. These summaries use recorded facts, never a
+new model request or an interpretation of SQL intent.
+
+One **View query details** toggle button (no chevron) exposes formatted read-only SQL, typed
+values, execution facts, and recorded model/review provenance. Standard mode
+starts with query evidence closed; Advanced mode adds a two-line SQL preview.
+A person's explicit open/closed choice survives switching Advanced mode. SQL
+formatting changes presentation only. A successful turn also previews the first
+three recorded rows, labelled with the preview and returned counts. Keep column
+order and typed values, make wide previews horizontally scrollable, and preserve
+limits/warnings and the link to review. Previewing never executes SQL or sends
+rows to a model. The Dataset review remains the only full
+result table. Only the latest turn owns the editor.
 A result remains inspectable but is marked stale when the visible query changes.
 Refresh restores the session, selected query, findings, executions, result
 state, and saved Dashboard Builder objects. New session is the only action that

@@ -1,3 +1,4 @@
+import { Disclosure } from "./Disclosure";
 import { Tag } from "@carbon/react";
 import { useEffect, useRef } from "react";
 import type {
@@ -192,19 +193,16 @@ const EvidenceTab = ({
         {(evidence.candidates ?? []).map((candidate) =>
           candidate.rawEvidence.inspectable &&
           candidate.rawEvidence.exactPayload !== null ? (
-            <details
+            <Disclosure
               className="details-panel__disclosure"
               key={candidate.candidateId}
-            >
-              <summary>
-                {candidate.role === "writer" ? "Writer" : "Reviewer"} candidate,
+             title={<>{candidate.role === "writer" ? "Writer" : "Reviewer"} candidate,
                 attempt {candidate.attemptOrdinal} —{" "}
-                {candidate.disposition.replaceAll("_", " ")}
-              </summary>
+                {candidate.disposition.replaceAll("_", " ")}</>}>
               <pre>
                 {JSON.stringify(candidate.rawEvidence.exactPayload, null, 2)}
               </pre>
-            </details>
+            </Disclosure>
           ) : null,
         )}
         {[
@@ -212,10 +210,9 @@ const EvidenceTab = ({
           ["Recorded Hub response", evidence.hubResponse] as const,
         ].map(([label, artifact]) =>
           artifact?.inspectable && artifact.exactPayload !== null ? (
-            <details className="details-panel__disclosure" key={label}>
-              <summary>{label}</summary>
+            <Disclosure className="details-panel__disclosure" key={label} title={<>{label}</>}>
               <pre>{JSON.stringify(artifact.exactPayload, null, 2)}</pre>
-            </details>
+            </Disclosure>
           ) : null,
         )}
       </>

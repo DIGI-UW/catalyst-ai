@@ -253,7 +253,7 @@ input {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 0.75rem;
-  padding: 0.5rem 0;
+  padding: 0;
 }
 
 /* Stays on the right when the button drops to its own line. */
@@ -1037,7 +1037,7 @@ input {
 .dashboard-builder-shell .query-card { border: 1px solid var(--cds-border-subtle-01); border-radius: 0.875rem; box-shadow: none; }
 .dashboard-builder-shell :is(.query-card--question, .turn-composer) {
   left: 50%; right: auto; bottom: 1.25rem; width: calc(100% - 3rem); max-width: 54.75rem;
-  max-height: min(65dvh, 34rem); padding: 1rem 1.375rem; transform: translateX(-50%);
+  max-height: min(65dvh, 34rem); padding: 0.5rem 1rem; transform: translateX(-50%);
   border: 1px solid var(--cds-border-strong-01); border-radius: 1rem;
   box-shadow: 0 0.375rem 1.5rem var(--catalyst-shadow);
 }
@@ -1109,3 +1109,16 @@ input {
 .saved-query-origin { margin-bottom: 1.5rem; }
 .saved-query-origin p { line-height: 1.5; }
 .saved-query-origin summary { padding-block: 0.75rem; color: var(--cds-text-secondary); cursor: pointer; }
+
+/* Shared control and reading treatment across the Workbench's deeper states. */
+.application .cds--select-input,
+.application .cds--text-input { border: 1px solid var(--cds-border-strong-01); border-radius: 0.5rem; color: var(--cds-text-primary); background: var(--cds-field-01); }
+.application .cds--label { color: var(--cds-text-secondary); line-height: 1.5; }
+.application .cds--select__arrow { fill: var(--cds-text-primary); }
+.application :is(.builder-review, .details-panel, .available-data-panel) p { line-height: 1.5; }
+.application .execution-state[data-running] { border: 0; background: transparent; box-shadow: none; padding: 1rem; }
+.execution-state[data-running] .execution-state__heading { align-items: center; gap: 1rem; }
+.execution-state__progress { color: var(--cds-text-secondary); line-height: 1.6; }
+.application .query-settings[open] { padding: 0.5rem 0.75rem 0.75rem; border: 1px solid var(--cds-border-subtle-01); border-radius: 0.75rem; background: var(--cds-field-01); }
+.application .query-settings .cds--select { max-width: 100%; }
+.application .query-settings select { text-overflow: ellipsis; }

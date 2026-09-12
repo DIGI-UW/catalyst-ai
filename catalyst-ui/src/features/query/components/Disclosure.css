@@ -1,0 +1,27 @@
+.application .workbench-disclosure > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.625rem;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 2.75rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.5rem;
+  color: var(--cds-text-primary);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.5;
+  list-style: none;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.workbench-disclosure > summary::-webkit-details-marker { display: none; }
+.workbench-disclosure > summary::marker { content: ""; }
+.workbench-disclosure > summary > svg { flex: none; transition: transform 120ms ease; }
+.workbench-disclosure[open] > summary > svg { transform: rotate(180deg); }
+.application .workbench-disclosure > summary:hover { background: var(--cds-layer-hover-01); }
+.application .workbench-disclosure > summary:focus-visible { outline: 2px solid var(--cds-focus); outline-offset: 2px; }
+.application .workbench-disclosure[open] > summary { margin-bottom: 0.5rem; }
+@media (prefers-reduced-motion: reduce) { .workbench-disclosure > summary > svg { transition: none; } }

@@ -4,6 +4,7 @@ import "./QuestionComposerInput.css";
 interface QuestionComposerInputProps {
   id: string;
   label: string;
+  context?: string;
   placeholder: string;
   value: string;
   disabled?: boolean;
@@ -23,6 +24,7 @@ const expandedHeight = () => {
 export const QuestionComposerInput = ({
   id,
   label,
+  context,
   placeholder,
   value,
   disabled = false,
@@ -64,11 +66,11 @@ export const QuestionComposerInput = ({
     if (!textarea) return;
     const selection = [textarea.selectionStart, textarea.selectionEnd] as const;
     if (expanded) {
-      const height = restoreHeight.current ?? visitHeight ?? 88;
+      const height = restoreHeight.current ?? visitHeight ?? 72;
       textarea.style.height = `${height}px`;
       visitHeight = height;
     } else {
-      restoreHeight.current = textarea.getBoundingClientRect().height || visitHeight || 88;
+      restoreHeight.current = textarea.getBoundingClientRect().height || visitHeight || 72;
       textarea.style.height = `${expandedHeight()}px`;
     }
     setExpanded((current) => !current);
@@ -87,7 +89,10 @@ export const QuestionComposerInput = ({
   return (
     <div className="question-composer-input">
       <div className="question-composer-input__heading">
-        <label htmlFor={id}>{label}</label>
+        <div className="question-composer-input__label">
+          <label htmlFor={id}>{label}</label>
+          {context && <span id={`${id}-context`}>{context}</span>}
+        </div>
         <button
           type="button"
           className="question-composer-input__size"
@@ -101,7 +106,8 @@ export const QuestionComposerInput = ({
       <textarea
         id={id}
         ref={textareaRef}
-        rows={3}
+        rows={2}
+        aria-describedby={context ? `${id}-context` : undefined}
         value={value}
         placeholder={placeholder}
         disabled={disabled}

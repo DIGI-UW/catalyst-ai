@@ -38,6 +38,8 @@ export default defineConfig({
     },
     {
       name: "baseline",
+      // Private, machine-specific review images; do not publish them in Git.
+      snapshotPathTemplate: "{testDir}/.visual-baselines/{testFilePath}/{arg}{-projectName}{-platform}{ext}",
       testMatch: /visual-baseline\.spec\.ts/,
       // One at a time. These share a dev server, and a screenshot taken while
       // a neighbour is mid-navigation records the neighbour's screen.

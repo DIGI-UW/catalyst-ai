@@ -1,3 +1,4 @@
+import { Disclosure } from "./Disclosure";
 import { Button, InlineNotification, Tag } from "@carbon/react";
 import { useState } from "react";
 import type {
@@ -305,6 +306,31 @@ const latestExecution = (executions: WorkbenchExecution[]) =>
       latest === null || execution.ordinal > latest.ordinal ? execution : latest,
     null,
   );
+
+/** A bounded view of the recorded run; never fetches or changes execution state. */
+export const ExecutionPreview = ({ execution, questionNumber }: {
+  execution: WorkbenchExecution;
+  questionNumber: number;
+}) => {
+  const result = execution.result;
+  if (execution.status !== "succeeded" || !result || result.rows.length === 0) return null;
+  const rows = result.rows.slice(0, 3);
+  const columnOrder = result.columns.map((_, index) => index)
+    .sort((left, right) => result.columns[left]!.ordinal - result.columns[right]!.ordinal);
+  return <>
+    {executionResultWarnings(result).map((warning, index) =>
+      <p className="query-turn__warning" key={index}>{warning}</p>)}
+    <div className="query-turn__row-preview" role="region" aria-label={`Question ${questionNumber} result preview`} tabIndex={0}>
+      <table>
+        <caption>First {rows.length} of {result.rowCount.returned} returned {result.rowCount.returned === 1 ? "row" : "rows"}</caption>
+        <thead><tr>{columnOrder.map(index => <th key={index} scope="col">{result.columns[index]!.name}</th>)}</tr></thead>
+        <tbody>{rows.map((row, rowIndex) => <tr key={rowIndex}>
+          {columnOrder.map(index => <td key={index}>{renderTaggedCell(row[index])}</td>)}
+        </tr>)}</tbody>
+      </table>
+    </div>
+  </>;
+};
 
 export const ExecutionResult = ({
   session,
@@ -637,9 +663,8 @@ export const WorkbenchPanel = ({
         />
       )}
 
-      <details className="workbench-sql-disclosure" open={advancedMode || revealSql}
-        onToggle={(event) => onSqlDisclosureChange?.(event.currentTarget.open)}>
-        <summary>View or edit SQL</summary>
+      <Disclosure className="workbench-sql-disclosure" open={advancedMode || revealSql}
+        onToggle={(event) => onSqlDisclosureChange?.(event.currentTarget.open)} title="View or edit SQL">
       <div className="workbench-editor">
         <SqlEditor
           label="SQL query"
@@ -718,7 +743,7 @@ export const WorkbenchPanel = ({
         disabled={busy !== null}
         onChange={onParametersChange}
       />
-      </details>
+      </Disclosure>
       <div className="workbench-run">
         {/*
           One button, because there was only ever one intent. Running saves the

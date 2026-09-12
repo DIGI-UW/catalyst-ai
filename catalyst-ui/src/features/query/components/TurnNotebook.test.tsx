@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
@@ -229,7 +229,7 @@ afterEach(() => {
 });
 
 describe("TurnNotebook", () => {
-  it("keeps result rows in the shared review and technical detail behind disclosure", async () => {
+  it("previews recorded rows before query details and opens the matching full review", async () => {
     const user = userEvent.setup();
     const onReviewResult = vi.fn();
     const run = { ...failedExecution, status: "succeeded" as const,
@@ -238,14 +238,53 @@ describe("TurnNotebook", () => {
         rowCount: { returned: 1, truncated: false, truncationReason: null } } };
     render(<TurnNotebook {...defaultProps} turns={[{ ...followupTurn, execution: run }]}
       onReviewResult={onReviewResult} />);
-    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "First 1 of 1 returned row" })).toBeVisible();
+    expect(screen.getByRole("cell", { name: "49" })).toBeVisible();
     expect(screen.getByText("Results ready")).toBeVisible();
     const sql = document.querySelector(".query-turn__sql")!;
     expect(sql).not.toBeVisible();
     await user.click(screen.getByRole("button", { name: "Review results" }));
     expect(onReviewResult).toHaveBeenCalledWith(run.executionId);
-    await user.click(screen.getByText("Technical details", { exact: true }));
+    await user.click(screen.getByText("View query details", { exact: true }));
     expect(sql).toBeVisible();
+  });
+
+  it("bounds the preview without losing types, source, limits or the remaining columns", () => {
+    const run: WorkbenchExecution = { ...failedExecution, status: "succeeded", result: {
+      columns: ["number", "missing", "enabled", "payload", "last_field"].map((name, ordinal) => ({
+        name, ordinal, databaseType: "text", typeOid: null, logicalType: "string",
+      })),
+      rows: Array.from({length: 5}, (_, index) => [
+        {type: "integer" as const, value: index}, {type: "null" as const, value: null},
+        {type: "boolean" as const, value: false}, {type: "json" as const, value: {count: index}},
+        {type: "string" as const, value: `row-${index}`},
+      ]),
+      rowCount: {returned: 5, truncated: true, truncationReason: "row_limit"},
+    }};
+    render(<TurnNotebook {...defaultProps} sourceLabel="OpenMRS HIV/ART program"
+      turns={[{...followupTurn, current: true, execution: run}]}
+      grounding={{kind: "stale", text: "The editor has changed"}} />);
+    const preview = screen.getByRole("table", {name: "First 3 of 5 returned rows"});
+    expect(within(preview).getAllByRole("row")).toHaveLength(4);
+    expect(within(preview).getAllByRole("columnheader")).toHaveLength(5);
+    expect(within(preview).getAllByLabelText("No value")).toHaveLength(3);
+    expect(within(preview).getAllByRole("cell", {name: "false"})).toHaveLength(3);
+    expect(within(preview).getByRole("cell", {name: '{"count":2}'})).toBeVisible();
+    expect(within(preview).queryByText("row-3")).not.toBeInTheDocument();
+    expect(screen.getByText(/number, missing, enabled, payload and 1 more/)).toBeVisible();
+    expect(screen.getByText("Showing the first 5 rows. More are available; the total is unknown.")).toBeVisible();
+    expect(screen.getByText("Earlier result — your query has changed.")).toBeVisible();
+    expect(screen.getByText("OpenMRS HIV/ART program", {selector: ".query-turn__meta span"})).toBeVisible();
+  });
+
+  it("shows an empty outcome without inventing preview rows", () => {
+    const run: WorkbenchExecution = { ...failedExecution, status: "succeeded", result: {
+      columns: [], rows: [], rowCount: {returned: 0, truncated: false, truncationReason: null},
+    }};
+    render(<TurnNotebook {...defaultProps} turns={[{...followupTurn, execution: run}]} />);
+    expect(screen.getByText("No rows returned")).toBeVisible();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", {name: "View query details"})).toHaveAttribute("aria-expanded", "false");
   });
 
   it("gives every turn a stable run counter and an addressable anchor", () => {
@@ -262,63 +301,33 @@ describe("TurnNotebook", () => {
     expect(screen.getByText("composing…")).toBeVisible();
   });
 
-  it("opens only the newest turn and collapses earlier ones to their header", async () => {
+  it("keeps every question visible while expanding only its query evidence", async () => {
     const user = userEvent.setup();
-    render(<TurnNotebook {...defaultProps} />);
-
-    const first = screen.getByRole("button", { name: /query turn 1/i });
-    const latest = screen.getByRole("button", { name: /query turn 2/i });
-    expect(first).toHaveAttribute("aria-expanded", "false");
-    expect(latest).toHaveAttribute("aria-expanded", "true");
-
-    // The instruction stays readable in the collapsed header, so the thread is
-    // scannable without expanding anything.
-    expect(within(first).getByText(initialTurn.instruction)).toBeVisible();
-    expect(
-      screen.queryByRole("region", { name: /query turn 1/i }),
-    ).not.toBeInTheDocument();
-
-    await user.click(first);
-    const opened = screen.getByRole("region", { name: /query turn 1/i });
-    expect(opened.querySelector("pre")?.textContent).toBe(modelVersion.sql);
-    // Refinement stays with the one composer; a cell is never an editor.
-    expect(within(opened).queryByRole("textbox")).not.toBeInTheDocument();
-    expect(
-      within(opened).queryByRole("button", { name: /generate/i }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.getAllByRole("textbox", { name: "Ask a follow-up" }),
-    ).toHaveLength(1);
-
-    await user.click(first);
-    expect(first).toHaveAttribute("aria-expanded", "false");
+    render(<TurnNotebook {...defaultProps} sourceLabel="OpenELIS Laboratory" />);
+    for (const turn of [initialTurn, followupTurn]) {
+      expect(screen.getByRole("heading", { name: turn.instruction })).toBeVisible();
+      const region = screen.getByRole("region", { name: `Query turn ${turn.ordinal}` });
+      expect(region.querySelector(".query-turn__sql")).not.toBeVisible();
+      await user.click(within(region).getByText("View query details", { exact: true }));
+      expect(region.querySelector(".query-turn__sql")).toBeVisible();
+      expect(within(region).queryByRole("textbox")).not.toBeInTheDocument();
+      await user.click(within(region).getByText("View query details", { exact: true }));
+      expect(screen.getByRole("heading", { name: turn.instruction })).toBeVisible();
+      expect(region.querySelector(".query-turn__sql")).not.toBeVisible();
+    }
+    expect(screen.getAllByRole("textbox", {name: "Ask a follow-up"})).toHaveLength(1);
   });
 
-  it("carries the run outcome in the collapsed header and the status border", () => {
-    render(
-      <TurnNotebook
-        {...defaultProps}
-        turns={[
-          { ...initialTurn, validationStatus: "valid" as const },
-          { ...followupTurn, current: true, execution: failedExecution },
-        ]}
-      />,
-    );
-
-    expect(
-      screen.getByRole("button", { name: /query turn 1.*not run/i }),
-    ).toBeVisible();
-    expect(
-      screen.getByRole("button", { name: /query turn 2.*run failed/i }),
-    ).toBeVisible();
-    expect(document.getElementById("turn-2")).toHaveAttribute(
-      "data-status",
-      "failed",
-    );
-    expect(document.getElementById("turn-2")).toHaveAttribute(
-      "data-current",
-      "true",
-    );
+  it("keeps run failures and current-turn identity visible without opening evidence", () => {
+    render(<TurnNotebook {...defaultProps} turns={[
+      {...initialTurn, validationStatus: "valid"},
+      {...followupTurn, current: true, execution: failedExecution},
+    ]} />);
+    expect(screen.getByText("ready to get results", {exact:true})).toBeVisible();
+    expect(screen.getByText("run failed", {exact:true})).toBeVisible();
+    expect(screen.getByText('column "test_type" does not exist')).toBeVisible();
+    expect(document.getElementById("turn-2")).toHaveAttribute("data-status", "failed");
+    expect(document.getElementById("turn-2")).toHaveAttribute("data-current", "true");
   });
 
   it("keeps exact authorship and model choices available in Advanced mode", () => {
@@ -327,7 +336,7 @@ describe("TurnNotebook", () => {
     expect(
       screen.getByRole("heading", { name: "Ask a follow-up" }),
     ).toBeVisible();
-    expect(screen.getAllByText(/reviewer correction/i)[0]).toBeVisible();
+    expect(screen.getAllByText(/reviewer correction/i).some(element => element.closest(".turn-composer"))).toBe(true);
     // "reviewer correction" now also labels the SQL block of the cell that
     // produced v3, so the composer's copy is one of several.
     expect(screen.getAllByText(/reviewer correction/i).length).toBeGreaterThan(0);
@@ -367,7 +376,9 @@ describe("TurnNotebook", () => {
     render(<TurnNotebook {...defaultProps} advancedMode />);
 
     const latest = screen.getByRole("region", { name: /query turn 2/i });
-    expect(latest.querySelector("pre")?.textContent).toBe(reviewerVersion.sql);
+    expect(latest.querySelector(".query-turn__preview")).toBeVisible();
+    fireEvent.click(within(latest).getByText("View query details", {exact:true}));
+    expect(latest.querySelector(".query-turn__sql pre")?.textContent?.replace(/\s+/g, " ").trim()).toBe(reviewerVersion.sql);
     expect(
       within(latest).getByText(/reviewer correction · qwen2\.5-14b/i),
     ).toBeVisible();
@@ -383,13 +394,13 @@ describe("TurnNotebook", () => {
     render(<TurnNotebook {...defaultProps} onOpenDetails={onOpenDetails} />);
 
     const latest = screen.getByRole("region", { name: /query turn 2/i });
-    await user.click(within(latest).getByText("Technical details", { exact: true }));
-    await user.click(within(latest).getByRole("button", { name: "details" }));
+    await user.click(within(latest).getByText("View query details", { exact: true }));
+    await user.click(within(latest).getByRole("button", { name: "Review and provenance" }));
     expect(onOpenDetails).toHaveBeenCalledWith(followupTurn.turnId);
 
     // The diff link names the versions it compares and lands on Versions.
     await user.click(
-      within(latest).getByRole("button", { name: "what changed" }),
+      within(latest).getByRole("button", { name: "What changed" }),
     );
     expect(onOpenDetails).toHaveBeenLastCalledWith(
       followupTurn.turnId,
@@ -607,6 +618,7 @@ describe("TurnNotebook", () => {
 
     // The formatter renders LIMIT and its value as two lines; the
     // reflow itself contributes zero.
+    fireEvent.click(within(screen.getByRole("region", {name:"Query turn 3"})).getByText("View query details"));
     expect(screen.getByText("+2 −0 vs [3]")).toBeVisible();
   });
 
@@ -665,6 +677,7 @@ describe("TurnNotebook", () => {
 
     // The formatter renders LIMIT and its value as two lines; the
     // reflow itself contributes zero.
+    fireEvent.click(within(screen.getByRole("region", {name:"Query turn 3"})).getByText("View query details"));
     expect(screen.getByText("+2 −0 vs [3]")).toBeVisible();
   });
 
@@ -690,6 +703,7 @@ describe("TurnNotebook", () => {
     expect(
       screen.getByText("Query generation failed its structured-output contract."),
     ).toBeVisible();
+    fireEvent.click(within(screen.getByRole("region", {name:"Query turn 2"})).getByText("View query details"));
     expect(screen.getByText("query_review")).toBeVisible();
     expect(
       screen.getByText("failed — Reviewer emitted an incomplete candidate."),
@@ -808,13 +822,14 @@ describe("TurnNotebook", () => {
       />,
     );
 
-    expect(screen.getByText("Generation failed")).toBeVisible();
+    expect(screen.getByText("Could not prepare this question")).toBeVisible();
     expect(screen.getByText(/Reviewer did not return a response/)).toBeVisible();
+    await user.click(within(screen.getByRole("region", {name:"Query turn 2"})).getByText("View query details", {exact:true}));
     expect(screen.getByText(/Structured writer output.*not selected/i))
       .toBeVisible();
     
     expect(screen.queryByText(/selected output/i)).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "details" }));
+    await user.click(within(screen.getByRole("region", { name: "Query turn 2" })).getByRole("button", { name: "Review and provenance" }));
     expect(onOpenDetails).toHaveBeenCalledWith(failed.turnId);
   });
 
@@ -851,6 +866,7 @@ describe("TurnNotebook", () => {
       />,
     );
 
+    await user.click(within(screen.getByRole("region", {name: "Query turn 2"})).getByRole("button", {name: "View query details"}));
     await user.click(screen.getByRole("button", { name: /edit this attempt/i }));
     expect(onEditAttempt).toHaveBeenCalledWith(writerVersion.versionId);
   });
@@ -877,7 +893,7 @@ describe("TurnNotebook", () => {
 
     expect(screen.getByText(/Which field did you mean/)).toBeVisible();
     expect(screen.getByText("Needs your answer")).toBeVisible();
-    expect(screen.queryByText("Generation failed")).not.toBeInTheDocument();
+    expect(screen.queryByText("Could not prepare this question")).not.toBeInTheDocument();
   });
 
   it("puts the model's own output one click from the failure that needs it", async () => {
@@ -991,7 +1007,7 @@ describe("TurnNotebook", () => {
     );
 
     expect(
-      screen.getByText(/No revision-capable model profile is currently available/i),
+      screen.getByText(/No question service is available right now/i),
     ).toBeVisible();
     expect(screen.getByRole("combobox", { name: "Model profile" })).toBeDisabled();
     const generate = screen.getByRole("button", { name: "Continue" });
@@ -1040,12 +1056,15 @@ describe("TurnNotebook", () => {
       />,
     );
 
-    const priorDisclosure = screen.getByRole("button", {
-      name: /query turn 1/i,
-    });
+    const prior = screen.getByRole("region", {name:"Query turn 1"});
+    const priorDisclosure = within(prior).getByText("View query details", {exact:true});
+    await user.click(priorDisclosure);
+    expect(prior.querySelector(".query-turn__sql")).toBeVisible();
     priorDisclosure.focus();
-    await user.keyboard("{Enter}");
-    expect(priorDisclosure).toHaveAttribute("aria-expanded", "true");
+    await user.keyboard("{Escape}");
+    expect(prior.querySelector(".query-turn__sql")).not.toBeVisible();
+    expect(priorDisclosure.closest("button")).toHaveFocus();
+    await user.click(screen.getByText("Query settings", {exact:true}));
 
     const selector = screen.getByRole("combobox", { name: "Model profile" });
     selector.focus();

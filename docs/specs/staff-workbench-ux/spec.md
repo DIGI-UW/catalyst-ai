@@ -8,6 +8,11 @@ reviewed target and mock, not deployed behavior, delivery progress, or final
 product acceptance. See the [implementation handoff](implementation-handoff.md)
 for current authority and delivery references.
 
+The accompanying interactive mock now also includes the owner-requested
+12 September turn remediation and result previews, governed by the current
+[binding design](../../dashboard-builder-mvp-design.md#workbench-visual-remediation).
+The historical specification text below remains dated evidence.
+
 **Audience:** clinical and program staff without SQL knowledge first; analysts
 second. The owner's immediate need is a resizable question-writing area at the
 bottom of the screen.

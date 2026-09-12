@@ -1,185 +1,26 @@
-.turn-notebook {
-  display: grid;
-  margin-bottom: 1rem;
-  gap: 1rem;
-}
-
-.turn-notebook__timeline {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  padding: 0;
-  margin: 0;
-  gap: 0.75rem;
-  list-style: none;
-}
-
-.turn-notebook__timeline > li {
-  min-width: 0;
-}
-
-/* A ghosted terminator so the thread reads as ongoing rather than finished. */
-.turn-notebook__composing {
-  display: flex;
-  align-items: baseline;
-  gap: 0.75rem;
-  /* A status line, not a disabled control: it has to meet AA. */
-  color: var(--cds-text-helper);
-  font-size: var(--cds-helper-text-01-font-size, 0.75rem);
-}
-
-/*
- * A turn is an addressable cell: a stable run counter in the gutter and a body
- * that collapses to one line. `[2]` means turn 2 for the life of the session,
- * so it can be cited, deep-linked, and jumped to from the rail.
- */
-.query-turn {
-  display: flex;
-  min-width: 0;
-  gap: 0.75rem;
-  scroll-margin-top: 4rem;
-}
-
-.query-turn__gutter {
-  flex: none;
-  width: 2.25rem;
-  padding-top: 0.5rem;
-  color: var(--cds-text-helper);
-  font-family: "IBM Plex Mono", "Menlo", monospace;
-  font-size: var(--cds-code-01-font-size, 0.75rem);
-  text-align: right;
-}
-
-.query-turn__body {
-  min-width: 0;
-  flex: 1;
-  border: 1px solid var(--cds-border-subtle-02);
-  background: var(--cds-layer-01);
-  /* Lifts the cell off the Gray 10 page rather than relying on a hairline. */
-  box-shadow: 0 0.0625rem 0.125rem rgb(22 22 22 / 6%);
-}
-
-.query-turn__disclosure {
-  display: flex;
-  width: 100%;
-  min-width: 0;
-  min-height: 2.75rem;
-  align-items: center;
-  padding: 0.625rem 1rem;
-  border: 0;
-  border-left: 3px solid var(--cds-border-subtle-02);
-  color: var(--cds-text-primary);
-  background: none;
-  font-size: var(--cds-body-compact-01-font-size, 0.875rem);
-  gap: 0.625rem;
-  text-align: left;
-  cursor: pointer;
-}
-
-.query-turn__disclosure:hover {
-  background: var(--cds-background);
-}
-
-.query-turn__disclosure:focus-visible {
-  outline: 2px solid var(--cds-focus);
-  outline-offset: -2px;
-}
-
-.query-turn[data-status="succeeded"] .query-turn__disclosure {
-  border-left-color: var(--cds-support-success);
-}
-
-.query-turn[data-status="failed"] .query-turn__disclosure {
-  border-left-color: var(--cds-support-error);
-}
-
-/*
-  CP-5: one channel, one meaning.
-    colour  -> outcome   (succeeded / failed / not-run)
-    weight  -> current   (which cell the session is standing on)
-    gutter  -> authorship (§10 gives purple to the model)
-  No colour here that does not encode one of those.
-*/
-.query-turn[data-status="not-run"] .query-turn__disclosure {
-  border-left-color: var(--cds-border-strong-01);
-}
-
-/* The writer answered in words: informational, never red. */
-.query-turn[data-status="answered"] .query-turn__disclosure {
-  border-left-color: var(--cds-support-info);
-}
-
-.query-turn[data-current="true"] .query-turn__disclosure {
-  border-left-width: 4px;
-}
-
-.query-turn__dot {
-  flex: none;
-  width: 0.5rem;
-  height: 0.5rem;
-  border: 1px solid var(--cds-border-subtle-02);
-  border-radius: 50%;
-}
-
-.query-turn[data-status="succeeded"] .query-turn__dot {
-  border-color: var(--cds-support-success);
-  background: var(--cds-support-success);
-}
-
-.query-turn[data-status="failed"] .query-turn__dot {
-  border-color: var(--cds-support-error);
-  background: var(--cds-support-error);
-}
-
-/* Not run is a state, not the absence of one, so it is drawn rather than
-   left blank -- an outline, because nothing has happened to fill it. */
-.query-turn[data-status="not-run"] .query-turn__dot {
-  border-color: var(--cds-border-strong-01);
-  background: var(--cds-layer-01);
-}
-
-.query-turn[data-status="answered"] .query-turn__dot {
-  border-color: var(--cds-support-info);
-  background: var(--cds-support-info);
-}
-
-/* Authorship, legible while collapsed. */
-.query-turn[data-author="model"] .query-turn__gutter,
-.query-turn[data-author="reviewer"] .query-turn__gutter {
-  color: var(--cds-status-purple);
-}
-
-.query-turn[data-author="human"] .query-turn__gutter {
-  color: var(--cds-text-helper);
-}
-
-.query-turn__summary {
-  overflow: hidden;
-  min-width: 0;
-  flex: 1;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.query-turn__outcome,
-.query-turn__caret {
-  flex: none;
-  color: var(--cds-text-helper);
-  font-size: var(--cds-helper-text-01-font-size, 0.75rem);
-}
-
-.query-turn[data-status="failed"] .query-turn__outcome {
-  color: var(--cds-tag-color-red);
-}
-
-.query-turn__caret {
-  color: var(--cds-text-secondary);
-}
-
+.turn-notebook { display: grid; gap: 1rem; margin-bottom: 1rem; }
+.turn-notebook__timeline { display: flex; flex-direction: column; min-width: 0; padding: 0; margin: 0; gap: 1.25rem; list-style: none; }
+.turn-notebook__timeline > li { min-width: 0; }
+.turn-notebook__composing { display: flex; gap: 0.75rem; color: var(--cds-text-secondary); }
+.query-turn { display: flex; min-width: 0; gap: 0.75rem; scroll-margin-top: 4rem; }
+.query-turn__gutter { flex: none; padding-top: 1.5rem; color: var(--cds-text-secondary); font: 0.75rem/1.5 "IBM Plex Mono", monospace; }
+.query-turn__body { min-width: 0; flex: 1; border: 1px solid var(--cds-border-subtle-01); border-radius: 0.875rem; background: var(--cds-layer-01); }
+.query-turn__heading { padding: 1.25rem 1.5rem 0; }
+.query-turn__eyebrow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; color: var(--cds-text-secondary); font-size: 0.8125rem; line-height: 1.5; }
+.query-turn__current { padding: 0.0625rem 0.5rem; border-radius: 1rem; color: var(--cds-text-primary); background: var(--cds-layer-hover-01); font-weight: 600; }
+.query-turn__question { margin: 0.625rem 0; color: var(--cds-text-primary); font-size: 1.125rem; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
+.query-turn__meta { display: flex; flex-wrap: wrap; gap: 0.375rem 1rem; color: var(--cds-text-secondary); font-size: 0.875rem; line-height: 1.5; }
+.query-turn__query-summary { color: var(--cds-text-secondary); font-size: 0.875rem; line-height: 1.6; overflow-wrap: anywhere; }
+.query-turn__query-summary strong { font-weight: 500; color: var(--cds-text-primary); }
+.query-turn__warning { color: var(--cds-text-primary); font-size: 0.875rem; line-height: 1.5; padding-left: 0.75rem; border-left: 3px solid var(--cds-support-warning); }
+.query-turn__preview { max-height: 4.5rem; overflow: hidden; margin: 0; padding: 0.75rem 1rem; border-radius: 0.5rem; color: var(--cds-text-primary); background: var(--cds-field-01); font: 0.8125rem/1.5 "IBM Plex Mono", monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.query-turn__execution-facts { display: flex; flex-wrap: wrap; gap: 0.75rem 2rem; margin: 0.75rem 0; font-size: 0.8125rem; line-height: 1.5; }
+.query-turn__execution-facts dt { color: var(--cds-text-secondary); }
+.query-turn__execution-facts dd { margin: 0; color: var(--cds-text-primary); overflow-wrap: anywhere; }
 .query-turn__detail {
   display: flex;
   flex-direction: column;
-  padding: 0 1rem 1rem;
+  padding: 1rem 1.5rem 1.25rem;
   gap: 0.75rem;
 }
 
@@ -187,42 +28,8 @@
   margin: 0;
 }
 
-/*
- * The immutable SQL for this turn, rendered as a read-only block. Editing
- * happens in the workbench editor against the current version, never here.
- */
-/*
- * Purple is the model/AI accent in the design's palette, so an author is
- * readable from the edge of the block rather than only from its label.
- */
-.query-turn__sql {
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--cds-border-subtle-01);
-  border-left: 3px solid var(--cds-status-purple);
-  background:
-    linear-gradient(
-      135deg,
-      var(--cds-ai-aura-start) 0%,
-      var(--cds-ai-aura-end) 100%
-    ),
-    var(--cds-ai-popover-background);
-}
-
-.query-turn__sql[data-author="human"] {
-  border-left-color: var(--cds-border-strong-01);
-  background: var(--cds-background);
-}
-
-.query-turn__sql-label {
-  margin: 0 0 0.375rem;
-  color: var(--cds-syntax-control-keyword);
-  font-size: var(--cds-code-01-font-size, 0.75rem);
-}
-
-.query-turn__sql[data-author="human"] .query-turn__sql-label {
-  color: var(--cds-text-helper);
-}
-
+.query-turn__sql { padding: 1rem; border-radius: 0.5rem; background: var(--cds-field-01); }
+.query-turn__sql-label { margin: 0 0 0.5rem; color: var(--cds-text-secondary); font-size: 0.8125rem; line-height: 1.5; }
 .query-turn__sql pre {
   margin: 0;
   color: var(--cds-text-primary);
@@ -253,8 +60,8 @@
 
 /* A question for the reader, not a fault: informational, not alarming. */
 .query-turn__failure--answered {
-  border-left-color: var(--cds-support-info);
-  background: var(--cds-notification-background-info);
+  border-left-color: var(--cds-border-subtle-01);
+  background: transparent;
 }
 
 /*
@@ -276,10 +83,6 @@
   font-size: var(--cds-helper-text-01-font-size, 0.75rem);
 }
 
-.query-turn__footer-item:first-child {
-  color: var(--cds-tag-color-green);
-}
-
 .query-turn__footer .cds--btn {
   margin-left: auto;
 }
@@ -294,17 +97,14 @@
   width: auto;
   max-height: min(34rem, calc(100dvh - 3rem));
   padding: 0.75rem 1.5rem calc(0.75rem + env(safe-area-inset-bottom));
-  border-top: 4px solid var(--cds-border-interactive);
+  border: 1px solid var(--cds-border-subtle-01);
   scroll-margin-block: 4rem;
   background: var(--cds-layer-01);
   box-shadow: 0 -0.25rem 1rem rgb(0 0 0 / 18%);
   transform: none;
 }
 
-/* The last run failed, so the error state colours the whole bar. */
-.turn-composer[data-failed="true"] {
-  border-top-color: var(--cds-support-error);
-}
+
 
 
 .turn-composer__heading {
@@ -351,7 +151,7 @@
 .turn-composer__stale {
   display: inline-flex;
   align-items: center;
-  color: var(--catalyst-text-warning-strong);
+  color: var(--cds-text-primary);
 }
 
 .turn-composer[data-minimized="true"] .turn-composer__heading p {
@@ -375,7 +175,7 @@
   justify-content: space-between;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.5rem 0;
+  padding: 0;
 }
 
 .turn-composer__toolbar > .cds--btn {
@@ -406,7 +206,8 @@
 
 .turn-evidence {
   padding: 1.25rem;
-  border-top: 4px solid var(--cds-status-purple);
+  border: 1px solid var(--cds-border-subtle-01);
+  border-radius: 0.75rem;
   background: var(--cds-layer-01);
 }
 
@@ -535,10 +336,6 @@
     width: auto;
   }
 
-  .query-turn__summary > span {
-    display: none;
-  }
-
   .turn-evidence__summary,
   .turn-evidence__columns {
     grid-template-columns: 1fr;
@@ -572,7 +369,7 @@
   padding: 0;
   border: 0;
   background: none;
-  color: var(--cds-link-primary);
+  color: var(--cds-text-primary);
   font-family: inherit;
   font-size: var(--cds-helper-text-01-font-size, 0.75rem);
   cursor: pointer;
@@ -589,12 +386,11 @@
 
 /* The active cell is the next turn taking shape, so it reads as current. */
 .query-turn--active .query-turn__gutter {
-  color: var(--cds-link-primary);
+  color: var(--cds-text-primary);
 }
 
 .query-turn--active .query-turn__body {
-  border-color: var(--cds-border-interactive);
-  border-left: 3px solid var(--cds-border-interactive);
+  border-color: var(--cds-border-subtle-01);
 }
 
 .query-turn--active .query-card,
@@ -607,8 +403,7 @@
 
 /* A turn's result presented as the dataset it produced. */
 .query-turn__dataset {
-  border: 1px solid var(--cds-border-subtle-02);
-  border-left: 3px solid var(--cds-border-interactive);
+  border: 0;
 }
 
 .query-turn__dataset-heading {
@@ -620,9 +415,7 @@
   */
   flex-wrap: wrap;
   align-items: center;
-  padding: 0.625rem 0.875rem;
-  border-bottom: 1px solid var(--cds-border-subtle-01);
-  background: var(--cds-background);
+  padding: 0;
   gap: 0.625rem;
 }
 
@@ -657,7 +450,7 @@
 
 /* The cell an answer is on its way into. */
 .query-turn--pending .query-turn__body {
-  border-style: dashed;
+  border: 0;
   background: var(--cds-layer-01);
   box-shadow: none;
 }
@@ -748,9 +541,9 @@
 .query-turn__unreviewed {
   flex: none;
   padding: 0.0625rem 0.375rem;
-  border: 1px solid var(--catalyst-text-warning-strong);
+  border: 1px solid var(--cds-support-warning);
   border-radius: 0.75rem;
-  color: var(--catalyst-text-warning-strong);
+  color: var(--cds-text-primary);
   font-size: var(--cds-helper-text-01-font-size, 0.75rem);
   white-space: nowrap;
 }
@@ -773,15 +566,10 @@
   display: none;
 }
 
-.query-turn__technical > summary {
-  padding: 0.5rem 0;
-  color: var(--cds-text-secondary);
-  cursor: pointer;
-}
-
-.query-turn__technical[open] > :not(summary) {
-  margin-top: 0.75rem;
-}
+.application .query-turn__details-toggle { min-height: 2.75rem; padding: 0.625rem 0.75rem; font-size: 0.875rem; color: var(--cds-text-primary); }
+.application .query-turn__details-toggle[aria-expanded="true"] { background: var(--cds-layer-selected-01); box-shadow: inset 0 -2px var(--cds-border-interactive); }
+.query-turn__evidence > * { margin-top: 0.75rem; }
+.query-turn__evidence[hidden] { display: none; }
 
 .query-turn__result-summary {
   flex: 1 1 10rem;
@@ -797,3 +585,18 @@
   color: var(--cds-text-secondary);
   font-size: 0.875rem;
 }
+
+@media (max-width: 42rem) {
+  .query-turn__heading { padding: 1rem 1rem 0; }
+  .query-turn__detail { padding: 0.75rem 1rem 1rem; }
+  .query-turn__question { font-size: 1rem; }
+  .query-turn__gutter { display: none; }
+  .query-turn__result-summary p { line-height: 1.5; }
+}
+
+.query-turn__row-preview { overflow-x: auto; max-width: 100%; margin: 1rem 0; border-radius: 0.5rem; }
+.query-turn__row-preview:focus-visible { outline: 2px solid var(--cds-focus); outline-offset: 2px; }
+.query-turn__row-preview table { width: 100%; border-collapse: collapse; color: var(--cds-text-primary); font-size: 0.875rem; line-height: 1.5; }
+.query-turn__row-preview caption { text-align: left; color: var(--cds-text-secondary); font-size: 0.8125rem; padding-bottom: 0.5rem; }
+.query-turn__row-preview th { text-align: left; font-weight: 600; background: var(--cds-field-01); }
+.query-turn__row-preview th, .query-turn__row-preview td { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--cds-border-subtle-01); max-width: 18rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
