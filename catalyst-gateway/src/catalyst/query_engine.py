@@ -271,6 +271,37 @@ async def _backend_chat(
     )
 
 
+async def _warm_backend_prefix(
+    client: httpx.AsyncClient,
+    profile_id: str,
+    role: str,
+    model: str,
+    messages: list[dict[str, str]],
+    *,
+    response_format: Mapping[str, Any],
+    temperature: float,
+    dry_multiplier: float,
+    max_tokens: Optional[int],
+) -> None:
+    """Prime a Hub-owned prefix without inheriting an interactive deadline.
+
+    The Hub's dedicated warm route retains its disconnect handling, so ending
+    the deployment lifecycle still stops this work. Its response is purposely
+    discarded: warmup must never become a saved answer or evidence for a turn.
+    """
+
+    del model, temperature, dry_multiplier, max_tokens
+    payload: Dict[str, Any] = {"messages": messages}
+    if response_format is not None:
+        payload["response_format"] = dict(response_format)
+    response = await client.post(
+        f"{_HUB_QUERY_PROFILE_URL}/{profile_id}/roles/{role}/warm",
+        json=payload,
+        timeout=None,
+    )
+    response.raise_for_status()
+
+
 def _validated_role_request_evidence(
     value: Any,
     *,

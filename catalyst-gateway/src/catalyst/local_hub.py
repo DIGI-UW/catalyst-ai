@@ -18,7 +18,7 @@ from .session_context import SESSION_CONTEXT_CONTRACT
 from .query_engine import (
     EngineProfile,
     EngineRequest,
-    _backend_chat,
+    _warm_backend_prefix,
     execute_query_profile,
     initial_writer_request,
 )
@@ -168,8 +168,8 @@ class LocalHub:
         messages, response_format = initial_writer_request(
             engine_request, engine_request.catalyst_query
         )
-        async with httpx.AsyncClient() as client:
-            await _backend_chat(
+        async with httpx.AsyncClient(timeout=None) as client:
+            await _warm_backend_prefix(
                 client,
                 profile.id,
                 "query_generate",

@@ -170,6 +170,11 @@ source metadata commands, but does not run generated or user-visible SQL or
 retrieve clinical rows. It does not invoke a reviewer or repair loop. Use the
 harness lifecycle wrapper for the combined reference deployment.
 
+Warmup uses Hub's internal `warm` role route rather than the caller-facing role
+deadline. It runs until the prefix completes or the lifecycle caller disconnects;
+ending or restarting that lifecycle cancels the outstanding model work. Normal
+question preparation continues to use its existing caller cancellation path.
+
 The command reports completion per source and exits with an error if a source or
 model request fails. Completion alone does not prove caching: inspect a different
 subsequent question's actual request and router cache evidence. Reuse depends on
