@@ -49,7 +49,6 @@ export const runSupersetImport = (expectedBundleDigest: string): string => {
     encoding: "utf-8",
     env: process.env,
     stdio: ["ignore", "pipe", "pipe"],
-    timeout: 300_000,
   });
   const lastLine = output.trim().split("\n").at(-1) ?? "";
   const receipt = JSON.parse(lastLine) as {
