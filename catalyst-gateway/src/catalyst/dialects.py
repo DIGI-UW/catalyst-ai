@@ -19,7 +19,7 @@ a second engine to maintain.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 
 @dataclass(frozen=True)
@@ -66,6 +66,11 @@ class DialectAdapter:
     # Maps a native column type name onto the logical types the editor, the
     # model context and the typed result table share.
     logical_type: Callable[[str], str]
+    # Specific function names that sqlglot accepts generically but this grammar
+    # does not provide. The adapter supplies a concrete replacement so lint can
+    # hand the existing correction flow an actionable finding instead of letting
+    # the database discover it at execution time.
+    unsupported_functions: Mapping[str, str] | None = None
 
     def quote_identifier(self, name: str) -> str:
         quote = self.identifier_quote
@@ -236,6 +241,9 @@ SPARK = DialectAdapter(
     ),
     discover_relations=_spark_discover_relations,
     logical_type=_spark_logical_type,
+    unsupported_functions={
+        "strftime": "Use date_format(<timestamp>, <format>) in Spark SQL.",
+    },
 )
 
 

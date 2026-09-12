@@ -168,6 +168,40 @@ def _unknown_columns(
     return invalid
 
 
+def _unsupported_function_findings(
+    statement: exp.Expression, dialect: DialectAdapter
+) -> list[LintFinding]:
+    """Report dialect-specific functions that sqlglot otherwise treats as generic.
+
+    Parsing successfully only means sqlglot recognized SQL-shaped text. It does
+    not prove that a particular engine implements every anonymous function.
+    Adapters declare the small, evidenced exceptions so Catalyst can request a
+    correction before the user explicitly executes a draft.
+    """
+    unsupported = dialect.unsupported_functions or {}
+    findings: list[LintFinding] = []
+    for function in statement.find_all(exp.Anonymous):
+        name = function.name.casefold()
+        suggestion = unsupported.get(name)
+        if suggestion is None:
+            continue
+        findings.append(
+            LintFinding(
+                code="dialect.unsupported_function",
+                stage="dialect_compatibility",
+                severity="error",
+                path="sql",
+                message=(
+                    f"{function.name.upper()} is not available in "
+                    f"{dialect.statement_label}."
+                ),
+                evidence=function.sql(dialect=dialect.sqlglot_dialect),
+                suggestedAction=suggestion,
+            )
+        )
+    return findings
+
+
 def turnaround_threshold(question: str) -> tuple[str, float] | None:
     if not re.search(r"\b(?:turnaround|receipt[- ]to[- ]release)\b", question, re.I):
         return None
@@ -288,6 +322,7 @@ def lint_candidate(
 
     statement = statements[0]
     findings: list[LintFinding] = []
+    findings.extend(_unsupported_function_findings(statement, dialect))
     if not isinstance(statement, exp.Select) or any(
         statement.find(node_type) is not None
         for node_type in (
