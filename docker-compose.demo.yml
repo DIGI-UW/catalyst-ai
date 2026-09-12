@@ -59,7 +59,6 @@ services:
       CATALYST_QUERY_MAX_ROWS: "100"
       CATALYST_STATEMENT_TIMEOUT_MS: "10000"
       CATALYST_EXECUTION_LEASE_SECONDS: "60"
-      CATALYST_HUB_TIMEOUT_SECONDS: "1800"
     volumes:
       - ./docs/contracts:/docs/contracts:ro
       - gateway-state:/app/state

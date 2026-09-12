@@ -81,7 +81,6 @@ _PROVIDER_ID = os.getenv("CATALYST_MODEL_PROVIDER_ID", "med-agent-hub")
 _HUB_QUERY_PROFILE_URL = os.getenv(
     "CATALYST_HUB_QUERY_PROFILE_URL", "http://med-agent-hub:8080/v1/hub/query-profiles"
 )
-_HUB_TIMEOUT_SECONDS = float(os.getenv("CATALYST_HUB_TIMEOUT_SECONDS", "1800"))
 _ROLE_REQUEST_EVIDENCE_CONTRACT = "med-agent-hub.catalyst-role-request-evidence.v1"
 _REQUEST_EVIDENCE_ERROR_ATTRIBUTE = "_catalyst_request_evidence"
 _HUB_ERROR_ATTRIBUTE = "_catalyst_hub_error"
@@ -195,8 +194,7 @@ async def _backend_chat(
     resp = await client.post(
         f"{_HUB_QUERY_PROFILE_URL}/{profile_id}/roles/{role}/generate",
         json=payload,
-        headers={"X-Request-Timeout-Seconds": str(_HUB_TIMEOUT_SECONDS)},
-        timeout=_HUB_TIMEOUT_SECONDS,
+        timeout=None,
     )
     if not resp.is_success:
         detail: Any = None

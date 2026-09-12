@@ -916,7 +916,6 @@ def test_gateway_defaults_match_the_local_mvp(monkeypatch: pytest.MonkeyPatch):
     for name in (
         "MED_AGENT_HUB_BASE_URL",
         "CATALYST_CONNECTION_URI",
-        "CATALYST_HUB_TIMEOUT_SECONDS",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -928,4 +927,3 @@ def test_gateway_defaults_match_the_local_mvp(monkeypatch: pytest.MonkeyPatch):
         "hive2://catalyst@spark-thriftserver:10000/openelis"
     )
     assert default.dialect == "spark"
-    assert config.hub_timeout_seconds == 360

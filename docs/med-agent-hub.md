@@ -150,12 +150,11 @@ role's system prompt, applies the profile's configuration, calls its model
 router, and returns the assistant content with the profile, role, and model that
 ran. Catalyst checks that those details match the selected profile.
 
-Catalyst sends the Hub's configured role-call budget in the optional
-`X-Request-Timeout-Seconds` header. Hub applies that transport safeguard to one
-role operation, including prompt measurement and waiting for its model slot.
-Disconnecting the caller cancels that operation and closes the outstanding model
-HTTP request. Deploy the Hub cancellation support with the Gateway change; older
-Hub versions ignore the header and cannot guarantee downstream cancellation.
+Named Catalyst role calls have no automatic response deadline. They wait for the
+model response unless the caller explicitly stops or disconnects. Either event
+cancels the operation and closes the outstanding model HTTP request. Deploy the
+Hub cancellation support with the Gateway change so the interruption reaches the
+model call.
 
 ## Response handling
 
@@ -246,7 +245,6 @@ The current integration reads:
 
 - `MED_AGENT_HUB_BASE_URL` for Hub health and profile discovery;
 - `CATALYST_HUB_QUERY_PROFILE_URL` as the base used for named role calls;
-- `CATALYST_HUB_TIMEOUT_SECONDS` for the named role-call transport timeout.
 
 Hub and its model router own provider credentials and physical model setup.
 Catalyst configuration must not duplicate those settings.
