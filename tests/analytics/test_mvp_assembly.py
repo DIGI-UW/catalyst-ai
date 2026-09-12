@@ -31,6 +31,7 @@ class MvpComposeContractTests(unittest.TestCase):
         cls.model_config_script = (ROOT / "scripts/mvp-model-config.sh").read_text()
         cls.hub_bootstrap = (ROOT / "scripts/bootstrap-med-agent-hub.sh").read_text()
         cls.openelis_bootstrap = (ROOT / "scripts/bootstrap-openelis.sh").read_text()
+        cls.data_pipes_dockerfile = (ROOT / "docker/fhir-data-pipes.Dockerfile").read_text()
 
     def test_compose_assembles_only_the_required_mvp_services(self):
         self.assertIn(".openelis-docker/docker-compose.yml", self.compose)
@@ -174,6 +175,8 @@ class MvpComposeContractTests(unittest.TestCase):
         self.assertIn("dockerfile: fhir-data-pipes.Dockerfile", self.compose)
         self.assertTrue((ROOT / "docker/fhir-data-pipes.Dockerfile").is_file())
         self.assertTrue((ROOT / "docker/fhir-data-pipes-entrypoint.sh").is_file())
+        self.assertIn("ENV FLINK_CONF_DIR=/app/config", self.data_pipes_dockerfile)
+        self.assertIn("WORKDIR /app", self.data_pipes_dockerfile)
         self.assertNotIn("platform: linux/amd64", self.compose)
         self.assertNotIn("context: ./.fhir-data-pipes", self.compose)
         self.assertIn("./analytics/config:/app/config:ro", self.compose)

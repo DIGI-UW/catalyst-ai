@@ -7,6 +7,9 @@ FROM --platform=${DATA_PIPES_SOURCE_PLATFORM} ${DATA_PIPES_SOURCE_IMAGE} AS cont
 
 FROM eclipse-temurin:17-jre-jammy@sha256:ec72ba5962b45ae4e7f96bfb5ebf6eeb34a488b967f937c8e14f0aaec688954f
 
+ENV FLINK_CONF_DIR=/app/config
+WORKDIR /app
+
 RUN apt-get update \
     && apt-get install --no-install-recommends -y libjemalloc2 \
     && rm -rf /var/lib/apt/lists/*
