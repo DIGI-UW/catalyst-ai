@@ -66,6 +66,24 @@ def test_clean_candidate_has_no_findings():
     assert lint_candidate(_candidate(), _extension()) == []
 
 
+@pytest.mark.parametrize("dialect", ["fixture", "spark"])
+@pytest.mark.parametrize("suffix", ["\n```,", " AND test_name = 'unfinished"])
+def test_tokenization_failure_is_a_parse_finding(suffix, dialect):
+    candidate = _candidate()
+    candidate["sql"] += suffix
+    original = deepcopy(candidate)
+
+    extension = _extension()
+    extension["target"]["dialect"] = dialect
+    findings = lint_candidate(candidate, extension)
+
+    assert len(findings) == 1
+    assert findings[0]["code"] == "sql.parse_error"
+    assert findings[0]["path"] == "sql"
+    assert findings[0]["evidence"]
+    assert candidate == original
+
+
 def test_spark_rejects_sqlite_strftime_before_execution():
     extension = _extension()
     extension["target"]["dialect"] = "spark"

@@ -8,7 +8,7 @@ from typing import Any, Mapping
 
 import sqlglot
 from sqlglot import exp
-from sqlglot.errors import ParseError
+from sqlglot.errors import ParseError, TokenError
 from sqlglot.optimizer.scope import Scope, traverse_scope
 
 from .dialects import DialectAdapter, resolve_dialect_adapter
@@ -30,8 +30,10 @@ class LintFinding:
         return {key: value for key, value in asdict(self).items() if value is not None}
 
 
-def _parse_finding(sql: str, error: ParseError, dialect: DialectAdapter) -> LintFinding:
-    detail = error.errors[0] if error.errors else {}
+def _parse_finding(
+    sql: str, error: ParseError | TokenError, dialect: DialectAdapter
+) -> LintFinding:
+    detail = error.errors[0] if isinstance(error, ParseError) and error.errors else {}
     line = detail.get("line") if isinstance(detail.get("line"), int) else None
     column = detail.get("col") if isinstance(detail.get("col"), int) else None
     evidence = "".join(
@@ -302,7 +304,7 @@ def lint_candidate(
     dialect = resolve_dialect_adapter(str(extension["target"]["dialect"]))
     try:
         statements = sqlglot.parse(sql, read=dialect.sqlglot_dialect)
-    except ParseError as error:
+    except (ParseError, TokenError) as error:
         return [_parse_finding(sql, error, dialect).as_dict()]
 
     if len(statements) != 1 or statements[0] is None:
