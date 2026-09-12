@@ -1,3 +1,4 @@
+import { Disclosure } from "./Disclosure";
 import { Accordion, AccordionItem, Button, InlineLoading, Pagination, Search } from "@carbon/react";
 import { useMemo, useState } from "react";
 import type { WorkbenchEditorCatalog } from "../types";
@@ -67,7 +68,7 @@ export const DatasetBrowser = ({
                       {column.unitColumn && <> · Unit from <code>{column.unitColumn}</code></>}
                     </small>
                     {column.databaseType && column.databaseType !== column.logicalType &&
-                      <details open={advancedMode}><summary>Database type</summary><code>{column.databaseType}</code></details>}
+                      <Disclosure open={advancedMode} title="Database type"><code>{column.databaseType}</code></Disclosure>}
                   </dd>
                 </div>)}
               </dl>}
@@ -76,12 +77,11 @@ export const DatasetBrowser = ({
         {matches.length > 10 && <Pagination page={visiblePage} pageSize={pageSize} pageSizes={[10, 25, 50]}
           totalItems={matches.length} itemsPerPageText="Items per page"
           onChange={({ page: nextPage, pageSize: nextSize }) => { setPage(nextPage); setPageSize(nextSize); }} />}
-        <details className="dataset-browser__technical" open={advancedMode}>
-          <summary>Schema details</summary>
+        <Disclosure className="dataset-browser__technical" open={advancedMode} title="Schema details">
           <dl><dt>SQL dialect</dt><dd>{catalog.dialect}</dd>
             <dt>Catalog version</dt><dd>{catalog.catalogVersion}</dd>
             <dt>Schema version</dt><dd>{catalog.schemaVersion}</dd></dl>
-        </details>
+        </Disclosure>
       </>}
     </div>
   );

@@ -25,14 +25,13 @@ The decisions below govern the detailed design that follows.
 - **Validation is advisory.** Validate reports findings for the exact editor
   state, does not execute SQL, and never disables Run. The visible controls are
   Format, Validate, and Run.
-- **The Dataset tile lives in the cell that produced it,** expanded by default
-  and spanning the thread's width, rather than as a single standalone tile
-  owned by the panel. It is still the sole bounded typed-result presentation,
-  and a run is still never rendered twice on one page.
+- **The result summary stays with its originating question.** It always shows
+  the recorded outcome, count and limitations, with a direct review action. The
+  Dataset review panel owns the sole full bounded typed-result table.
 - **A run's outcome leads, including a failure.** A completed run closes the
   editor and moves to the cell carrying the result; only a failure of the
   action itself, which records no execution, leaves the editor open.
-- **Version numbers leave the thread.** Cells are numbered `[n]` by position;
+- **Version numbers leave the thread.** Turns are labelled “Question n” by position;
   query-version and execution ordinals appear only in the details and
   dataset-review surfaces, which are the provenance views.
 - **One source per session.** Changing the Data source control starts a new
@@ -46,6 +45,39 @@ The decisions below govern the detailed design that follows.
   capabilities; switching never discards a draft, source, query, result, profile,
   or focus.
 
+## Workbench visual remediation
+
+The 12 September remediation extends the existing staff mock to deeper product
+states. It is implementation work pending owner visual acceptance. The original
+navigation, state owners, saved-object contracts and explicit execution remain.
+
+| Role | Shared treatment |
+| --- | --- |
+| Page and turn | Neutral page, one 14px rounded surface per turn, 20px vertical / 24px horizontal inset; 16px inset on narrow screens. No nested success card or colored authorship background. |
+| Text | System sans-serif; 18px/600 question headings, 16px body, 14px summary and control labels; multiline text at least 1.5 line height. Off-white ordinary text in dark mode. |
+| Controls | Existing Carbon buttons/icons; 44px disclosure targets with one outlined chevron. Consistent hover, focus and expanded states, keyboard activation, Escape and focus return. |
+| Query evidence | One “View query details” toggle button with a visible active state and no chevron, neutral inset SQL surface, selectable formatted SQL and exact typed values. A two-line preview in Advanced mode does not replace access to full evidence. |
+| State | Ordinary preparation uses a persistent neutral status with the existing Stop action. Only real warnings and failures use semantic warning/error treatment; meaning remains in text. |
+| Composer and supporting views | Existing 16px rounded writing surface, comfortable inner padding, neutral menus and fields. Reuse the same control treatment in Available data, Saved work, reviews and publication. |
+
+After successful execution, show the first three recorded rows without opening
+query details. Label the preview count against the returned count; retain column
+order, typed values, warnings and limits. Wide previews scroll within the turn.
+Review results still opens the full table, and previewing never executes SQL.
+
+Completed turns always show source, outcome, returned count, recorded column
+names and relevant limits. Show at most four column names followed by the number
+of additional fields. A failed or unexecuted turn never invents result counts;
+clarifications and unsupported requests say that no new query ran. Do not add an
+SQL parser or another model call for this summary. Retain earlier results and
+make their review action reachable without expanding query evidence.
+
+The existing mock's selector includes multi-turn, open query details, Advanced
+preview, preparation/Stop, cancellation, preparation failure, empty, limited and
+stale-result scenarios alongside the original Saved work and publication states.
+Compare these with production in light/dark and desktop/narrow layouts. Capture
+review evidence privately; this amendment does not claim deployment or acceptance.
+
 ## MVP interaction contract
 
 The prototype's chronological thread, Dataset tile,
@@ -57,7 +89,7 @@ generation/failure evidence, findings, database diagnostics and typed results,
 contextual follow-up, compact history, result staleness, refresh restoration,
 complete readable-schema access, and one canonical New session action through
 **Save Dataset**. The Dataset tile exists only after a successful execution for
-the exact query digest; it opens the sole bounded typed-result presentation in
+the exact query digest; it opens the full bounded typed-result presentation in
 the Dataset panel. Do not implement example prompts or implied automatic
 generation/execution. Available data owns schema browsing, and the Dataset draft
 tile and review panel own the successful execution result.
@@ -90,8 +122,9 @@ The accepted Ask invariants are testable requirements:
   visible but mark its tile stale until the new exact digest runs successfully.
 - **DATASET-04 — durable save:** Save dataset is single-shot and idempotent and
   survives refresh as an immutable version.
-- **THREAD-01 — chronology:** earlier turns collapse to read-only summaries and
-  only the latest turn owns the active workbench.
+- **THREAD-01 — chronology:** every turn retains a visible question and outcome
+  summary; only its query evidence collapses. Only the latest turn owns the
+  active workbench.
 - **A11Y-01 — working surface access:** all controls are reachable in logical
   keyboard order through the desktop, 390×844, 320-CSS-pixel, and
   640-CSS-pixel reflow checks; focus is visible; Escape closes the review panel
@@ -266,7 +299,9 @@ Thread is a single `flex-direction: column; gap: 1rem` stack, full content width
 - **Header**: eyebrow "Explore", H1 = the session title ("Monthly viral load,
   2026"), description "Nothing is saved until you review it. Drafts stay in
   this thread." Top-right: "New session" secondary button.
-- **User message**: `align-self: flex-end`, `max-width: 38rem`, padding `0.75rem 1rem`, background `#e0e0e0`, color `#161616`, `0.875rem`/1.5. No radius (Carbon is square).
+- **Question**: the full text heads its originating turn, `1.125rem`/600 with
+  `1.5` line height (`1rem` on narrow screens). It stays visible when query
+  details are closed, using the neutral text role in both themes.
 - **Latest query workbench card**: immediately after the latest user instruction
   and before any Dataset tile, integrate the current production workbench. It is
   the only editable SQL surface and retains the current CodeMirror completion,
@@ -279,7 +314,8 @@ Thread is a single `flex-direction: column; gap: 1rem` stack, full content width
   this card is the entry point to the typed rows; do not retain a second inline
   result table. If the buffer changes, keep the previous tile visible but mark it
   stale. Earlier turns
-  collapse to read-only question/query/version/execution summaries. When a
+  remain readable with their question, source, outcome, result summary and
+  limitations visible; one disclosure opens the supporting query evidence. When a
   successor becomes current, this same card moves with the latest turn rather
   than creating another editor.
   Its editable control is labelled exactly `SQL query`; completion, formatting,
@@ -293,13 +329,12 @@ Thread is a single `flex-direction: column; gap: 1rem` stack, full content width
   closing preserves the draft, selection, composer size, expanded relations,
   scroll, and focus return. It never retrieves clinical rows while drafting.
   On narrow screens it becomes a full-height sheet over the same retained state.
-- **Draft tile — dataset** (the key component). A button, `width: 100%`, `max-width: 34rem`, `display: flex; align-items: center; gap: 1rem`, padding `0.75rem 1rem`, background `#fff`, border `1px solid #c6c6c6`, `border-left: 3px solid` state accent. Contents left → right:
-  - 20×20 Carbon "data-table" icon, `#525252`
-  - stacked text (`flex: 1`): name `0.875rem`/600; meta line `0.75rem` `#6f6f6f` — "Dataset · 250 shown · more available · total unknown · 4 typed columns · Query v3" for a truncated result without an exact total
-  - status pill: height `1.5rem`, radius `0.75rem`, `0.75rem` text. Draft = background `#fcf4d6` / color `#684e00`. Saved = background `#defbe6` / color `#0e6027`.
-  - "Review" affordance, `#0f62fe`, `0.875rem`
-  - Hover: `border-color: #0f62fe`, `background: #f4f4f4`. Left accent: `#0f62fe` while draft, `#24a148` once saved.
-  - Whole tile is the click target; it opens the review panel. No data table and no chart render inline — detail lives in the panel only.
+- **Successful result in a turn:** use the neutral turn surface with a Carbon
+  data icon, result count/limits, and an explicit **Review results** button. Show
+  the first three recorded rows below it with column headings, a preview-count
+  caption and horizontal scrolling for wide results. Avoid a second enclosing
+  success card or a whole-tile click target around selectable result text. The
+  full typed table and saving controls remain in the review panel.
 - **Assistant suggestion**: `max-width: 44rem`, padding `1rem 1.25rem`, a
   restrained action-role left border, neutral surface background, `0.875rem`/1.5.
   Viz name in `<strong>`.

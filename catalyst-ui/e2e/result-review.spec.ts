@@ -10,11 +10,12 @@ test("one result table with disclosed provenance and preserved draft and focus",
   await page.getByRole("button", { name: "Edit query", exact: true }).click();
   await page.getByRole("textbox", { name: "SQL query", exact: true }).fill("SELECT 17 AS edited_query");
   const trigger = page.getByRole("button", { name: "Review results" }).last();
-  await expect(page.locator(".query-turn table")).toHaveCount(0);
+  await expect(page.locator(".query-turn__row-preview table")).toHaveCount(2);
+  await expect(page.locator("#turn-3 .query-turn__row-preview tbody tr")).toHaveCount(3);
   await trigger.click();
   const dialog = page.getByRole("dialog", { name: "Review panel" });
   const details = dialog.locator("details").filter({ has: page.getByText("Technical details", { exact: true }) });
-  await expect(page.getByRole("table")).toHaveCount(1);
+  await expect(dialog.getByRole("table")).toHaveCount(1);
   await expect(dialog.getByRole("columnheader", { name: "n bigint" })).toBeVisible();
   await expect(dialog.getByText(/Limits: up to 1,000 rows and 30 seconds/)).toBeVisible();
   await expect(details).not.toHaveAttribute("open");

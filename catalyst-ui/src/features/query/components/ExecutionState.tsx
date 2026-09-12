@@ -23,10 +23,10 @@ export const ExecutionState = ({
   actionLabel,
   onAction,
 }: ExecutionStateProps) => (
-  <section className="query-card execution-state" aria-labelledby="execution-title">
+  <section data-running={running || undefined} className="query-card execution-state" aria-labelledby="execution-title">
     <div className="execution-state__heading">
       <div>
-        <p className="eyebrow">Catalyst status</p>
+        {!running && <p className="eyebrow">Catalyst status</p>}
         <h2 id="execution-title">{title}</h2>
       </div>
       {running && (
@@ -37,12 +37,12 @@ export const ExecutionState = ({
         />
       )}
     </div>
-    <InlineNotification
+    {running ? <p className="execution-state__progress" role="status">{message}</p> : <InlineNotification
       lowContrast
       hideCloseButton
       kind={kind}
       title={message}
-    />
+    />}
     {details}
     {actionLabel && onAction && (
       <Button kind="tertiary" renderIcon={Renew} onClick={onAction}>

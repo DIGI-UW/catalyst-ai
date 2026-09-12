@@ -1,3 +1,4 @@
+import { Disclosure } from "./Disclosure";
 import { DataBase, WarningAltFilled } from "@carbon/icons-react";
 import { Button, Select, SelectItem, Tag } from "@carbon/react";
 import {
@@ -16,7 +17,7 @@ import type { DetailsTab } from "./DetailsPanel";
 import { lineDiffSummary } from "../lineDiff";
 import { highlightSql } from "./sqlHighlight";
 import { formatSql } from "./sqlEditorSupport";
-import { ExecutionResult } from "./WorkbenchPanel";
+import { ExecutionPreview, ExecutionResult } from "./WorkbenchPanel";
 import { QuestionComposerInput } from "./QuestionComposerInput";
 import "./TurnNotebook.css";
 
@@ -81,6 +82,8 @@ export interface NotebookGrounding {
 
 interface TurnNotebookProps {
   advancedMode?: boolean;
+  sourceLabel?: string;
+  dialect?: string;
   turns: NotebookTurn[];
   session: WorkbenchSession;
   baseVersion: NotebookVersion | null;
@@ -241,10 +244,10 @@ const cellOutcome = (turn: NotebookTurn) => {
   const answered = writerAnswered(turn);
   if (answered === "asked") return "needs your answer";
   if (answered === "declined") return "not supported";
-  if (turn.status === "failed") return "generation failed";
-  if (turn.status === "requested") return "generating…";
+  if (turn.status === "failed") return "could not prepare";
+  if (turn.status === "requested") return "preparing…";
   const execution = turn.execution;
-  if (!execution) return "not run";
+  if (!execution) return "ready to get results";
   if (execution.status === "failed") return "run failed";
   const returned = execution.result?.rowCount.returned;
   return returned === undefined ? "ran" : rowLabel(returned);
@@ -259,6 +262,8 @@ const validationWord = (status: NotebookTurn["validationStatus"]) => {
 
 export const TurnNotebook = ({
   advancedMode = false,
+  sourceLabel,
+  dialect = "sql",
   turns,
   session,
   baseVersion,
@@ -284,7 +289,7 @@ export const TurnNotebook = ({
   activeCell = null,
   draftDivergent = false,
 }: TurnNotebookProps) => {
-  const [turnVisibilityOverrides, setTurnVisibilityOverrides] = useState<
+  const [queryDetailsOpen, setQueryDetailsOpen] = useState<
     Record<string, boolean>
   >({});
   const revisionProfiles = useMemo(
@@ -295,14 +300,6 @@ export const TurnNotebook = ({
   );
   const noRevisionProfiles = revisionProfiles.length === 0;
   const composerTitle = lastRunFailed ? "Try again" : revisesNothing ? "Your answer" : "Ask a follow-up";
-  const latestTurnId = turns.at(-1)?.turnId ?? null;
-
-  const toggleTurn = (turnId: string, expanded: boolean) => {
-    setTurnVisibilityOverrides((current) => ({
-      ...current,
-      [turnId]: !expanded,
-    }));
-  };
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
@@ -311,11 +308,7 @@ export const TurnNotebook = ({
   };
 
   const renderCell = (turn: NotebookTurn) => {
-    // Only the newest turn is open on arrival; everything earlier collapses to
-    // its header so the thread stays scannable. An explicit toggle always wins.
-    const expanded =
-      turnVisibilityOverrides[turn.turnId] ?? turn.turnId === latestTurnId;
-    const regionId = `query-turn-${turn.turnId}`;
+    const expanded = queryDetailsOpen[turn.turnId] ?? false;
     const status = cellStatus(turn);
     const version = selectedVersionOf(turn);
     const execution = turn.execution ?? null;
@@ -344,14 +337,13 @@ export const TurnNotebook = ({
             comparableSqlText(version.sql),
           )
         : null;
-    // The visible header truncates the instruction to one line, so the
-    // accessible name carries it in full alongside the run counter it is cited
-    // by and the outcome the status dot encodes visually.
     const unreviewed = isUnreviewed(turn, version);
     const reviewed = turn.status === "completed" && Boolean(turn.profileSnapshot.reviewer) && !unreviewed && !asksTheReader(turn);
-    const headerLabel =
-      `Query turn ${turn.ordinal}: ${turn.instruction} — ${outcome}` +
-      (unreviewed ? " — unreviewed" : reviewed ? " — AI reviewed" : "");
+    const source = sourceLabel ?? session.dataSourceId ?? session.datasetId;
+    const sql = execution?.query.sql ?? version?.sql;
+    const formattedSql = sql ? comparableSqlText(sql, dialect) : null;
+    const columns = execution?.result?.columns ?? [];
+    const parameters = execution?.query.parameters ?? session.versions.find(item => item.versionId === version?.versionId)?.parameters ?? [];
 
     return (
       <article
@@ -366,36 +358,17 @@ export const TurnNotebook = ({
           [{turn.ordinal}]
         </div>
         <div className="query-turn__body">
-          <button
-            type="button"
-            className="query-turn__disclosure"
-            aria-expanded={expanded}
-            aria-controls={regionId}
-            aria-label={headerLabel}
-            onClick={() => toggleTurn(turn.turnId, expanded)}
-          >
-            <span className="query-turn__dot" aria-hidden="true" />
-            <span className="query-turn__summary">{turn.instruction}</span>
-            {/*
-              Visible while the cell is collapsed, because that is exactly when
-              an unreviewed query would otherwise pass unnoticed.
-            */}
-            {unreviewed && (
-              <span className="query-turn__unreviewed">unreviewed</span>
-            )}
-            {reviewed && <span className="query-turn__reviewed">AI reviewed</span>}
-            <span className="query-turn__outcome">{outcome}</span>
-            <span className="query-turn__caret" aria-hidden="true">
-              {expanded ? "▾" : "▸"}
-            </span>
-          </button>
-
-          {expanded && (
-            <section
-              id={regionId}
-              className="query-turn__detail"
-              aria-label={`Query turn ${turn.ordinal}`}
-            >
+          <header className="query-turn__heading">
+            <div className="query-turn__eyebrow">
+              <span>Question {turn.ordinal}</span>
+              {turn.current && <span className="query-turn__current">Current</span>}
+              {unreviewed && <span className="query-turn__unreviewed">unreviewed</span>}
+              {reviewed && <span className="query-turn__reviewed">AI reviewed</span>}
+            </div>
+            <h3 className="query-turn__question">{turn.instruction}</h3>
+            <p className="query-turn__meta"><span>{source}</span><span>{outcome}</span></p>
+          </header>
+          <section className="query-turn__detail" aria-label={`Query turn ${turn.ordinal}`}>
               {turn.status === "failed" && (
                 <div
                   className={
@@ -410,25 +383,11 @@ export const TurnNotebook = ({
                       ? "Needs your answer"
                       : writerAnswered(turn) === "declined"
                         ? "Not supported by this data"
-                        : "Generation failed"}
+                        : "Could not prepare this question"}
                   </strong>
                   <p>
-                    {turn.failure?.message ?? "The generation did not complete."}
+                    {turn.failure?.message ?? "No new query was prepared. Your question is still available to retry."}
                   </p>
-                  {/*
-                    Which checks failed, by name, so the reason is readable
-                    here rather than only in Evidence.
-                  */}
-                  {turn.failure?.checks && turn.failure.checks.length > 0 && (
-                    <dl className="query-turn__failure-checks">
-                      {turn.failure.checks.map((check) => (
-                        <div key={check.name}>
-                          <dt>{check.name}</dt>
-                          <dd>{check.value}</dd>
-                        </div>
-                      ))}
-                    </dl>
-                  )}
                   {/*
                     What the model actually returned settles any question this
                     summary leaves open, and it is already recorded.
@@ -450,12 +409,12 @@ export const TurnNotebook = ({
                   <div className="query-turn__dataset-heading">
                     <DataBase size={20} aria-hidden="true" />
                     <div className="query-turn__result-summary">
-                      <strong>Results ready</strong>
+                      <strong>{execution.result?.rowCount.returned === 0 ? "No rows returned" : "Results ready"}</strong>
                       <p>{execution.result
-                        ? `${rowLabel(execution.result.rowCount.returned)} · ${execution.result.columns.length} ${execution.result.columns.length === 1 ? "column" : "columns"}`
+                        ? execution.result.rowCount.returned === 0 ? "Try another date range or refine your question." : `${rowLabel(execution.result.rowCount.returned)} · ${execution.result.columns.length} ${execution.result.columns.length === 1 ? "column" : "columns"}`
                         : "The query completed without a table."}</p>
                       {turn.current && grounding.kind === "stale" && <p>Earlier result — your query has changed.</p>}
-                      {execution.result?.rowCount.truncated && <p>Limited result; more rows may be available.</p>}
+                      {execution.result?.rowCount.truncated && <p className="query-turn__warning">Showing the first {execution.result.rowCount.returned} rows. More are available; the total is unknown.</p>}
                       {turn.validationStatus && turn.validationStatus !== "valid" && <p>Review the query findings before using these results.</p>}
                     </div>
                     {onReviewResult && (
@@ -479,13 +438,54 @@ export const TurnNotebook = ({
                 />
               )}
 
-              <details className="query-turn__technical" open={advancedMode}>
-                <summary>Technical details</summary>
-              {version && (
+              {columns.length > 0 && <p className="query-turn__query-summary">
+                <strong>Returned fields:</strong> {columns.slice(0, 4).map(column => column.name).join(", ")}
+                {columns.length > 4 ? ` and ${columns.length - 4} more` : ""}.
+              </p>}
+              {execution && <ExecutionPreview execution={execution} questionNumber={turn.ordinal} />}
+              {turn.validationStatus && turn.validationStatus !== "valid" && !execution &&
+                <p className="query-turn__warning">Query findings need your review. You can still run the query.</p>}
+              {advancedMode && formattedSql && !expanded && <pre className="query-turn__preview" aria-label={`Query turn ${turn.ordinal} SQL preview`}>{formattedSql.split("\n").slice(0, 2).join("\n")}{formattedSql.split("\n").length > 2 ? "\n…" : ""}</pre>}
+              <div className="query-turn__technical" onKeyDown={event => {
+                if (event.key === "Escape" && expanded) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setQueryDetailsOpen(current => ({...current, [turn.turnId]: false}));
+                  event.currentTarget.querySelector<HTMLButtonElement>("button")?.focus();
+                }
+              }}>
+                <Button kind="ghost" className="query-turn__details-toggle"
+                  aria-expanded={expanded} aria-controls={`query-evidence-${turn.turnId}`}
+                  onClick={() => setQueryDetailsOpen(current => ({...current, [turn.turnId]: !expanded}))}>
+                  View query details
+                </Button>
+                <div id={`query-evidence-${turn.turnId}`} className="query-turn__evidence" hidden={!expanded}>
+                  {/* Named checks remain available with the full query evidence. */}
+                  {turn.failure?.checks && turn.failure.checks.length > 0 && (
+                    <dl className="query-turn__failure-checks">
+                      {turn.failure.checks.map((check) => (
+                        <div key={check.name}>
+                          <dt>{check.name}</dt>
+                          <dd>{check.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  )}
+
+              <dl className="query-turn__execution-facts">
+                <div><dt>Source</dt><dd>{source}</dd></div>
+                <div><dt>SQL dialect</dt><dd>{dialect}</dd></div>
+                {version && <div><dt>Query version</dt><dd>{version.ordinal}</dd></div>}
+                {execution && <div><dt>Execution</dt><dd>{execution.ordinal} · {execution.durationMs} ms</dd></div>}
+              </dl>
+              {parameters.length > 0 && <dl className="query-turn__execution-facts" aria-label="Query parameters">
+                {parameters.map(parameter => <div key={parameter.name}><dt>{parameter.name} ({parameter.type})</dt><dd>{JSON.stringify(parameter.value)}</dd></div>)}
+              </dl>}
+              {sql && (
                 <div
                   className="query-turn__sql"
                   data-author={
-                    version.authorType === "human" ? "human" : undefined
+                    version?.authorType === "human" ? "human" : undefined
                   }
                 >
                   <p className="query-turn__sql-label">
@@ -498,7 +498,7 @@ export const TurnNotebook = ({
                     cell to render text nobody can type into.
                   */}
                   <pre>
-                    {highlightSql(version.sql).map((span, index) => (
+                    {highlightSql(formattedSql ?? sql).map((span, index) => (
                       <span
                         className={span.className}
                         key={`${index}-${span.text.length}`}
@@ -588,7 +588,7 @@ export const TurnNotebook = ({
                   className="query-turn__footer-link"
                   onClick={() => onOpenDetails(turn.turnId)}
                 >
-                  details
+                  Review and provenance
                 </button>
                 {previousVersionOrdinal !== null && version && (
                   <button
@@ -596,13 +596,13 @@ export const TurnNotebook = ({
                     className="query-turn__footer-link"
                     onClick={() => onOpenDetails(turn.turnId, "versions")}
                   >
-                    what changed
+                    What changed
                   </button>
                 )}
               </div>
-              </details>
-            </section>
-          )}
+                </div>
+              </div>
+          </section>
         </div>
       </article>
     );
@@ -655,7 +655,7 @@ export const TurnNotebook = ({
               <div className="query-turn__body">
                 <p className="query-turn__pending" role="status">
                   <span className="query-turn__pending-dot" aria-hidden="true" />
-                  Generating the next query…
+                  Preparing your next question…
                 </p>
               </div>
             </article>
@@ -673,7 +673,7 @@ export const TurnNotebook = ({
         <div className="turn-composer__heading">
           <div className="turn-composer__title">
             <h2 id="refine-query-title" className="visually-hidden">{composerTitle}</h2>
-            <p>{draftDivergent ? "Using your edited query" : `Refining “${turns.at(-1)?.instruction ?? session.question}”`}</p>
+            <p>{draftDivergent ? "Using your edited query" : `Following question ${turns.at(-1)?.ordinal ?? 1}`}</p>
             {advancedMode && (baseVersion ? (
               <p>
                 {versionAuthor(baseVersion)}
@@ -712,8 +712,7 @@ export const TurnNotebook = ({
             onSubmit={onGenerate}
           />
           <div className="turn-composer__toolbar">
-            <details className="query-settings" open={advancedMode}>
-              <summary>Query settings</summary>
+            <Disclosure className="query-settings" open={advancedMode} title="Query settings">
               <Select
                 id="catalyst-followup-profile"
                 labelText="Model profile"
@@ -724,10 +723,10 @@ export const TurnNotebook = ({
               >
                 {noRevisionProfiles && <SelectItem value="" text="No revision-capable profile available" />}
                 {revisionProfiles.map((profile) => (
-                  <SelectItem key={profile.id} value={profile.id} text={profileOptionLabel(profile)} />
+                  <SelectItem key={profile.id} value={profile.id} text={advancedMode ? profileOptionLabel(profile) : profile.label} />
                 ))}
               </Select>
-            </details>
+            </Disclosure>
             {error && (
               <p className="turn-composer__error" role="alert">
                 {error}
@@ -773,8 +772,7 @@ export const TurnNotebook = ({
           {notice && <p className="query-composer__help" role="status">{notice}</p>}
           {noRevisionProfiles && (
             <p id="catalyst-followup-profile-unavailable" role="status">
-              No revision-capable model profile is currently available. Load a
-              configured model profile to generate the next query.
+              No question service is available right now. Your draft is saved here; try again when the service is available.
             </p>
           )}
         </form>

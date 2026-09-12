@@ -64,3 +64,6 @@ Thumbs.db
 **/demo-screenshots/
 **/test-results/
 **/playwright-report/
+
+# Private visual review baselines
+**/.visual-baselines/

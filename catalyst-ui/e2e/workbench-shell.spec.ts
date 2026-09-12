@@ -20,7 +20,7 @@ test("simple navigation and theme changes retain the unfinished question", async
     await page.getByText(/View options/).click();
     await page.getByRole("radio", { name: theme, exact: true }).check();
     await page.keyboard.press("Escape");
-    await expect(page.getByText(/View options/)).toBeFocused();
+    await expect(page.locator(".workbench-header-shell__view-options > summary")).toBeFocused();
     await expect(page.locator(".application")).toHaveAttribute("data-theme", theme === "Dark" ? "g100" : "g10");
     await expect(question).toHaveValue("Visits by month\nInclude missing dates");
     await page.screenshot({ path: testInfo.outputPath(`shell-${theme.toLowerCase()}.png`) });

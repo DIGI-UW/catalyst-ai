@@ -1,3 +1,5 @@
+import { ChevronDown } from "@carbon/icons-react";
+import { Disclosure } from "./Disclosure";
 import { Button, Toggle } from "@carbon/react";
 import type { ThemePreference } from "../theme";
 import type { DashboardBuilderSection, DataSource, WorkbenchSessionSummary } from "../types";
@@ -123,7 +125,7 @@ export const WorkbenchHeader = ({
               <strong>Using {sessionSourceLabel ?? "connected data"}</strong>
               <small>Change data</small>
             </span>
-            <span aria-hidden="true">▾</span>
+            <ChevronDown size={16} aria-hidden="true" />
           </button>
         )}
 
@@ -237,11 +239,8 @@ export const WorkbenchHeader = ({
           </div>
         )}
         </div>
-        <details className="workbench-header-shell__view-options">
-          <summary>
-            View options
-            {advancedMode && <span>Advanced</span>}
-          </summary>
+        <Disclosure className="workbench-header-shell__view-options" title={<>View options
+            {advancedMode && <span>Advanced</span>}</>}>
           <div className="workbench-header-shell__view-menu">
             <fieldset>
               <legend>Appearance</legend>
@@ -274,7 +273,7 @@ export const WorkbenchHeader = ({
               <small id="catalyst-advanced-mode-help">Show SQL, settings, and technical details.</small>
             </div>
           </div>
-        </details>
+        </Disclosure>
       </div>
     </header>
   );

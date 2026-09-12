@@ -1,3 +1,4 @@
+import { Disclosure } from "./Disclosure";
 import { ArrowRight } from "@carbon/icons-react";
 import { Button, Form, Select, SelectItem } from "@carbon/react";
 import { type FormEvent } from "react";
@@ -80,8 +81,7 @@ export const QuestionForm = ({
           />
           <div className="query-composer__toolbar">
             {availableProfiles.length > 0 && (
-              <details className="query-settings" open={advancedMode}>
-                <summary>Query settings</summary>
+              <Disclosure className="query-settings" open={advancedMode} title="Query settings">
               <Select
                 id="catalyst-profile"
                 className="query-composer__profile"
@@ -110,7 +110,7 @@ export const QuestionForm = ({
                   />
                 ))}
               </Select>
-              </details>
+              </Disclosure>
             )}
             {profiles.length > 0 && availableProfiles.length === 0 && (
               <p className="query-composer__availability" role="status">

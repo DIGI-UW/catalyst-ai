@@ -35,7 +35,7 @@
 .workbench-header-shell select:focus-visible { outline: 2px solid var(--cds-focus); outline-offset: 2px; }
 .workbench-header-shell__view-options { position: relative; }
 .workbench-header-shell__view-options summary { min-height: 2.75rem; padding: 0.75rem 0.25rem; font-size: 0.8125rem; color: var(--cds-text-secondary); cursor: pointer; }
-.workbench-header-shell__view-options summary span { margin-left: 0.5rem; color: var(--cds-text-primary); }
+.workbench-header-shell__view-options summary span span { margin-left: 0.5rem; color: var(--cds-text-primary); }
 .workbench-header-shell__view-menu fieldset { padding: 0; border: 0; margin-bottom: 1rem; }
 .workbench-header-shell__view-menu legend { margin-bottom: 0.5rem; }
 .workbench-header-shell__view-menu fieldset label { margin-right: 0.75rem; }
@@ -65,4 +65,17 @@
   .workbench-header-shell__top { padding: 0.625rem 1rem; gap: 0.5rem 1.125rem; }
   .workbench-header-shell__brand { font-size: 1.1875rem; }
   .dashboard-builder-shell .workbench-header-shell__nav .cds--btn { font-size: 0.875rem; padding: 0.4375rem 0.5625rem; }
+}
+
+.workbench-header-shell__session-button { border-radius: 0.5rem; font: inherit; }
+.workbench-header-shell__session-button > svg { flex: none; }
+.workbench-header-shell__view-menu,
+.workbench-header-shell__session-menu { border-radius: 0.75rem; padding: 1.25rem; }
+.workbench-header-shell__view-menu legend { font-weight: 600; font-size: 0.875rem; }
+.workbench-header-shell__view-menu fieldset label { display: inline-flex; align-items: center; min-height: 2.75rem; }
+
+@media (max-width: 47.5rem) {
+  /* Anchor the menu to the header when its trigger wraps onto its own row. */
+  .workbench-header-shell__view-options { position: static; }
+  .workbench-header-shell__view-menu { right: 1rem; width: calc(100vw - 2rem); }
 }

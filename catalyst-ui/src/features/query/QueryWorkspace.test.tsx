@@ -267,7 +267,7 @@ describe("Dashboard Builder Ask shell", () => {
     window.localStorage.setItem("catalyst.workbench.activeSessionId", session.sessionId);
     render(<QueryWorkspace api={client} />);
     const input = await screen.findByRole("textbox", { name: "Ask a follow-up" });
-    const editor = screen.getByRole("textbox", { name: "SQL query" });
+    const editor = await screen.findByRole("textbox", { name: "SQL query" });
     const sql = editor.textContent;
     await user.type(input, "Split it by test type");
     await user.click(screen.getByRole("button", { name: "Continue" }));
@@ -745,7 +745,7 @@ describe("Dashboard Builder Ask shell", () => {
     // screen that never named itself.
     const title = await screen.findByRole("heading", {
       level: 1,
-      name: session.name!,
+      name: "Your question",
     });
     expect(title).toBeVisible();
     const header = title.closest("header")!;
@@ -904,7 +904,7 @@ describe("Dashboard Builder Ask shell", () => {
     // busy label on the button, which may be scrolled out of sight.
     const thread = screen.getByRole("region", { name: "Iterative query notebook" });
     expect(
-      await within(thread).findByText("Generating the next query…"),
+      await within(thread).findByText("Preparing your next question…"),
     ).toBeVisible();
 
     await waitFor(() => expect(release).not.toBeNull());
@@ -1091,7 +1091,7 @@ describe("Dashboard Builder Ask shell", () => {
     // A failed generation has no version to be ordered by, so it used to sort
     // ahead of every hand edit that came after it.
     expect(
-      [...container.querySelectorAll(".query-turn__summary")].map(
+      [...container.querySelectorAll(".query-turn__question")].map(
         (cell) => cell.textContent,
       ),
     ).toEqual([session.question, "Edited by hand", "Split it by test type"]);
@@ -1198,7 +1198,7 @@ describe("Dashboard Builder Ask shell", () => {
     await screen.findAllByText("Split it by test type");
     // The hand edit happened between the two generations, so that is where it
     // is filed — appending it after them would report the thread out of order.
-    const cells = [...container.querySelectorAll(".query-turn__summary")].map(
+    const cells = [...container.querySelectorAll(".query-turn__question")].map(
       (cell) => cell.textContent,
     );
     expect(cells).toEqual([
