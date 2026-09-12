@@ -49,13 +49,13 @@ for (const source of ["openelis", "openmrs-hiv"]) {
           dashboardTitle: `OpenMRS CD4 monitoring overview · ${runId}`,
           chartTitles: [
             `OpenMRS CD4 monitoring table · ${runId}`,
-            `OpenMRS CD4 results by gender · ${runId}`,
+            `OpenMRS monthly CD4 results by gender · ${runId}`,
           ],
           question: "Count CD4 count results from 2026-01-01 through 2026-12-31 by month. Return month and result_count.",
           schemaSearch: "observation",
           followup: "Break those same CD4 results down by patient gender, including missing gender. Count each result once so the monthly totals stay the same. Keep the 2026 date range. Return month, gender, and result_count.",
           expectedColumns: ["MONTH", "gender", "result_count"],
-          chartKinds: ["table", "grouped_bar"],
+          chartKinds: ["table", "time_series_line"],
         }
       : {
           queryTitle: `${label} patient counts · ${runId}`,
@@ -326,7 +326,16 @@ for (const source of ["openelis", "openmrs-hiv"]) {
         await panel.getByRole("button", { name: "Save chart or table", exact: true }).click();
         const saved = await response;
         expect(saved.ok()).toBe(true);
-        chartIds.push((await saved.json() as DashboardBuilderEntity).versionId);
+        const widget = await saved.json() as DashboardBuilderEntity;
+        if (source === "openmrs-hiv" && kind !== "table") {
+          // Preserve month and gender; a category-only chart collapses months.
+          expect(widget.configuration.bindings).toMatchObject({
+            xColumn: { name: "month" },
+            metricColumn: { name: "result_count" },
+            seriesColumns: [{ name: "gender" }],
+          });
+        }
+        chartIds.push(widget.versionId);
         await expect(panel).not.toBeVisible();
         timing.mark(`widget-${kind}`);
       }
