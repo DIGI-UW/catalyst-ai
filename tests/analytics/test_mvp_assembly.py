@@ -175,6 +175,10 @@ class MvpComposeContractTests(unittest.TestCase):
         self.assertIn("dockerfile: fhir-data-pipes.Dockerfile", self.compose)
         self.assertTrue((ROOT / "docker/fhir-data-pipes.Dockerfile").is_file())
         self.assertTrue((ROOT / "docker/fhir-data-pipes-entrypoint.sh").is_file())
+        # The Compose health check uses Python's standard HTTP client. Keep it
+        # in the slim native runtime rather than starting a controller that
+        # can never report healthy.
+        self.assertIn("libjemalloc2 python3", self.data_pipes_dockerfile)
         self.assertIn("ENV FLINK_CONF_DIR=/app/config", self.data_pipes_dockerfile)
         self.assertIn("WORKDIR /app", self.data_pipes_dockerfile)
         self.assertNotIn("platform: linux/amd64", self.compose)
