@@ -15,7 +15,13 @@ import httpx
 
 from .hub import HubError
 from .session_context import SESSION_CONTEXT_CONTRACT
-from .query_engine import EngineProfile, EngineRequest, execute_query_profile
+from .query_engine import (
+    EngineProfile,
+    EngineRequest,
+    _backend_chat,
+    execute_query_profile,
+    initial_writer_request,
+)
 
 _QUERY_PROFILES_PATH = "/v1/hub/query-profiles"
 
@@ -122,7 +128,7 @@ class LocalHub:
             )
         return available
 
-    async def generate_query(self, request: dict[str, Any]) -> dict[str, Any]:
+    async def _engine_request(self, request: dict[str, Any]) -> EngineRequest:
         profile_id = str(request.get("model") or "")
         profiles, _backend = await self._profile_document()
         selected = next(
@@ -139,11 +145,14 @@ class LocalHub:
                 "profile_incompatible", "Request is missing its catalystQuery context."
             )
         profile = self._engine_profile(selected)
-        engine_request = EngineRequest(
+        return EngineRequest(
             catalyst_query=catalyst_query,
             messages=list(request.get("messages") or []),
             profile=profile,
         )
+
+    async def generate_query(self, request: dict[str, Any]) -> dict[str, Any]:
+        engine_request = await self._engine_request(request)
         result: Optional[dict[str, Any]] = None
         async for kind, payload in execute_query_profile(engine_request):
             if kind == "result":
@@ -151,6 +160,30 @@ class LocalHub:
         if result is None:
             raise HubError("hub_invalid_response", "Query engine produced no result.")
         return result
+
+    async def warm_query_prefix(self, request: dict[str, Any]) -> None:
+        """Prime the writer's real source prefix without creating user work."""
+        engine_request = await self._engine_request(request)
+        profile = engine_request.profile
+        messages, response_format = initial_writer_request(
+            engine_request, engine_request.catalyst_query
+        )
+        async with httpx.AsyncClient() as client:
+            await _backend_chat(
+                client,
+                profile.id,
+                "query_generate",
+                profile.models["query_generate"],
+                messages,
+                response_format=response_format,
+                temperature=float(profile.knobs["query_generate"]["temperature"]),
+                dry_multiplier=float(profile.knobs["query_generate"]["dry"]),
+                max_tokens=(
+                    int(profile.knobs["query_generate"]["maxTokens"])
+                    if profile.knobs["query_generate"].get("maxTokens") is not None
+                    else None
+                ),
+            )
 
     async def readiness(self) -> dict[str, dict[str, Any]]:
         hub_ready = False

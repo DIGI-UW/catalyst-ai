@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import asyncio
 import hashlib
 import json
 from unittest.mock import patch
@@ -13,6 +14,8 @@ import httpx
 import pytest
 
 from src.catalyst import query_engine
+from src.catalyst import local_hub
+from src.warmup import WARMUP_QUESTION
 from src.catalyst.digest import canonical_sha256
 from src.catalyst.hub import HubError
 from src.catalyst.local_hub import LocalHub
@@ -246,6 +249,78 @@ async def test_generation_rejects_unknown_or_unavailable_profile_before_model_ca
     await hub.aclose()
 
     assert error.value.code == "profile_unavailable"
+
+
+@pytest.mark.asyncio
+async def test_neutral_warmup_is_not_history_or_an_example_for_a_different_question():
+    calls = []
+    discarded_answer = "PRIVATE WARMUP ANSWER - must never be sent again"
+
+    async def backend(client, profile_id, role, model, messages, **kwargs):
+        calls.append(copy.deepcopy((profile_id, role, model, messages, kwargs)))
+        if len(calls) == 1:
+            return discarded_answer, None, None
+        return json.dumps(_candidate() if role == "query_generate" else _approval())
+
+    hub = _hub()
+    warm_request = _request()
+    warm_request["messages"][0]["content"] = WARMUP_QUESTION
+    warm_request["catalystQuery"]["correlation"] = {
+        "requestId": "warmup-request",
+        "traceId": "warmup-trace",
+    }
+    try:
+        with (
+            patch.object(local_hub, "_backend_chat", side_effect=backend),
+            patch.object(query_engine, "_backend_chat", side_effect=backend),
+        ):
+            assert await hub.warm_query_prefix(warm_request) is None
+            assert len(calls) == 1  # No review, repair or saved answer from warmup.
+            result = await hub.generate_query(_request())
+        assert result["status"] == "ready"
+        first, real = calls[:2]
+        assert first[:3] == real[:3]
+        assert first[4] == real[4]  # Same output format and profile settings.
+        prefix = first[3][0]["content"].split(',"question":', 1)[0]
+        assert real[3][0]["content"].startswith(prefix + ',"question":')
+        for call in calls[1:]:
+            content = json.dumps(call[3])
+            assert WARMUP_QUESTION not in content
+            assert discarded_answer not in content
+            assert "warmup-request" not in content
+            assert "warmup-trace" not in content
+        payload = json.loads(real[3][0]["content"])
+        assert payload["catalog"] == _request()["catalystQuery"]["catalog"]
+        assert payload["question"] == _request()["messages"][0]["content"]
+    finally:
+        await hub.aclose()
+
+
+@pytest.mark.asyncio
+async def test_cancelling_warmup_closes_the_call_without_starting_another():
+    started, stopped = asyncio.Event(), asyncio.Event()
+
+    async def backend(*args, **kwargs):
+        started.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            stopped.set()
+
+    hub = _hub()
+    with patch.object(local_hub, "_backend_chat", side_effect=backend) as call:
+        task = asyncio.create_task(hub.warm_query_prefix(_request()))
+        try:
+            await asyncio.wait_for(started.wait(), 1)
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+            assert stopped.is_set()
+            assert call.call_count == 1
+        finally:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+            await hub.aclose()
 
 
 def test_turn_and_storage_snapshots_retain_hub_profile_evidence():

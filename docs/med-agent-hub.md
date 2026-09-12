@@ -159,6 +159,23 @@ Hub versions ignore the header and cannot guarantee downstream cancellation.
 
 ## Response handling
 
+### Deployment warmup
+
+`scripts/mvp-warm.sh` runs one neutral writer request per configured source using
+the selected profile, complete live schema and ordinary writer request builder.
+The question is “What information is available in this data source?” Its output
+is discarded: warmup opens no user stores, creates no sessions or previews, adds
+no history, examples or guidance, and executes no SQL. It does not invoke a
+reviewer or repair loop. Use the harness lifecycle wrapper for the combined
+reference deployment.
+
+The command reports completion per source and exits with an error if a source or
+model request fails. Completion alone does not prove caching: inspect a different
+subsequent question's actual request and router cache evidence. Reuse depends on
+the matching instruction/schema prefix and the runtime retaining that cache;
+switching source or model, schema changes and restarts can cause cache misses.
+Warmup is a finite operation, not a periodic background task.
+
 Catalyst parses writer and reviewer content. A writer may produce:
 
 - a query candidate ready for human review;

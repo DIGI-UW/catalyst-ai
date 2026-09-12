@@ -149,6 +149,28 @@ def _request_payload(
     return payload
 
 
+def initial_writer_request(
+    request: Any, extension: Mapping[str, Any]
+) -> tuple[list[dict[str, str]], Mapping[str, Any]]:
+    """Build the exact writer input used before any repair or review.
+
+    The source catalog precedes the question so compatible questions can reuse
+    the model router's prefix cache.
+    """
+
+    return (
+        [
+            {
+                "role": "user",
+                "content": json.dumps(
+                    _request_payload(request, extension), separators=(",", ":")
+                ),
+            }
+        ],
+        _GENERATION_FORMAT,
+    )
+
+
 async def _backend_chat(
     client: httpx.AsyncClient,
     profile_id: str,
@@ -667,15 +689,7 @@ async def _generate(
     invocations: list[dict[str, Any]],
 ) -> tuple[Dict[str, Any], int, bool, list[dict[str, Any]]]:
     profile = request.profile
-    messages = [
-        {
-            "role": "user",
-            "content": json.dumps(
-                _request_payload(request, extension),
-                separators=(",", ":"),
-            ),
-        },
-    ]
+    messages, initial_response_format = initial_writer_request(request, extension)
     max_attempts = int(profile.policies.get("generation_attempts", 2))
     question = request.messages[0]["content"]
     seen_outputs: set[str] = set()
@@ -697,7 +711,7 @@ async def _generate(
                 add_only_paths=required_patch_paths,
             )
             if using_patch
-            else _GENERATION_FORMAT
+            else initial_response_format
         )
         content = await _invoke_backend(
             client,
