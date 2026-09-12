@@ -66,6 +66,48 @@ def test_clean_candidate_has_no_findings():
     assert lint_candidate(_candidate(), _extension()) == []
 
 
+def test_spark_rejects_sqlite_strftime_before_execution():
+    extension = _extension()
+    extension["target"]["dialect"] = "spark"
+    candidate = _candidate()
+    candidate.update(
+        sql=(
+            f"SELECT strftime(observed_at, '%Y-%m') AS month FROM {VIEW} "
+            "WHERE test_name = :analyte AND observed_at >= :since LIMIT 100"
+        ),
+        expectedColumns=[{"name": "month"}],
+    )
+
+    findings = lint_candidate(candidate, extension)
+
+    assert findings == [
+        {
+            "code": "dialect.unsupported_function",
+            "stage": "dialect_compatibility",
+            "severity": "error",
+            "path": "sql",
+            "message": "STRFTIME is not available in Spark SQL.",
+            "evidence": "STRFTIME(observed_at, '%Y-%m')",
+            "suggestedAction": "Use date_format(<timestamp>, <format>) in Spark SQL.",
+        }
+    ]
+
+
+def test_spark_accepts_its_date_format_function():
+    extension = _extension()
+    extension["target"]["dialect"] = "spark"
+    candidate = _candidate()
+    candidate.update(
+        sql=(
+            f"SELECT date_format(observed_at, 'yyyy-MM') AS month FROM {VIEW} "
+            "WHERE test_name = :analyte AND observed_at >= :since LIMIT 100"
+        ),
+        expectedColumns=[{"name": "month"}],
+    )
+
+    assert lint_candidate(candidate, extension) == []
+
+
 def test_invalid_typed_date_parameter_returns_pointed_feedback():
     candidate = _candidate()
     candidate["sql"] = candidate["sql"].replace(
