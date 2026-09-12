@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import stat
 import uuid
 import zipfile
 from pathlib import Path
@@ -197,6 +198,8 @@ def test_saved_lineage_publishes_a_contract_valid_native_bundle(tmp_path: Path) 
     )
     bundle = tmp_path / "outbox" / publication["pointer"]["bundle"]["fileName"]
     assert bundle.is_file()
+    assert stat.S_IMODE(bundle.stat().st_mode) == 0o640
+    assert bundle.stat().st_gid == bundle.parent.stat().st_gid
     assert (
         json.loads((tmp_path / "outbox" / "current.json").read_text())
         == publication["pointer"]
@@ -220,6 +223,14 @@ def test_saved_lineage_publishes_a_contract_valid_native_bundle(tmp_path: Path) 
     assert any("/charts/" in name for name in names)
     assert any("/dashboards/" in name for name in names)
     assert any(name.endswith("/catalyst/manifest.json") for name in names)
+
+    original_bytes = bundle.read_bytes()
+    bundle.chmod(0o600)
+    republished = builder.publish(dashboard["versionId"])
+    assert republished["pointer"]["bundle"] == publication["pointer"]["bundle"]
+    assert bundle.read_bytes() == original_bytes
+    assert stat.S_IMODE(bundle.stat().st_mode) == 0o640
+    assert bundle.stat().st_gid == bundle.parent.stat().st_gid
 
 
 def test_publication_projects_only_an_exact_verified_import(tmp_path: Path) -> None:

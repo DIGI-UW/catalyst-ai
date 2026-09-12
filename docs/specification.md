@@ -303,6 +303,10 @@ SQL; Run continues through the existing query-version execution path.
 
 - Publish writes a deterministic native Superset bundle to the outbox and offers
   the same bytes for download.
+- The published ZIP adopts the shared outbox directory's group and uses `0640`
+  permissions, allowing the separate importer to read without granting access
+  to other users. Provision the outbox with the importer's shared group; the
+  publisher must be able to assign that group to its files.
 - The bundle contains configuration and recorded identities, not result rows.
 - Status follows explicit importer receipts. File existence alone is not
   imported.
