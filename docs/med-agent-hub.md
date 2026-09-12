@@ -150,13 +150,12 @@ role's system prompt, applies the profile's configuration, calls its model
 router, and returns the assistant content with the profile, role, and model that
 ran. Catalyst checks that those details match the selected profile.
 
-Catalyst sends its remaining generation budget in the optional
-`X-Request-Timeout-Seconds` header. Hub bounds the whole role operation, including
-prompt measurement and waiting for its model slot, to the smaller of that budget
-and its own configured timeout. Disconnecting the caller cancels that operation
-and closes the outstanding model HTTP request. Deploy the Hub cancellation
-support with the Gateway change; older Hub versions ignore the header and cannot
-guarantee downstream cancellation.
+Catalyst sends the Hub's configured role-call budget in the optional
+`X-Request-Timeout-Seconds` header. Hub applies that transport safeguard to one
+role operation, including prompt measurement and waiting for its model slot.
+Disconnecting the caller cancels that operation and closes the outstanding model
+HTTP request. Deploy the Hub cancellation support with the Gateway change; older
+Hub versions ignore the header and cannot guarantee downstream cancellation.
 
 ## Response handling
 
@@ -211,10 +210,10 @@ not a reason to send result rows back to Hub.
   not create a runnable generated version.
 - The current editor and earlier successful result remain available after a
   generation failure.
-- An interactive deadline returns HTTP 504 with `generation_timeout`. A detected
-  client disconnect cancels work and records `generation_cancelled`; no client
-  response can be relied on after disconnect. Both release the claimed turn and
-  retain available completed/cancelled role evidence. They do not start repairs.
+- A detected client disconnect cancels work and records `generation_cancelled`;
+  no client response can be relied on after disconnect. It releases the claimed
+  turn and retains available completed/cancelled role evidence. It does not
+  start repairs.
 - Database errors occur only after explicit Run and are recorded as execution
   outcomes, not Hub failures.
 
@@ -224,11 +223,7 @@ The current integration reads:
 
 - `MED_AGENT_HUB_BASE_URL` for Hub health and profile discovery;
 - `CATALYST_HUB_QUERY_PROFILE_URL` as the base used for named role calls;
-- `CATALYST_HUB_TIMEOUT_SECONDS` for the named role-call timeout; and
-- `CATALYST_GENERATION_TIMEOUT_SECONDS` for the entire interactive preparation
-  deadline (default 120 seconds). The named role-call timeout is capped by the
-  remaining total budget. Increasing it is an explicit operational choice, not
-  evidence of acceptable performance.
+- `CATALYST_HUB_TIMEOUT_SECONDS` for the named role-call transport timeout.
 
 Hub and its model router own provider credentials and physical model setup.
 Catalyst configuration must not duplicate those settings.
