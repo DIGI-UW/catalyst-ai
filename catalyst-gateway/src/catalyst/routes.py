@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import math
-import os
 from collections.abc import Coroutine
 from typing import Any
 
@@ -12,30 +10,19 @@ from fastapi.responses import JSONResponse
 from .service import CatalystService, ServiceResponse
 from .generation_lifecycle import cancellation_details, run_generation
 
-_GENERATION_TIMEOUT_SECONDS = float(
-    os.getenv("CATALYST_GENERATION_TIMEOUT_SECONDS", "120")
-)
-if not math.isfinite(_GENERATION_TIMEOUT_SECONDS) or _GENERATION_TIMEOUT_SECONDS <= 0:
-    raise ValueError("CATALYST_GENERATION_TIMEOUT_SECONDS must be positive and finite.")
-
 
 async def _generation_response(
     request: Request, operation: Coroutine[Any, Any, ServiceResponse]
 ) -> JSONResponse:
     try:
-        return _json_response(
-            await run_generation(request, operation, _GENERATION_TIMEOUT_SECONDS)
-        )
+        return _json_response(await run_generation(request, operation))
     except asyncio.CancelledError as error:
-        if not error.args or error.args[0] not in {
-            "generation_timeout",
-            "generation_cancelled",
-        }:
+        if not error.args or error.args[0] != "generation_cancelled":
             raise
-        code, message = cancellation_details(error)
+        _code, message = cancellation_details(error)
         return JSONResponse(
-            status_code=504 if code == "generation_timeout" else 499,
-            content={"error": {"code": code, "message": message}},
+            status_code=499,
+            content={"error": {"code": "generation_cancelled", "message": message}},
         )
 
 

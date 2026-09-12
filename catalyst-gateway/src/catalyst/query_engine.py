@@ -34,7 +34,7 @@ from typing import Any, AsyncIterator, Dict, Mapping, Optional, Tuple
 import httpx
 import rfc8785
 
-from .generation_lifecycle import GenerationCancelled, remaining_generation_seconds
+from .generation_lifecycle import GenerationCancelled
 from .query_lint import lint_candidate
 from .query_schemas import (
     CANDIDATE_VALIDATOR as _CANDIDATE_VALIDATOR,
@@ -170,12 +170,11 @@ async def _backend_chat(
     payload: Dict[str, Any] = {"messages": messages}
     if response_format is not None:
         payload["response_format"] = dict(response_format)
-    remaining = remaining_generation_seconds(_HUB_TIMEOUT_SECONDS)
     resp = await client.post(
         f"{_HUB_QUERY_PROFILE_URL}/{profile_id}/roles/{role}/generate",
         json=payload,
-        headers={"X-Request-Timeout-Seconds": str(remaining)},
-        timeout=remaining,
+        headers={"X-Request-Timeout-Seconds": str(_HUB_TIMEOUT_SECONDS)},
+        timeout=_HUB_TIMEOUT_SECONDS,
     )
     if not resp.is_success:
         detail: Any = None

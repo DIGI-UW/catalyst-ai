@@ -7,10 +7,8 @@ import json
 
 import pytest
 
-from src.catalyst import routes
 from src.catalyst import query_engine
-from src.catalyst.generation_lifecycle import GenerationCancelled, run_generation
-from starlette.requests import Request
+from src.catalyst.generation_lifecycle import GenerationCancelled
 from test_query_engine import (
     _extension,
     _ready_candidate,
@@ -29,9 +27,8 @@ from test_workbench_routes import (
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("kind", ["initial", "first_question", "followup"])
-@pytest.mark.parametrize("interruption", ["disconnect", "deadline"])
-async def test_interruption_stops_generation_and_releases_turn(
-    tmp_path, monkeypatch, kind, interruption
+async def test_disconnect_stops_generation_and_releases_turn(
+    tmp_path, monkeypatch, kind
 ):
     hub = FakeHub(_ready_query())
     client, analytics = _client(tmp_path, _ready_query(), hub=hub)
@@ -86,12 +83,6 @@ async def test_interruption_stops_generation_and_releases_turn(
             stopped.set()
 
     monkeypatch.setattr(hub, "generate_query", blocked_generation)
-    monkeypatch.setattr(
-        routes,
-        "_GENERATION_TIMEOUT_SECONDS",
-        0.05 if interruption == "deadline" else 5,
-        raising=False,
-    )
     messages = []
     body_sent = False
 
@@ -101,9 +92,7 @@ async def test_interruption_stops_generation_and_releases_turn(
             body_sent = True
             return {"type": "http.request", "body": json.dumps(body).encode()}
         await started.wait()
-        if interruption == "disconnect":
-            return {"type": "http.disconnect"}
-        await asyncio.Event().wait()
+        return {"type": "http.disconnect"}
 
     async def send(message):
         messages.append(message)
@@ -129,13 +118,9 @@ async def test_interruption_stops_generation_and_releases_turn(
         await request_task
         assert stopped.is_set()
         assert len(calls) == 1
-        assert messages[0]["status"] == (504 if interruption == "deadline" else 499)
+        assert messages[0]["status"] == 499
         response = json.loads(messages[1]["body"])
-        code = (
-            "generation_timeout"
-            if interruption == "deadline"
-            else "generation_cancelled"
-        )
+        code = "generation_cancelled"
         assert response["error"]["code"] == code
 
         if session is None:
@@ -194,7 +179,7 @@ async def test_cancelled_engine_keeps_role_evidence_without_later_repairs(
     task = asyncio.create_task(generate())
     try:
         await asyncio.wait_for(active.wait(), 1)
-        task.cancel("generation_timeout")
+        task.cancel("generation_cancelled")
         with pytest.raises(GenerationCancelled) as caught:
             await task
         invocations = caught.value.evidence["modelInvocations"]
@@ -204,35 +189,7 @@ async def test_cancelled_engine_keeps_role_evidence_without_later_repairs(
             "reviewer" if stage == "reviewer" else "writer"
         )
         assert len(roles) == len(invocations)
-        assert caught.value.args == ("generation_timeout",)
+        assert caught.value.args == ("generation_cancelled",)
     finally:
         task.cancel()
         await asyncio.gather(task, return_exceptions=True)
-
-
-@pytest.mark.asyncio
-async def test_one_deadline_covers_multiple_stages_and_closes_request(monkeypatch):
-    from src.catalyst.generation_lifecycle import remaining_generation_seconds
-
-    budgets = []
-    stopped = asyncio.Event()
-
-    async def operation():
-        try:
-            budgets.append(remaining_generation_seconds(10))
-            await asyncio.sleep(0.02)
-            budgets.append(remaining_generation_seconds(10))
-            await asyncio.Event().wait()
-        finally:
-            stopped.set()
-
-    async def receive():
-        await asyncio.Event().wait()
-
-    request = Request({"type": "http"}, receive)
-    with pytest.raises(asyncio.CancelledError, match="generation_timeout"):
-        await run_generation(request, operation(), 0.05)
-    assert len(budgets) == 2
-    assert 0 < budgets[1] < budgets[0] <= 0.05
-    assert stopped.is_set()
-    assert remaining_generation_seconds(10) == 10
