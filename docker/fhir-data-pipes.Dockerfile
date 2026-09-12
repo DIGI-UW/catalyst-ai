@@ -11,7 +11,7 @@ ENV FLINK_CONF_DIR=/app/config
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install --no-install-recommends -y libjemalloc2 \
+    && apt-get install --no-install-recommends -y libjemalloc2 python3 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=controller_source /app/controller-bundled.jar /app/controller-bundled.jar
