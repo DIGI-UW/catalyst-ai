@@ -38,9 +38,9 @@ for (const source of ["openelis", "openmrs-hiv"]) {
             `OpenMRS CD4 monitoring table · ${runId}`,
             `OpenMRS monthly CD4 results by gender · ${runId}`,
           ],
-          question: "Count CD4 count results from 2026-01-01 through 2026-12-31 by month. Return month and result_count.",
+          question: "Count CD4 count results from 2026-01-01 through 2026-12-31 by month for a line chart. Return month as a date (the first day of each month), and result_count.",
           schemaSearch: "observation",
-          followup: "Break those same CD4 results down by patient gender, including missing gender. Count each result once so the monthly totals stay the same. Keep the 2026 date range. Return month, gender, and result_count.",
+          followup: "Break those same CD4 results down by patient gender, including missing gender. Count each result once so the monthly totals stay the same. Keep the 2026 date range and month as a date for the line chart. Return month, gender, and result_count.",
           expectedColumns: ["MONTH", "gender", "result_count"],
           chartKinds: ["table", "time_series_line"],
         }
@@ -168,6 +168,10 @@ for (const source of ["openelis", "openmrs-hiv"]) {
       timing.mark("ready-1");
       await dwell(5000);
       const initial = await showResults("Get results", 1);
+      if (source === "openmrs-hiv") {
+        expect(["date", "date-time"], "A monthly line chart requires a date column")
+          .toContain(initial.result!.columns[0]!.logicalType);
+      }
       timing.mark("result-1");
       await page.screenshot({ path: info.outputPath("result-1.png") });
       await dwell(8000);
@@ -199,6 +203,8 @@ for (const source of ["openelis", "openmrs-hiv"]) {
         return cell.value;
       };
       if (source === "openmrs-hiv") {
+        expect(["date", "date-time"], "Refinement must retain the time-series column")
+          .toContain(grouped.result!.columns[0]!.logicalType);
         const monthlyTotals = new Map<string, number>();
         for (const row of grouped.result!.rows) {
           const month = String(requiredValue(row[0]!));
@@ -307,7 +313,13 @@ for (const source of ["openelis", "openmrs-hiv"]) {
         await page.getByRole("button", { name: "New chart or table", exact: true }).click();
         await panel.getByLabel("Saved query", { exact: true }).selectOption(reused.versionId);
         await panel.getByLabel("Chart name", { exact: true }).fill(chartTitles[index]!);
-        await panel.getByLabel("Visualization", { exact: true }).selectOption(kind);
+        const visualization = panel.getByLabel("Visualization", { exact: true });
+        await expect(visualization).toBeVisible();
+        const availableKinds = await visualization.locator("option")
+          .evaluateAll(options => options.map(option => option.value));
+        expect(availableKinds, `Required visualization ${kind} must be compatible with the saved result`)
+          .toContain(kind);
+        await visualization.selectOption(kind);
         await dwell(5000);
         const response = page.waitForResponse(r => r.request().method() === "POST" && r.url().endsWith("/dashboard-builder/widgets"));
         await panel.getByRole("button", { name: "Save chart or table", exact: true }).click();

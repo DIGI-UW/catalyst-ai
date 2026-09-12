@@ -35,6 +35,9 @@ decisions, visible review status, and execution of the model-authored version.
 The gender breakdown must preserve the original totals (by month for OpenMRS).
 This catches row multiplication from a join even when SQL executes successfully
 and the reviewer approves it; it is not a general clinical-correctness verdict.
+The OpenMRS question asks for a date-valued month for its line chart. The checks
+require that type to survive refinement and require the chart choice to be
+available before selecting it; a formatted month string is not a temporal column.
 
 The live scenario has no internal deadline for model preparation, schema
 loading, import, or rendering. It waits for the actual terminal state; the
