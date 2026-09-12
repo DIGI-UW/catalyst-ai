@@ -271,7 +271,7 @@ async def test_neutral_warmup_is_not_history_or_an_example_for_a_different_quest
     }
     try:
         with (
-            patch.object(local_hub, "_backend_chat", side_effect=backend),
+            patch.object(local_hub, "_warm_backend_prefix", side_effect=backend),
             patch.object(query_engine, "_backend_chat", side_effect=backend),
         ):
             assert await hub.warm_query_prefix(warm_request) is None
@@ -308,7 +308,7 @@ async def test_cancelling_warmup_closes_the_call_without_starting_another():
             stopped.set()
 
     hub = _hub()
-    with patch.object(local_hub, "_backend_chat", side_effect=backend) as call:
+    with patch.object(local_hub, "_warm_backend_prefix", side_effect=backend) as call:
         task = asyncio.create_task(hub.warm_query_prefix(_request()))
         try:
             await asyncio.wait_for(started.wait(), 1)
@@ -321,6 +321,41 @@ async def test_cancelling_warmup_closes_the_call_without_starting_another():
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
             await hub.aclose()
+
+
+@pytest.mark.asyncio
+async def test_warm_prefix_uses_the_internal_route_without_an_interactive_deadline():
+    seen = {}
+
+    def transport(request):
+        seen["path"] = request.url.path
+        seen["timeout"] = request.extensions["timeout"]
+        seen["deadline"] = request.headers.get("X-Request-Timeout-Seconds")
+        return httpx.Response(204)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as client:
+        await query_engine._warm_backend_prefix(
+            client,
+            PROFILE_ID,
+            "query_generate",
+            WRITER,
+            [{"role": "user", "content": WARMUP_QUESTION}],
+            response_format={"type": "json_object"},
+            temperature=0,
+            dry_multiplier=0,
+            max_tokens=1024,
+        )
+
+    assert seen == {
+        "path": f"/v1/hub/query-profiles/{PROFILE_ID}/roles/query_generate/warm",
+        "timeout": {
+            "connect": None,
+            "read": None,
+            "write": None,
+            "pool": None,
+        },
+        "deadline": None,
+    }
 
 
 def test_turn_and_storage_snapshots_retain_hub_profile_evidence():
