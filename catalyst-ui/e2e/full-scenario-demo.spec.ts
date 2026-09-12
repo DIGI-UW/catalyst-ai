@@ -143,7 +143,7 @@ for (const source of ["openelis", "openmrs-hiv"]) {
       await page.getByRole("button", { name: "What data is available?" }).click();
       const browser = page.getByRole("complementary", { name: "Available data" });
       await browser.getByRole("searchbox", { name: "Search tables and fields" }).fill(scenario.schemaSearch);
-      await expect(browser.locator(".cds--accordion__item").first()).toBeVisible({ timeout: 30000 });
+      await expect(browser.locator(".cds--accordion__item").first()).toBeVisible({ timeout: 0 });
       expect(executionRequests).toBe(0);
       timing.mark("schema-visible");
       await page.screenshot({ path: info.outputPath("schema-and-draft.png") });
@@ -221,7 +221,7 @@ for (const source of ["openelis", "openmrs-hiv"]) {
         await dwell(8000);
         timing.mark("repair-prepare");
         await page.getByRole("button", { name: "Continue", exact: true }).click();
-        await expect(followup).toHaveValue("", { timeout: 600000 });
+        await expect(followup).toHaveValue("", { timeout: 0 });
         await expect(page.getByRole("button", { name: "Get results", exact: true })).toBeEnabled();
         expect(executionRequests).toBe(2);
         timing.mark("repair-ready");
@@ -397,12 +397,12 @@ for (const source of ["openelis", "openmrs-hiv"]) {
       const dashboardUrl = new URL(new URL(importedUrl).pathname, supersetBase).toString();
       timing.mark("superset-open");
       await page.goto(dashboardUrl);
-      await expect(page.getByText(dashboardTitle, { exact: false }).first()).toBeVisible({ timeout: 120000 });
-      await expect(page.locator("canvas").first()).toBeVisible({ timeout: 120000 });
+      await expect(page.getByText(dashboardTitle, { exact: false }).first()).toBeVisible({ timeout: 0 });
+      await expect(page.locator("canvas").first()).toBeVisible({ timeout: 0 });
       // Compare the displayed table with the originating recorded result;
       // do not open a second connection or use an obsolete fixture count.
       const table = page.getByRole("table").first();
-      await expect(table).toBeVisible({ timeout: 120000 });
+      await expect(table).toBeVisible({ timeout: 0 });
       const renderedRows = await table.getByRole("row").evaluateAll(rows => rows.map(row =>
         [...row.querySelectorAll('[role="cell"]')].map(cell => cell.textContent ?? ""),
       ));

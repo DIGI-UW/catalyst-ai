@@ -36,6 +36,11 @@ The gender breakdown must preserve the original totals (by month for OpenMRS).
 This catches row multiplication from a join even when SQL executes successfully
 and the reviewer approves it; it is not a general clinical-correctness verdict.
 
+The live scenario has no internal deadline for model preparation, schema
+loading, import, or rendering. It waits for the actual terminal state; the
+person running it can use the visible Stop control for a request that should
+not continue.
+
 ## Prerequisites
 
 Start and check the isolated stack through the Clinical AI Validation Harness
