@@ -179,8 +179,15 @@ services:
     # analytics/config/thriftserver-hive-config.json is actually honored --
     # without it every source's tables and views land in `default` and the
     # second pipeline to run overwrites the first's canonical views.
-    # This replaced a clone-and-build of a bare upstream branch SHA.
-    image: itechuw/ohs-fhir-data-pipes-controller:sha-3d3656e@sha256:2f9caef7c3c940f8a0e1241551213954c1ea205371166eb8f1d40bd0311fda1a
+    # This replaced a clone-and-build of a bare upstream branch SHA. The
+    # published image has only an AMD64 manifest, so the immutable Java bundle
+    # is copied into a JVM image built for the host architecture.
+    image: catalyst/fhir-data-pipes-controller:sha-3d3656e-native
+    build:
+      context: ./docker
+      dockerfile: fhir-data-pipes.Dockerfile
+      args:
+        DATA_PIPES_SOURCE_IMAGE: itechuw/ohs-fhir-data-pipes-controller:sha-3d3656e@sha256:2f9caef7c3c940f8a0e1241551213954c1ea205371166eb8f1d40bd0311fda1a
     restart: "on-failure:10"
     environment:
       JAVA_OPTS: >-

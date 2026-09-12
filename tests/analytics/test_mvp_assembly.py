@@ -163,12 +163,18 @@ class MvpComposeContractTests(unittest.TestCase):
                 with self.subTest(script=script_name, variable=variable):
                     self.assertIn(f"export {variable}=", script)
 
-    def test_data_pipes_runs_the_pinned_release_image_with_its_warehouse(self):
+    def test_data_pipes_runs_the_pinned_release_bundle_in_a_native_runtime(self):
         self.assertIn(
-            "image: itechuw/ohs-fhir-data-pipes-controller:sha-3d3656e"
+            "DATA_PIPES_SOURCE_IMAGE: itechuw/ohs-fhir-data-pipes-controller:sha-3d3656e"
             "@sha256:2f9caef7c3c940f8a0e1241551213954c1ea205371166eb8f1d40bd0311fda1a",
             self.compose,
         )
+        self.assertIn("image: catalyst/fhir-data-pipes-controller:sha-3d3656e-native", self.compose)
+        self.assertIn("context: ./docker", self.compose)
+        self.assertIn("dockerfile: fhir-data-pipes.Dockerfile", self.compose)
+        self.assertTrue((ROOT / "docker/fhir-data-pipes.Dockerfile").is_file())
+        self.assertTrue((ROOT / "docker/fhir-data-pipes-entrypoint.sh").is_file())
+        self.assertNotIn("platform: linux/amd64", self.compose)
         self.assertNotIn("context: ./.fhir-data-pipes", self.compose)
         self.assertIn("./analytics/config:/app/config:ro", self.compose)
         self.assertTrue((ROOT / "analytics/config/flink-conf.yaml").is_file())

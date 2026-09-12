@@ -45,15 +45,18 @@ def load_simple_yaml_section(text, section):
 
 
 class BootstrapContractTests(unittest.TestCase):
-    def test_data_pipes_runs_a_digest_pinned_upstream_release_image(self):
-        """The pipeline is consumed as a published release, never built from a
-        cloned upstream revision: a bare branch SHA is collectable (GitHub
-        answered `upload-pack: not our ref` once the pinned commit was gone,
-        which blocked every local bring-up), whereas a digest-pinned release
-        tag is immutable and needs no third-party Git remote at all."""
+    def test_data_pipes_runs_a_digest_pinned_upstream_release_bundle(self):
+        """The pipeline copies a published release bundle into a native JVM,
+        never cloning an upstream revision. A bare branch SHA is collectable,
+        whereas the pinned release digest is immutable and needs no third-party
+        Git remote at bring-up time."""
         compose = (ROOT / "docker-compose.mvp.yml").read_text()
-        self.assertIn(f"image: {PINNED_DATA_PIPES_IMAGE}", compose)
+        self.assertIn(f"DATA_PIPES_SOURCE_IMAGE: {PINNED_DATA_PIPES_IMAGE}", compose)
+        self.assertIn("image: catalyst/fhir-data-pipes-controller:sha-3d3656e-native", compose)
+        self.assertIn("context: ./docker", compose)
+        self.assertIn("dockerfile: fhir-data-pipes.Dockerfile", compose)
         self.assertNotIn("context: ./.fhir-data-pipes", compose)
+        self.assertNotIn("platform: linux/amd64", compose)
         self.assertFalse((ROOT / "scripts/bootstrap-fhir-data-pipes.sh").exists())
 
     def test_openelis_bootstrap_is_pinned_and_detached(self):
