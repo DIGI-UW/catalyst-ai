@@ -207,9 +207,13 @@ def _queued_backend(responses: list, captured_messages: list | None = None):
     return fake_backend
 
 
-async def _run(profile: EngineProfile, responses: list) -> dict:
+async def _run(
+    profile: EngineProfile, responses: list, *, dialect: str = "fixture"
+) -> dict:
+    extension = _extension()
+    extension["target"]["dialect"] = dialect
     request = EngineRequest(
-        catalyst_query=_extension(),
+        catalyst_query=extension,
         messages=[{"role": "user", "content": QUESTION}],
         profile=profile,
     )
@@ -285,6 +289,53 @@ async def test_writer_only_finalizes_without_review():
     evidence = result["_hubEvidence"]["profileEvidence"]
     assert "reviewer" not in evidence
     assert evidence["writer"]["modelId"] == "google/gemma-4-e4b"
+
+
+@pytest.mark.asyncio
+async def test_tokenization_failure_uses_the_existing_model_correction():
+    candidate = _ready_candidate()
+    valid_sql = candidate["sql"]
+    candidate["sql"] += "\n```,"
+    correction = {
+        "patches": [
+            {
+                "findingCode": "sql.parse_error",
+                "op": "replace_text",
+                "path": "/sql",
+                "oldValue": candidate["sql"],
+                "replacement": valid_sql,
+            }
+        ]
+    }
+
+    result = await _run(
+        _writer_only_profile(), [candidate, correction], dialect="spark"
+    )
+
+    assert result["status"] == "ready"
+    assert result["sql"] == valid_sql
+    invocations = result["_hubEvidence"]["modelInvocations"]
+    assert [item["outcome"] for item in invocations] == [
+        "validation_failed",
+        "succeeded",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_unrepaired_tokenization_failure_retains_raw_candidate_evidence():
+    candidate = _ready_candidate()
+    candidate["sql"] += " AND release_date = 'unfinished"
+    profile = _writer_only_profile()
+    profile.policies["generation_attempts"] = 1
+
+    result = await _run(profile, [candidate])
+
+    assert result["status"] == "rejected"
+    diagnostic = result["diagnosticCandidate"]
+    assert diagnostic["executable"] is False
+    assert diagnostic["candidate"]["sql"] == candidate["sql"]
+    assert diagnostic["rawOutput"] == json.dumps(candidate)
+    assert diagnostic["attempts"][0]["finding_codes"] == ["sql.parse_error"]
 
 
 @pytest.mark.asyncio

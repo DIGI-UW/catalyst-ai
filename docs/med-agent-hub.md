@@ -189,6 +189,10 @@ Catalyst parses writer and reviewer content. A writer may produce:
 
 A malformed response or a response tied to another profile is an explicit
 generation failure. It is not rewritten into a successful query.
+SQL tokenization errors, including unfinished quotes or backticks, enter the
+existing model-correction flow as parse findings. If correction fails, the raw
+candidate and findings remain available as generation evidence; Catalyst does
+not strip the offending text or execute the candidate.
 
 When the selected profile includes a reviewer, Catalyst supplies the candidate
 to that role and parses its response before presenting the final candidate.
