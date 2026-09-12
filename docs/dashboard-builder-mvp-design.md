@@ -347,9 +347,12 @@ Thread is a single `flex-direction: column; gap: 1rem` stack, full content width
 - In a populated session, the visible label is `Ask a follow-up`; helper text
   identifies the earlier question and exact selected query, says `Using your
   edited query` when applicable, and retains provenance in technical details.
+  Show that short context beside the label, wrapping on narrow screens.
   In an empty session use `Your question`; use `Your answer` for clarification.
-- Start at three comfortable lines. Allow native vertical resizing with a
-  minimum around `72px`, maximum `40vh`, and desktop cap of `360px`; lower the
+- Keep the default composer compact: two writing lines, one label/context row
+  with Expand, and one settings/Continue row. Use `8px` vertical outer padding
+  on desktop and avoid separate context or padded toolbar rows. Allow native
+  vertical resizing with a minimum around `72px`, maximum `40vh`, and desktop cap of `360px`; lower the
   cap on narrow screens. Provide explicit keyboard-operable Expand and Restore.
   Preserve entered text, selection, focus, and the visit's chosen size across
   preparation, failure, retry, and Workbench state changes.

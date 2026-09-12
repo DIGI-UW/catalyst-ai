@@ -12,7 +12,7 @@ let publication = state === 'imported' ? 'imported' : state === 'import-failed' 
 let expanded = false;
 let advanced = state === 'advanced';
 const queryDetailsOpen = new Map();
-let priorHeight = 88;
+let priorHeight = 72;
 let opener;
 let dataOpener;
 let dataOpen = false;

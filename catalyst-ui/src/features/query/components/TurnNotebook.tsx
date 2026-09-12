@@ -670,10 +670,9 @@ export const TurnNotebook = ({
         data-query-composer-dock
         data-failed={lastRunFailed ? "true" : undefined}
       >
-        <div className="turn-composer__heading">
+        <h2 id="refine-query-title" className="visually-hidden">{composerTitle}</h2>
+        {(advancedMode || editorState === "unresolved") && <div className="turn-composer__heading">
           <div className="turn-composer__title">
-            <h2 id="refine-query-title" className="visually-hidden">{composerTitle}</h2>
-            <p>{draftDivergent ? "Using your edited query" : `Following question ${turns.at(-1)?.ordinal ?? 1}`}</p>
             {advancedMode && (baseVersion ? (
               <p>
                 {versionAuthor(baseVersion)}
@@ -686,7 +685,7 @@ export const TurnNotebook = ({
           {editorState === "unresolved" && (
             <Tag type="warm-gray">Unresolved editor input</Tag>
           )}
-        </div>
+        </div>}
         <form
           id="refine-openelis-body"
           className="turn-composer__form"
@@ -695,6 +694,7 @@ export const TurnNotebook = ({
           <QuestionComposerInput
             id="catalyst-followup"
             label={revisesNothing ? "Your answer" : "Ask a follow-up"}
+            context={draftDivergent ? "Using your edited query" : `Following question ${turns.at(-1)?.ordinal ?? 1}`}
             placeholder={
               revisesNothing
                 ? "Answer the question so Catalyst can prepare the query"
