@@ -16,23 +16,10 @@ import { runSupersetImport } from "./support/superset-import";
 // Run with one worker: both sources share the operator's current outbox pointer.
 test.describe.configure({ mode: "serial" });
 
-// Local checks use a ten-minute generation window. A live deployment can
-// deliberately configure a longer Gateway/Hub budget; its evidence run must
-// wait for that declared budget instead of timing out before the UI receives
-// the completed draft.
-const configuredGenerationTimeout = process.env.PLAYWRIGHT_GENERATION_TIMEOUT_MS;
-const generationTimeoutMs = configuredGenerationTimeout === undefined
-  ? 600_000
-  : Number(configuredGenerationTimeout);
-
-if (!Number.isSafeInteger(generationTimeoutMs) || generationTimeoutMs < 1_000) {
-  throw new Error("PLAYWRIGHT_GENERATION_TIMEOUT_MS must be a whole number of milliseconds of at least 1000.");
-}
-
-// Each source performs an initial draft and a follow-up. Leave ten minutes for
-// execution, saving, import, and rendering around the configured generation
-// budget so the test-level timeout does not preempt either wait.
-test.setTimeout(generationTimeoutMs * 2 + 600_000);
+// The product has no automatic total-generation deadline. Keep the recording
+// check aligned: wait for a terminal response or the person's explicit Stop
+// action rather than imposing a separate test deadline.
+test.setTimeout(0);
 test.use({ colorScheme: "light" });
 
 for (const source of ["openelis", "openmrs-hiv"]) {
@@ -176,7 +163,7 @@ for (const source of ["openelis", "openmrs-hiv"]) {
       timing.mark("prepare-1");
       await page.getByRole("button", { name: "Continue", exact: true }).click();
       await expect(page.getByRole("button", { name: "Get results", exact: true }))
-        .toBeEnabled({ timeout: generationTimeoutMs });
+        .toBeEnabled({ timeout: 0 });
       expect(executionRequests).toBe(0);
       timing.mark("ready-1");
       await dwell(5000);
@@ -197,9 +184,9 @@ for (const source of ["openelis", "openmrs-hiv"]) {
       await dwell(5000);
       timing.mark("prepare-2");
       await page.getByRole("button", { name: "Continue", exact: true }).click();
-      await expect(followup).toHaveValue("", { timeout: generationTimeoutMs });
+      await expect(followup).toHaveValue("", { timeout: 0 });
       await expect(page.getByRole("button", { name: "Get results", exact: true }))
-        .toBeEnabled({ timeout: generationTimeoutMs });
+        .toBeEnabled({ timeout: 0 });
       expect(executionRequests).toBe(1);
       timing.mark("ready-2");
       await dwell(5000);
