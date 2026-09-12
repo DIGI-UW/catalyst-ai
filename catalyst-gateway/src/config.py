@@ -30,7 +30,6 @@ class GatewayConfig:
     max_rows: int
     statement_timeout_ms: int
     execution_lease_seconds: int
-    hub_timeout_seconds: float
     data_sources: tuple[DataSourceConfig, ...]
     default_data_source_id: str
     default_query_profile_id: str
@@ -96,7 +95,6 @@ def load_config() -> GatewayConfig:
         execution_lease_seconds=int(
             os.getenv("CATALYST_EXECUTION_LEASE_SECONDS", "60")
         ),
-        hub_timeout_seconds=float(os.getenv("CATALYST_HUB_TIMEOUT_SECONDS", "360")),
         data_sources=data_sources,
         default_data_source_id=default_source_id,
         default_query_profile_id=os.getenv(

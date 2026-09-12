@@ -19,17 +19,11 @@
 # restartable — rebuilding the UI must not take the API down with it.
 {$CATALYST_SITE::80} {
 	# Gateway API. Routed at the edge rather than through the UI container so
-	# the two lifecycles stay independent, and so the long-request timeout
-	# lives next to the route it protects: a generated query can occupy the
-	# model for as long as CATALYST_HUB_TIMEOUT_SECONDS, and any proxy in
-	# front with a shorter read timeout returns 504 before the answer lands.
+	# the two lifecycles stay independent. Named query preparation waits for the
+	# model response or an explicit client disconnect; the proxy does not impose a
+	# second response deadline.
 	handle /v1/catalyst/* {
-		reverse_proxy catalyst-gateway:8000 {
-			transport http {
-				read_timeout 1800s
-				write_timeout 1800s
-			}
-		}
+		reverse_proxy catalyst-gateway:8000
 	}
 
 	# Demo media -- recordings the landing page and the docs site link to.

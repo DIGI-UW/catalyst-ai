@@ -358,6 +358,42 @@ async def test_warm_prefix_uses_the_internal_route_without_an_interactive_deadli
     }
 
 
+@pytest.mark.asyncio
+async def test_named_role_call_has_no_automatic_deadline():
+    seen = {}
+
+    def transport(request):
+        seen["path"] = request.url.path
+        seen["timeout"] = request.extensions["timeout"]
+        seen["deadline"] = request.headers.get("X-Request-Timeout-Seconds")
+        return httpx.Response(200, json={"content": "{}"})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as client:
+        content, _, _ = await query_engine._backend_chat(
+            client,
+            PROFILE_ID,
+            "query_generate",
+            WRITER,
+            [{"role": "user", "content": "Count results"}],
+            response_format={"type": "json_object"},
+            temperature=0,
+            dry_multiplier=0,
+            max_tokens=1024,
+        )
+
+    assert content == "{}"
+    assert seen == {
+        "path": f"/v1/hub/query-profiles/{PROFILE_ID}/roles/query_generate/generate",
+        "timeout": {
+            "connect": None,
+            "read": None,
+            "write": None,
+            "pool": None,
+        },
+        "deadline": None,
+    }
+
+
 def test_turn_and_storage_snapshots_retain_hub_profile_evidence():
     discovery = {
         "id": PROFILE_ID,
