@@ -906,6 +906,9 @@ class DashboardBuilder:
         bundle_bytes = temporary.read_bytes()
         bundle_digest = hashlib.sha256(bundle_bytes).hexdigest()
         bundle_path = self.outbox / f"{bundle_digest}.zip"
+        # The importer uses the shared outbox group, not the Gateway's user.
+        os.chown(temporary, -1, self.outbox.stat().st_gid)
+        temporary.chmod(0o640)
         os.replace(temporary, bundle_path)
         pointer = {
             "schemaVersion": "catalyst.superset.outbox.current.v1",
