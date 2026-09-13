@@ -39,7 +39,7 @@
   height: 4.5rem;
   min-height: 4.5rem;
   max-height: min(40vh, 22.5rem);
-  padding: 0.5rem 0;
+  padding: 0.5rem 0.25rem;
   border: 0;
   border-radius: 0.375rem;
   resize: vertical;
@@ -50,9 +50,10 @@
   line-height: 1.5;
 }
 
-.question-composer-input > textarea:focus-visible {
+.question-composer-input > textarea:focus-visible { outline: none; }
+[data-query-composer-dock]:has(textarea:focus-visible) {
   outline: 2px solid var(--cds-focus);
-  outline-offset: 3px;
+  outline-offset: 2px;
 }
 
 .question-composer-input > textarea::placeholder {

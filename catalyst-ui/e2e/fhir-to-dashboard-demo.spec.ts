@@ -284,10 +284,12 @@ test("FHIR endpoint to a published Superset dashboard", async ({
   timing.mark("catalyst-open");
   await dwell(2_500);
 
+  await page.getByRole("button", { name: "Query settings", exact: true }).click();
   await expect(page.getByLabel("Model profile")).toBeEnabled();
   await page
     .getByLabel("Model profile")
     .selectOption("catalyst-query-gemma-4-12b-qwen2.5-14b-checked");
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   await type(
     page.getByLabel("Your question"),
     "How many patients are in this dataset?",

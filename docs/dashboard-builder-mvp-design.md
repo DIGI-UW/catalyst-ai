@@ -58,7 +58,7 @@ navigation, state owners, saved-object contracts and explicit execution remain.
 | Controls | Existing Carbon buttons/icons; 44px disclosure targets with one outlined chevron. Consistent hover, focus and expanded states, keyboard activation, Escape and focus return. |
 | Query evidence | One “View query details” toggle button with a visible active state and no chevron, neutral inset SQL surface, selectable formatted SQL and exact typed values. A two-line preview in Advanced mode does not replace access to full evidence. |
 | State | Ordinary preparation uses a persistent neutral status with the existing Stop action. Only real warnings and failures use semantic warning/error treatment; meaning remains in text. |
-| Composer and supporting views | Existing 16px rounded writing surface, comfortable inner padding, neutral menus and fields. Reuse the same control treatment in Available data, Saved work, reviews and publication. |
+| Composer and supporting views | Existing 16px rounded writing surface, comfortable inner padding, neutral menus and fields. Show Available data as a padded outlined button. Query settings uses one shared dialog outside the writing surface, with focus return and retained profile/draft. Reserve measured composer height plus separation from the last result at every viewport width. Reuse the same control treatment in Saved work, reviews and publication. |
 
 After successful execution, show the first three recorded rows without opening
 query details. Label the preview count against the returned count; retain column

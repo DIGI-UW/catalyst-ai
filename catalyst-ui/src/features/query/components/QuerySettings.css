@@ -1,0 +1,11 @@
+.query-settings-dialog .cds--modal-container { border-radius: 1rem; }
+.query-settings-dialog .cds--modal-content > p { margin-bottom: 1.25rem; line-height: 1.5; }
+.query-settings-dialog .cds--select { width: 100%; max-width: 100%; }
+.query-settings-dialog .cds--select-input { padding-right: 2.5rem; text-overflow: ellipsis; }
+.query-settings-dialog .workbench-disclosure { margin-top: 1rem; }
+.query-settings-dialog dl { margin: 0.75rem; font-size: 0.875rem; line-height: 1.5; }
+.query-settings-dialog dl > div + div { margin-top: 0.75rem; }
+.query-settings-dialog dt { color: var(--cds-text-secondary); text-transform: capitalize; }
+.query-settings-dialog dd { margin: 0; overflow-wrap: anywhere; }
+.query-settings-dialog .cds--modal-footer { height: auto; padding: 1rem; justify-content: flex-end; background: transparent; }
+.query-settings-dialog .cds--modal-footer .cds--btn { flex: 0 0 auto; min-height: 2.75rem; padding: 0.625rem 1.5rem; }

@@ -40,14 +40,31 @@ test("summary, keyboard evidence and options preserve the conversation and draft
   await expect(turn.locator(".query-turn__sql pre")).toHaveText(recordedSQL!);
   await expect(page.locator("#turn-3 .query-turn__preview")).toBeVisible();
   await expect(draft).toHaveValue("Keep the missing months visible");
+  await page.getByRole("button", { name: "Query settings", exact: true }).click();
   await expect(page.getByRole("combobox", { name: "Model profile" })).toBeVisible();
-  await page.locator(".query-settings > summary").focus();
   await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "Query settings", exact: true })).toBeFocused();
   for (const width of [1280, 640, 390, 320]) {
     await page.setViewportSize({ width, height: 720 });
     expect(await page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")).toBe(true);
     await expect(draft).toHaveValue("Keep the missing months visible");
-    await page.screenshot({ path: testInfo.outputPath(`conversation-dark-${width}.png`), fullPage: true });
+    await page.evaluate("window.scrollTo(0, document.documentElement.scrollHeight)");
+    const dock = page.locator("[data-query-composer-dock]");
+    const lastCard = page.locator(".turn-notebook__timeline > li").last();
+    const cardBounds = await lastCard.boundingBox();
+    const dockBounds = await dock.boundingBox();
+    expect(cardBounds!.y + cardBounds!.height + 16).toBeLessThanOrEqual(dockBounds!.y);
+    const beforeSettings = await dock.boundingBox();
+    await page.getByRole("button", { name: "Query settings", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Query settings" });
+    await expect(dialog).toBeVisible();
+    const bounds = await dialog.boundingBox();
+    expect(bounds!.x).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+    expect((await dock.boundingBox())!.height).toBe(beforeSettings!.height);
+    await dialog.getByRole("button", { name: "Done", exact: true }).click();
+    await expect(dialog).not.toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath(`conversation-dark-${width}.png`), fullPage: false });
   }
   // Merely browsing evidence and changing presentation cannot execute SQL or call a model.
   expect(writes.filter(url => /\/execute|\/turns|\/question/.test(url))).toEqual([]);

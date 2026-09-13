@@ -85,7 +85,11 @@ contains Appearance and an on/off switch for visit-scoped, workspace-wide
 **Advanced mode** that defaults off. Switching it preserves the draft, editor selection, SQL,
 parameters, source, query and execution identities, results, selected profile,
 and focus. The same individual capabilities remain reachable through named
-disclosures in the simple view. Query settings exposes profile selection;
+disclosures in the simple view. Query settings opens a shared dialog from either
+composer, keeping profile selection outside the writing area. Closing it returns
+focus to its button; changing a profile retains the draft and executes nothing.
+Advanced mode expands model details inside that dialog without forcing it open.
+Query settings exposes profile selection;
 exact model identities and traces remain available in technical details rather
 than as an always-visible badge.
 

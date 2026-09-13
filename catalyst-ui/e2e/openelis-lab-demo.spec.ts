@@ -28,6 +28,7 @@ test("OpenELIS laboratory: ask, then add specimen turnaround detail", async ({
   timing.mark("app-ready");
 
   // Turn 1: a bounded laboratory question against OpenELIS.
+  await page.getByRole("button", { name: "Query settings", exact: true }).click();
   await expect(page.getByLabel("Model profile")).toBeEnabled();
   // Both published cuts run the 12B writer with the Qwen 2.5 14B reviewer, so
   // the two demos are comparable and neither is showing the smallest profile
@@ -36,6 +37,7 @@ test("OpenELIS laboratory: ask, then add specimen turnaround detail", async ({
   await page
     .getByLabel("Model profile")
     .selectOption("catalyst-query-gemma-4-12b-qwen2.5-14b-checked");
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   // Typed rather than filled: fill() sets the value in one frame, so the cut
   // opens on a question that was simply always there. Typing it is the beat
   // that establishes this is a plain-language question, not a canned query.
