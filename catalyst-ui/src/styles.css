@@ -120,15 +120,9 @@ input {
 
 }
 
-.app-shell--with-query-dock {
-  padding-bottom: calc(
-    var(--query-composer-dock-height, 18rem) + 1rem + env(safe-area-inset-bottom)
-  );
-}
-
 :root:has([data-query-composer-dock]) {
   scroll-padding-block-end: calc(
-    var(--query-composer-dock-height, 18rem) + 1rem + env(safe-area-inset-bottom)
+    var(--query-composer-dock-height, 18rem) + 3rem + env(safe-area-inset-bottom)
   );
 }
 
@@ -259,35 +253,6 @@ input {
 /* Stays on the right when the button drops to its own line. */
 .query-composer__toolbar .cds--btn {
   margin-inline-start: auto;
-}
-
-/*
- * The profile control takes the room it needs and no more, so the submit
- * button stays anchored at the right edge on a wide screen instead of being
- * pushed around by whichever profile name happens to be selected.
- */
-/*
- * flex-basis, not width: Carbon gives .cds--form-item `flex: 1 1 auto`, so a
- * plain width loses and the control grows to fill the whole toolbar -- a
- * dropdown the width of the screen for four short options.
- */
-.query-composer__toolbar .query-composer__profile {
-  flex: 1 1 20rem;
-  max-width: 34rem;
-  min-width: 0;
-}
-
-.query-composer__toolbar .query-composer__profile .cds--select-input {
-  width: 100%;
-}
-
-/* The concrete model aliases, kept legible rather than crammed into the option. */
-.query-composer__toolbar .query-composer__profile .cds--form__helper-text {
-  overflow: hidden;
-  max-width: 100%;
-  font-family: var(--cds-code-01-font-family, monospace);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .dataset-browser {
@@ -864,24 +829,6 @@ input {
     margin-top: 0.375rem;
   }
 
-  .query-composer__toolbar {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  /*
-   * flex-basis follows the main axis, so the 30rem basis that keeps the
-   * dropdown a sane width in a row becomes a 30rem *height* once the toolbar
-   * stacks -- which pushed the submit button off the bottom of the dock.
-   */
-  .query-composer__toolbar .query-composer__profile {
-    flex: 0 0 auto;
-  }
-
-  .query-composer__toolbar .cds--btn {
-    width: 100%;
-  }
-
   .dataset-metrics {
     grid-template-columns: 1fr 1fr;
   }
@@ -1037,7 +984,7 @@ input {
 .dashboard-builder-shell .query-card { border: 1px solid var(--cds-border-subtle-01); border-radius: 0.875rem; box-shadow: none; }
 .dashboard-builder-shell :is(.query-card--question, .turn-composer) {
   left: 50%; right: auto; bottom: 1.25rem; width: calc(100% - 3rem); max-width: 54.75rem;
-  max-height: min(65dvh, 34rem); padding: 0.5rem 1rem; transform: translateX(-50%);
+  max-height: min(65dvh, 34rem); padding: 0.875rem 1.25rem; transform: translateX(-50%);
   border: 1px solid var(--cds-border-strong-01); border-radius: 1rem;
   box-shadow: 0 0.375rem 1.5rem var(--catalyst-shadow);
 }
@@ -1047,20 +994,15 @@ input {
 .workbench-header--welcome > p:not(.eyebrow) { font-size: 1.125rem; color: var(--cds-text-secondary); }
 .workbench-header--welcome > p:not(.eyebrow) { margin-bottom: 0.25rem; }
 .workbench-empty__note { max-width: 32.5rem; margin: auto; text-align: center; font-size: 1rem; line-height: 1.5; color: var(--cds-text-secondary); }
-.query-settings { min-width: 0; max-width: 100%; }
-.query-settings summary,
 .workbench-sql-disclosure > summary { min-height: 2.75rem; padding: 0.75rem 0; cursor: pointer; color: var(--cds-link-primary); font-size: 0.875rem; }
-.query-settings summary:focus-visible,
 .workbench-sql-disclosure > summary:focus-visible { outline: 2px solid var(--cds-focus); outline-offset: 2px; }
-.query-settings[open] { flex: 1 1 24rem; }
-.query-settings .cds--select-input { width: 100%; max-width: 100%; }
 .workbench-run { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-top: 1rem; }
 .workbench-run p { flex: 1 1 16rem; color: var(--cds-text-secondary); font-size: 0.8125rem; }
 .dashboard-builder-shell .turn-composer__title { flex-wrap: wrap; gap: 0.25rem 1rem; }
 @media (max-width: 42rem) {
   .app-shell { padding: 1.5rem 0.75rem 5rem; }
   .workbench-header h1, .workbench-header--welcome h1 { font-size: 1.75rem; }
-  .dashboard-builder-shell :is(.query-card--question, .turn-composer) { width: calc(100% - 1.5rem); bottom: 0.75rem; padding: 0.625rem 0.875rem; }
+  .dashboard-builder-shell :is(.query-card--question, .turn-composer) { width: calc(100% - 1.5rem); bottom: 0.75rem; padding: 0.875rem 1rem; }
 }
 @media (max-height: 32rem) {
   .dashboard-builder-shell :is(.query-card--question, .turn-composer) { position: static; width: 100%; margin: 1rem auto; transform: none; max-height: none; }
@@ -1119,6 +1061,26 @@ input {
 .application .execution-state[data-running] { border: 0; background: transparent; box-shadow: none; padding: 1rem; }
 .execution-state[data-running] .execution-state__heading { align-items: center; gap: 1rem; }
 .execution-state__progress { color: var(--cds-text-secondary); line-height: 1.6; }
-.application .query-settings[open] { padding: 0.5rem 0.75rem 0.75rem; border: 1px solid var(--cds-border-subtle-01); border-radius: 0.75rem; background: var(--cds-field-01); }
-.application .query-settings .cds--select { max-width: 100%; }
-.application .query-settings select { text-overflow: ellipsis; }
+
+
+/* Keep the measured dock clearance after responsive shell padding rules. */
+.app-shell--with-query-dock {
+  padding-bottom: calc(var(--query-composer-dock-height, 18rem) + 3rem + env(safe-area-inset-bottom));
+}
+.dashboard-builder-shell .available-data-button {
+  padding: 0.625rem 1rem;
+  color: var(--cds-text-primary);
+  border-color: var(--cds-border-subtle-01);
+  background: var(--cds-layer-01);
+}
+.dashboard-builder-shell .available-data-button:is(:hover, [aria-expanded="true"]) {
+  background: var(--cds-layer-hover-01);
+  border-color: var(--cds-border-strong-01);
+}
+.dashboard-builder-shell :is(.query-composer__toolbar, .turn-composer__toolbar) .query-settings-button {
+  margin-inline: -0.5rem 0;
+  font-size: 0.875rem;
+  color: var(--cds-text-secondary);
+}
+
+.query-composer__toolbar, .turn-composer__toolbar { padding-top: 0.75rem; }

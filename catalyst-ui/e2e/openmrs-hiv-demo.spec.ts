@@ -39,6 +39,7 @@ test("OpenMRS HIV/ART: ask, then add patient demographic detail", async ({
   timing.mark("source-selected");
 
   // Turn 1: a bounded question against the HIV program data.
+  await page.getByRole("button", { name: "Query settings", exact: true }).click();
   await expect(page.getByLabel("Model profile")).toBeEnabled();
   // The HIV catalog carries both the curated hiv_observation_fact_v1 view and
   // the lossless observation_flat base it is built over. The default E4B
@@ -52,6 +53,7 @@ test("OpenMRS HIV/ART: ask, then add patient demographic detail", async ({
   await page
     .getByLabel("Model profile")
     .selectOption("catalyst-query-gemma-4-12b-qwen2.5-14b-checked");
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   // Typed rather than filled: fill() sets the value in one frame, so the cut
   // opens on a question that was simply always there. Typing it is the beat
   // that establishes this is a plain-language question, not a canned query.

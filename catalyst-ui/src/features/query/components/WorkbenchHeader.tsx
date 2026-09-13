@@ -1,4 +1,4 @@
-import { ChevronDown } from "@carbon/icons-react";
+import { ChevronDown, DataBase } from "@carbon/icons-react";
 import { Disclosure } from "./Disclosure";
 import { Button, Toggle } from "@carbon/react";
 import type { ThemePreference } from "../theme";
@@ -307,7 +307,7 @@ export const WorkbenchTools = ({
   return (
     <>
       <div className="workbench-header-shell__tools">
-        <Button id="available-data-opener" kind="ghost" size="sm" aria-expanded={dataOpen}
+        <Button id="available-data-opener" className="available-data-button" kind="tertiary" size="sm" renderIcon={DataBase} aria-expanded={dataOpen}
           aria-controls="available-data-panel" onClick={() => onOpenSectionChange("data")}>
           What data is available?{advancedMode ? ` (${relationCount})` : ""}
         </Button>

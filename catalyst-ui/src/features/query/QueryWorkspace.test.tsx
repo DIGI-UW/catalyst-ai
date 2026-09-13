@@ -357,9 +357,11 @@ describe("Dashboard Builder Ask shell", () => {
     await user.click(screen.getByRole("switch", { name: /Advanced mode/ }));
     expect(editor).toBeVisible();
     await user.type(screen.getByRole("textbox", { name: "Ask a follow-up" }), "Keep the unfinished question");
+    await user.click(screen.getByRole("button", { name: "Query settings" }));
     const profile = screen.getByRole<HTMLSelectElement>("combobox", { name: "Model profile" });
     expect(profile).toBeVisible();
     await user.selectOptions(profile, "alternate-query");
+    await user.click(screen.getByRole("button", { name: "Done" }));
     await user.click(editor);
     await user.keyboard("{Control>}{End}{/Control}");
     await user.paste(" ORDER BY test_name");
@@ -369,6 +371,7 @@ describe("Dashboard Builder Ask shell", () => {
     expect(screen.getByRole("textbox", { name: "SQL query" })).toBe(editor);
     expect(editor.textContent).toBe(editedSql);
     expect(screen.getByRole("textbox", { name: "Ask a follow-up" })).toHaveValue("Keep the unfinished question");
+    await user.click(screen.getByRole("button", { name: "Query settings" }));
     expect(screen.getByRole("combobox", { name: "Model profile" })).toHaveValue("alternate-query");
     expect(client.executeWorkbenchVersion).not.toHaveBeenCalled();
   });

@@ -18,8 +18,10 @@ const live = () =>
 async function openHivSession(page: Page) {
   await page.goto("/?dataSource=openmrs-hiv");
   await expect(page.getByText("Catalyst", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Query settings", exact: true }).click();
   await expect(page.getByLabel("Model profile")).toBeEnabled();
   await page.getByLabel("Model profile").selectOption(PROFILE);
+  await page.getByRole("button", { name: "Done", exact: true }).click();
 }
 
 async function ask(page: Page, question: string) {

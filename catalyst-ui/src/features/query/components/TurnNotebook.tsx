@@ -1,6 +1,5 @@
-import { Disclosure } from "./Disclosure";
 import { DataBase, WarningAltFilled } from "@carbon/icons-react";
-import { Button, Select, SelectItem, Tag } from "@carbon/react";
+import { Button, Tag } from "@carbon/react";
 import {
   useMemo,
   useState,
@@ -18,6 +17,7 @@ import { lineDiffSummary } from "../lineDiff";
 import { highlightSql } from "./sqlHighlight";
 import { formatSql } from "./sqlEditorSupport";
 import { ExecutionPreview, ExecutionResult } from "./WorkbenchPanel";
+import { QuerySettings } from "./QuerySettings";
 import { QuestionComposerInput } from "./QuestionComposerInput";
 import "./TurnNotebook.css";
 
@@ -126,18 +126,6 @@ interface TurnNotebookProps {
 const textAt = (source: Record<string, unknown>, key: string) => {
   const value = source[key];
   return typeof value === "string" && value ? value : null;
-};
-
-const profileOptionLabel = (profile: QueryProfile) => {
-  const writer = profile.roleModels.query_generate;
-  const reviewer = profile.roleModels.query_review;
-  const models = [
-    writer ? `writer ${writer}` : null,
-    reviewer ? `reviewer ${reviewer}` : null,
-  ].filter((value): value is string => value !== null);
-  return models.length > 0
-    ? `${profile.label} — ${models.join("; ")}`
-    : profile.label;
 };
 
 const versionAuthor = (version: NotebookVersion | null) => {
@@ -712,26 +700,9 @@ export const TurnNotebook = ({
             onSubmit={onGenerate}
           />
           <div className="turn-composer__toolbar">
-            <Disclosure className="query-settings" open={advancedMode} title="Query settings">
-              <Select
-                id="catalyst-followup-profile"
-                labelText="Model profile"
-                size="sm"
-                value={noRevisionProfiles ? "" : selectedProfileId}
-                disabled={busy || noRevisionProfiles}
-                onChange={(event) => onProfileChange(event.currentTarget.value)}
-              >
-                {noRevisionProfiles && <SelectItem value="" text="No revision-capable profile available" />}
-                {revisionProfiles.map((profile) => (
-                  <SelectItem key={profile.id} value={profile.id} text={advancedMode ? profileOptionLabel(profile) : profile.label} />
-                ))}
-              </Select>
-            </Disclosure>
-            {error && (
-              <p className="turn-composer__error" role="alert">
-                {error}
-              </p>
-            )}
+            <QuerySettings id="catalyst-followup-profile" profiles={revisionProfiles}
+              selectedProfileId={selectedProfileId} advancedMode={advancedMode}
+              disabled={busy || noRevisionProfiles} onProfileChange={onProfileChange} />
             {grounding.kind === "stale" && (
               <span
                 className="turn-composer__stale"
@@ -769,6 +740,7 @@ export const TurnNotebook = ({
                   : "Continue"}
             </Button>}
           </div>
+          {error && <p className="turn-composer__error" role="alert">{error}</p>}
           {notice && <p className="query-composer__help" role="status">{notice}</p>}
           {noRevisionProfiles && (
             <p id="catalyst-followup-profile-unavailable" role="status">

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
@@ -330,7 +330,8 @@ describe("TurnNotebook", () => {
     expect(document.getElementById("turn-2")).toHaveAttribute("data-current", "true");
   });
 
-  it("keeps exact authorship and model choices available in Advanced mode", () => {
+  it("keeps exact authorship and model choices available in Advanced mode", async () => {
+    const user = userEvent.setup();
     render(<TurnNotebook {...defaultProps} advancedMode />);
 
     expect(
@@ -342,10 +343,11 @@ describe("TurnNotebook", () => {
     expect(screen.getAllByText(/reviewer correction/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/qwen2\.5-14b/i).length).toBeGreaterThan(0);
 
+    await user.click(screen.getByRole("button", { name: "Query settings" }));
     const selector = screen.getByRole("combobox", { name: "Model profile" });
     expect(
       within(selector).getByRole("option", {
-        name: /Gemma writer \+ Qwen reviewer.*gemma-4-12b.*qwen2\.5-14b/i,
+        name: /Gemma writer \+ Qwen reviewer/i,
       }),
     ).toBeVisible();
   });
@@ -485,7 +487,7 @@ describe("TurnNotebook", () => {
     expect(onGenerate).not.toHaveBeenCalled();
   });
 
-  it("keeps the composer toolbar to instruction, profile, and submit", () => {
+  it("keeps the composer toolbar to instruction, settings, and submit", () => {
     // Ian: the composer repeated what the thread already says. The execution
     // summary lives with the results now; the composer is for the next ask.
     render(<TurnNotebook {...defaultProps} />);
@@ -494,7 +496,8 @@ describe("TurnNotebook", () => {
     expect(composer.querySelector(".turn-composer__grounding")).toBeNull();
     expect(screen.queryByText(/Execution summary/)).not.toBeInTheDocument();
     expect(composer.querySelectorAll("textarea")).toHaveLength(1);
-    expect(composer.querySelectorAll("select")).toHaveLength(1);
+    expect(within(composer).getByRole("button", { name: "Query settings" })).toBeVisible();
+    expect(composer.querySelectorAll("select")).toHaveLength(0);
     expect(composer.querySelectorAll("button[type='submit']")).toHaveLength(1);
   });
 
@@ -983,6 +986,7 @@ describe("TurnNotebook", () => {
       />,
     );
 
+    await user.click(screen.getByRole("button", { name: "Query settings" }));
     const selector = screen.getByRole("combobox", { name: "Model profile" });
     expect(within(selector).getAllByRole("option")).toHaveLength(2);
     expect(within(selector).queryByText(/Offline split profile/i))
@@ -1009,7 +1013,9 @@ describe("TurnNotebook", () => {
     expect(
       screen.getByText(/No question service is available right now/i),
     ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Query settings" }));
     expect(screen.getByRole("combobox", { name: "Model profile" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Done" }));
     const generate = screen.getByRole("button", { name: "Continue" });
     expect(generate).toBeDisabled();
     await user.click(generate);
@@ -1064,12 +1070,13 @@ describe("TurnNotebook", () => {
     await user.keyboard("{Escape}");
     expect(prior.querySelector(".query-turn__sql")).not.toBeVisible();
     expect(priorDisclosure.closest("button")).toHaveFocus();
-    await user.click(screen.getByText("Query settings", {exact:true}));
-
+    await user.click(screen.getByRole("button", { name: "Query settings" }));
     const selector = screen.getByRole("combobox", { name: "Model profile" });
     selector.focus();
     await user.keyboard("{ArrowDown}");
     expect(selector).toHaveFocus();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Query settings" })).toHaveFocus());
 
     const instruction = screen.getByRole("textbox", {
       name: "Ask a follow-up",
@@ -1100,7 +1107,7 @@ describe("TurnNotebook", () => {
       name: "Ask a follow-up",
     })).toBeVisible();
     await user.click(within(composer).getByText("Query settings"));
-    expect(within(composer).getByRole("combobox", {
+    expect(within(screen.getByRole("dialog", { name: "Query settings" })).getByRole("combobox", {
       name: "Model profile",
     })).toBeVisible();
     expect(within(composer).getByRole("button", {

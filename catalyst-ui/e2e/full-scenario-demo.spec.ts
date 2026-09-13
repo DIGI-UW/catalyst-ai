@@ -156,9 +156,9 @@ for (const source of ["openelis", "openmrs-hiv"]) {
       // An explicit profile is honored exactly. Otherwise the existing UI's
       // configured default is used and captured in the session evidence.
       if (process.env.CATALYST_DEMO_PROFILE) {
-        await page.getByText("Query settings", { exact: true }).click();
+        await page.getByRole("button", { name: "Query settings", exact: true }).click();
         await page.getByRole("combobox", { name: "Model profile" }).selectOption(process.env.CATALYST_DEMO_PROFILE);
-        await page.getByText("Query settings", { exact: true }).click();
+        await page.getByRole("button", { name: "Done", exact: true }).click();
       }
       timing.mark("prepare-1");
       await page.getByRole("button", { name: "Continue", exact: true }).click();

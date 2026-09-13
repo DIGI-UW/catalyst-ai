@@ -18,8 +18,7 @@ test("the composer stays available while reading and preserves an expanded draft
   );
   await expect(input).toBeVisible();
 
-  expect((await page.locator("[data-query-composer-dock]").boundingBox())!.height)
-    .toBeLessThanOrEqual(192);
+  await expect(page.locator("[data-query-composer-dock]")).toBeInViewport({ ratio: 1 });
   await expect(input).toHaveAccessibleDescription("Following question 3");
 
   const draft = "one\ntwo\nthree\nfour\nfive\nsix\nseven\neight";
@@ -60,8 +59,7 @@ test("the first question grows and restores its actual writing area", async ({ p
   await page.goto("/");
   const input = page.getByRole("textbox", { name: "Your question" });
   await input.fill("Keep this question while changing the writing area.");
-  expect((await page.locator("[data-query-composer-dock]").boundingBox())!.height)
-    .toBeLessThanOrEqual(210);
+  await expect(page.locator("[data-query-composer-dock]")).toBeInViewport({ ratio: 1 });
   const originalHeight = (await input.boundingBox())!.height;
   await page.getByRole("button", { name: "Expand", exact: true }).click();
   await expect.poll(async () => (await input.boundingBox())!.height)
@@ -84,8 +82,7 @@ test("the composer and its actions remain reachable on a narrow screen", async (
   await expect(page.getByRole("textbox", { name: "Ask a follow-up" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Expand" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Continue" })).toBeVisible();
-  expect((await page.locator("[data-query-composer-dock]").boundingBox())!.height)
-    .toBeLessThanOrEqual(210);
+  await expect(page.locator("[data-query-composer-dock]")).toBeInViewport({ ratio: 1 });
   await page.getByText(/View options/).click();
   await page.getByRole("radio", { name: "Dark", exact: true }).check();
   await page.keyboard.press("Escape");

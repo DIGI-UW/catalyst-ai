@@ -969,7 +969,9 @@ test("question to iterative notebook to imported dashboard", async ({
   await header.getByText(/View options/).click();
 
   // ---------------------------------------------------- ask the question
+  await page.getByRole("button", { name: "Query settings", exact: true }).click();
   await expect(page.getByLabel("Model profile")).toBeEnabled();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   await page.getByLabel("Your question").fill(query);
   await page.getByRole("button", { name: "Continue" }).click();
 
@@ -1081,9 +1083,11 @@ test("question to iterative notebook to imported dashboard", async ({
 
     // ----------------------------------------------------- ask for the next
     await openComposer(page);
+    await page.getByRole("button", { name: "Query settings", exact: true }).click();
     await page.getByRole("combobox", { name: "Model profile" }).selectOption(
       revisionProfileId,
     );
+    await page.getByRole("button", { name: "Done", exact: true }).click();
     await page.getByRole("textbox", { name: "Ask a follow-up" }).fill(
       "Include the result unit in the current query",
     );
@@ -1183,7 +1187,7 @@ test("question to iterative notebook to imported dashboard", async ({
 
     // ------------------------------------------------- the thread restores
     await navigate("Explore");
-    await page.getByText("Query settings", { exact: true }).click();
+    await page.getByRole("button", { name: "Query settings", exact: true }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Your question" })).toBeVisible();
     // Every turn is a cell, numbered by position, and the thread carries them
     // all rather than hiding earlier ones behind a summary.
@@ -1191,6 +1195,7 @@ test("question to iterative notebook to imported dashboard", async ({
     await expect(page.getByRole("region", { name: "Query turn 2", exact: true })).toBeVisible();
     await expect(page.getByRole("combobox", { name: "Model profile" }))
       .toHaveValue(revisionProfileId);
+    await page.getByRole("button", { name: "Done", exact: true }).click();
 
     // Results have one full table, reached from their retained turn.
     await expect(page.locator(".query-turn__dataset table")).toHaveCount(0);

@@ -1,6 +1,6 @@
-import { Disclosure } from "./Disclosure";
+import { QuerySettings } from "./QuerySettings";
 import { ArrowRight } from "@carbon/icons-react";
-import { Button, Form, Select, SelectItem } from "@carbon/react";
+import { Button, Form } from "@carbon/react";
 import { type FormEvent } from "react";
 import type { QueryProfile } from "../types";
 import { QuestionComposerInput } from "./QuestionComposerInput";
@@ -20,18 +20,6 @@ interface QuestionFormProps {
   onProfileChange?: (profileId: string) => void;
 }
 
-const profileModelAliases = (profile: QueryProfile) =>
-  Array.from(
-    new Set(
-      Object.entries(profile.roleModels)
-        .sort(([leftRole], [rightRole]) =>
-          leftRole < rightRole ? -1 : leftRole > rightRole ? 1 : 0,
-        )
-        .map(([, modelAlias]) => modelAlias.trim())
-        .filter(Boolean),
-    ),
-  );
-
 export const QuestionForm = ({
   advancedMode = false,
   question,
@@ -48,11 +36,6 @@ export const QuestionForm = ({
 }: QuestionFormProps) => {
   const normalizedQuestion = question.trim();
   const availableProfiles = profiles.filter((profile) => profile.available);
-  const selectedAliases = profileModelAliases(
-    availableProfiles.find((profile) => profile.id === selectedProfileId) ??
-      availableProfiles[0] ?? { roleModels: {} } as QueryProfile,
-  );
-
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
     if (!normalizedQuestion || busy || disabled) return;
@@ -81,36 +64,9 @@ export const QuestionForm = ({
           />
           <div className="query-composer__toolbar">
             {availableProfiles.length > 0 && (
-              <Disclosure className="query-settings" open={advancedMode} title="Query settings">
-              <Select
-                id="catalyst-profile"
-                className="query-composer__profile"
-                labelText="Model profile"
-                size="sm"
-                value={selectedProfileId}
-                disabled={busy || disabled}
-                helperText={
-                  selectedAliases.length > 0
-                    ? selectedAliases.join(" · ")
-                    : undefined
-                }
-                onChange={(event) => onProfileChange?.(event.currentTarget.value)}
-              >
-                {availableProfiles.map((profile) => (
-                  /*
-                   * profile.label already names the models in prose ("Gemma 4
-                   * 12B writer, Qwen 2.5 14B reviewer"); appending the aliases
-                   * repeated it in slug form and overflowed the control. The
-                   * aliases are disclosed under the field instead.
-                   */
-                  <SelectItem
-                    key={profile.id}
-                    value={profile.id}
-                    text={profile.label}
-                  />
-                ))}
-              </Select>
-              </Disclosure>
+              <QuerySettings id="catalyst-profile" profiles={availableProfiles}
+                selectedProfileId={selectedProfileId} advancedMode={advancedMode}
+                disabled={busy || disabled} onProfileChange={onProfileChange} />
             )}
             {profiles.length > 0 && availableProfiles.length === 0 && (
               <p className="query-composer__availability" role="status">

@@ -545,8 +545,27 @@ const failedWorkbenchExecution: WorkbenchExecution = {
   completedAt: "2026-07-17T00:00:04Z",
 };
 
+const closeQuerySettings = async () => {
+  const dialog = screen.queryByRole("dialog", { name: "Query settings" });
+  if (dialog) await userEvent.setup().click(within(dialog).getByRole("button", { name: "Done" }));
+};
+
+const openModelProfile = async () => {
+  if (!screen.queryByRole("dialog", { name: "Query settings" })) {
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Query settings" }));
+  }
+  return screen.getByRole("combobox", { name: "Model profile" });
+};
+
+const inspectModelProfile = async () => {
+  const profile = await openModelProfile();
+  await closeQuerySettings();
+  return profile;
+};
+
 const askQuestion = async () => {
   const user = userEvent.setup();
+  await closeQuerySettings();
   await user.type(screen.getByLabelText("Your question"), QUESTION);
   await user.click(screen.getByRole("button", { name: "Continue" }));
   return user;
@@ -564,6 +583,7 @@ beforeEach(() => {
  * reaching either means opening it the way a user does.
  */
 const openSessionMenu = async (user: ReturnType<typeof userEvent.setup>) => {
+  await closeQuerySettings();
   await user.click(
     screen.getByRole("button", { name: /^Session:/ }),
   );
@@ -608,7 +628,7 @@ describe("Catalyst query workflow", () => {
     vi.mocked(api.submitQuestion).mockResolvedValue(preview);
     render(<App api={api} />);
 
-    expect(await screen.findByLabelText("Model profile")).toBeEnabled();
+    expect(await inspectModelProfile()).toBeEnabled();
     const user = await askQuestion();
 
     expect(api.submitQuestion).toHaveBeenCalledWith(
@@ -618,7 +638,7 @@ describe("Catalyst query workflow", () => {
     );
     expect(await screen.findByRole("heading", { name: "Review query" })).toBeVisible();
     expect(screen.getByLabelText("Your question")).toBeDisabled();
-    expect(screen.getByLabelText("Model profile")).toBeDisabled();
+    expect(await inspectModelProfile()).toBeDisabled();
     expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "Ask a question" }));
     expect(screen.getByRole("heading", { name: "What would you like to find out?" })).toHaveFocus();
@@ -684,11 +704,13 @@ describe("Catalyst query workflow", () => {
     await user.click(screen.getByRole("button", { name: "Back to your question" }));
     expect(screen.getByLabelText("Your question")).toHaveFocus();
     await user.click(screen.getByText("Query settings", { exact: true }));
-    const profile = screen.getByRole("combobox", { name: "Model profile" });
+    const profile = await openModelProfile();
     expect(profile).toHaveValue("catalyst-query-gemma-e4b");
     expect(within(profile).getByRole("option", { name: "Split generation and review" })).toBeInTheDocument();
     expect(within(profile).queryByRole("option", { name: "Offline research profile" })).not.toBeInTheDocument();
-    expect(screen.getByText("gemma-e4b")).toBeVisible();
+    await user.click(screen.getByText("Model details", { exact: true }));
+    for (const alias of screen.getAllByText("gemma-e4b")) expect(alias).toBeVisible();
+    await closeQuerySettings();
     await user.type(screen.getByLabelText("Your question"), "Show viral load results");
     await user.click(screen.getByRole("button", { name: "Continue" }));
     expect(api.submitQuestion).toHaveBeenCalledWith("Show viral load results", "catalyst-query-gemma-e4b", expect.any(AbortSignal));
@@ -706,7 +728,7 @@ describe("Catalyst query workflow", () => {
     render(<App api={api} />);
     await enableAdvancedMode();
 
-    expect(await screen.findByLabelText("Model profile")).toBeEnabled();
+    expect(await inspectModelProfile()).toBeEnabled();
     const user = await askQuestion();
 
     expect(api.createWorkbenchSession).toHaveBeenCalledWith(
@@ -787,7 +809,7 @@ describe("Catalyst query workflow", () => {
     render(<App api={api} />);
     await enableAdvancedMode();
 
-    expect(await screen.findByLabelText("Model profile")).toBeEnabled();
+    expect(await inspectModelProfile()).toBeEnabled();
     const user = await askQuestion();
     expect(await screen.findByRole("heading", { name: "Query draft" })).toBeVisible();
 
@@ -797,7 +819,7 @@ describe("Catalyst query workflow", () => {
     expect(screen.queryByRole("heading", { name: "Query draft" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("Your question")).toHaveValue("");
     await waitFor(() => expect(screen.getByLabelText("Your question")).toHaveFocus());
-    expect(screen.getByLabelText("Model profile")).toHaveValue(
+    expect(await inspectModelProfile()).toHaveValue(
       "catalyst-query-gemma-e4b",
     );
     await waitFor(() =>
@@ -813,7 +835,7 @@ describe("Catalyst query workflow", () => {
     const user = userEvent.setup();
     render(<App api={api} />);
 
-    expect(await screen.findByLabelText("Model profile")).toHaveValue(
+    expect(await inspectModelProfile()).toHaveValue(
       notebookQueryOptions.defaultProfileId,
     );
     await user.type(screen.getByLabelText("Your question"), QUESTION);
@@ -926,7 +948,7 @@ describe("Catalyst query workflow", () => {
     const user = userEvent.setup();
     render(<App api={api} />);
 
-    expect(await screen.findByLabelText("Model profile")).toBeEnabled();
+    expect(await inspectModelProfile()).toBeEnabled();
     await user.type(screen.getByLabelText("Your question"), QUESTION);
     await user.click(screen.getByRole("button", { name: "Continue" }));
     expect(
@@ -1221,7 +1243,7 @@ describe("Catalyst query workflow", () => {
 
     await waitFor(() => expect(api.createWorkbenchVersion).toHaveBeenCalledOnce());
     expect(instruction).toBeDisabled();
-    expect(screen.getByRole("combobox", { name: "Model profile" })).toBeDisabled();
+    expect(await inspectModelProfile()).toBeDisabled();
     const generate = screen.getByRole("button", {
       name: "Continue",
     });
@@ -1259,7 +1281,7 @@ describe("Catalyst query workflow", () => {
     const user = userEvent.setup();
     render(<App api={api} />);
 
-    expect(await screen.findByLabelText("Model profile")).toBeEnabled();
+    expect(await inspectModelProfile()).toBeEnabled();
     await user.type(screen.getByLabelText("Your question"), QUESTION);
     await user.click(screen.getByRole("button", { name: "Continue" }));
     expect(await screen.findByText("Unresolved model draft")).toBeVisible();
@@ -1293,7 +1315,7 @@ describe("Catalyst query workflow", () => {
     render(<App api={api} />);
     await enableAdvancedMode();
 
-    expect(await screen.findByLabelText("Model profile")).toBeEnabled();
+    expect(await inspectModelProfile()).toBeEnabled();
     await user.type(screen.getByLabelText("Your question"), QUESTION);
     await user.click(screen.getByRole("button", { name: "Continue" }));
     expect(
@@ -1355,7 +1377,7 @@ describe("Catalyst query workflow", () => {
       screen.getByRole("textbox", { name: "SQL query" }),
       workbenchVersion.sql,
     );
-    expect(screen.getByRole("combobox", { name: "Model profile" })).toHaveValue(
+    expect(await inspectModelProfile()).toHaveValue(
       notebookSession.profileId,
     );
     expect(api.createWorkbenchSession).not.toHaveBeenCalled();
@@ -1448,10 +1470,9 @@ describe("Catalyst query workflow", () => {
 
     // The retired profile does not follow the analyst into the new session:
     // the question is asked with one the Gateway still advertises.
-    const profileSelector = await screen.findByRole("combobox", {
-      name: "Model profile",
-    });
+    const profileSelector = await openModelProfile();
     expect(profileSelector).toHaveValue("catalyst-query-gemma-e4b");
+    await closeQuerySettings();
     await user.type(screen.getByLabelText("Your question"), "Count recent results");
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
@@ -1498,9 +1519,7 @@ describe("Catalyst query workflow", () => {
     expect(
       await screen.findByText(/Generated by Legacy same-family profile/),
     ).toBeVisible();
-    const profileSelector = screen.getByRole("combobox", {
-      name: "Model profile",
-    });
+    const profileSelector = await openModelProfile();
     await waitFor(() =>
       expect(profileSelector).toHaveValue("catalyst-query-gemma-4-12b"),
     );
@@ -1510,6 +1529,7 @@ describe("Catalyst query workflow", () => {
       }),
     ).not.toBeInTheDocument();
 
+    await closeQuerySettings();
     await user.type(
       screen.getByRole("textbox", { name: "Ask a follow-up" }),
       "Only include released results",
@@ -1813,7 +1833,7 @@ describe("Catalyst query workflow", () => {
     vi.mocked(api.submitQuestion).mockResolvedValue(preview);
     render(<App api={api} />);
 
-    const selector = await screen.findByLabelText("Model profile");
+    const selector = await openModelProfile();
     expect(selector).toHaveValue("catalyst-query-gemma-e4b");
     expect(
       within(selector).queryByRole("option", {
@@ -1928,7 +1948,7 @@ describe("Catalyst query workflow", () => {
     vi.mocked(api.executePreview).mockResolvedValue(table);
     render(<App api={api} />);
 
-    expect(await screen.findByLabelText("Model profile")).toBeEnabled();
+    expect(await inspectModelProfile()).toBeEnabled();
     const user = await askQuestion();
     await user.click(
       await screen.findByRole("button", { name: "Accept and run" }),
@@ -1950,7 +1970,7 @@ describe("Catalyst query workflow", () => {
     expect(within(provenance).getByText("pipeline-run-77")).toBeVisible();
     expect(within(provenance).getByText("catalyst-query-gemma-e4b")).toBeVisible();
     expect(screen.getByLabelText("Your question")).toBeEnabled();
-    expect(screen.getByLabelText("Model profile")).toBeEnabled();
+    expect(await inspectModelProfile()).toBeEnabled();
     expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
     await user.click(screen.getByRole("button", { name: "Ask a question" }));
     expect(screen.getByLabelText("Your question")).toHaveFocus();
@@ -1972,7 +1992,7 @@ describe("Catalyst query workflow", () => {
     );
     render(<App api={api} pollIntervalMs={1} />);
 
-    expect(await screen.findByLabelText("Model profile")).toBeEnabled();
+    expect(await inspectModelProfile()).toBeEnabled();
     const user = await askQuestion();
     await user.click(
       await screen.findByRole("button", { name: "Accept and run" }),
@@ -1982,13 +2002,13 @@ describe("Catalyst query workflow", () => {
       await screen.findByRole("heading", { name: "Query running" }),
     ).toBeVisible();
     expect(screen.getByLabelText("Your question")).toBeDisabled();
-    expect(screen.getByLabelText("Model profile")).toBeDisabled();
+    expect(await inspectModelProfile()).toBeDisabled();
     expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
     await waitFor(() => expect(api.pollExecution).toHaveBeenCalled());
     resolvePoll(table);
     expect(await screen.findByRole("region", { name: "Query results" })).toBeVisible();
     expect(screen.getByLabelText("Your question")).toBeEnabled();
-    expect(screen.getByLabelText("Model profile")).toBeEnabled();
+    expect(await inspectModelProfile()).toBeEnabled();
     expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
     expect(api.pollExecution).toHaveBeenCalledWith(
       preview.previewId,
@@ -2056,7 +2076,7 @@ describe("Catalyst query workflow", () => {
     });
     render(<App api={api} />);
 
-    expect(await screen.findByLabelText("Model profile")).toBeEnabled();
+    expect(await inspectModelProfile()).toBeEnabled();
     // One registered source is nothing to choose between, so it is reported
     // in the header rather than offered as a switch.
     expect(screen.queryByLabelText("Data source")).not.toBeInTheDocument();
@@ -2209,7 +2229,7 @@ describe("Catalyst query workflow", () => {
     api.getDataSources = vi.fn().mockRejectedValue(new Error("not found"));
     render(<App api={api} />);
 
-    expect(await screen.findByLabelText("Model profile")).toBeEnabled();
+    expect(await inspectModelProfile()).toBeEnabled();
     expect(screen.queryByLabelText("Data source")).not.toBeInTheDocument();
   });
 });

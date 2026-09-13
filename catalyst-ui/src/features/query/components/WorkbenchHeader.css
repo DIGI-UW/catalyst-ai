@@ -46,7 +46,6 @@
 
 .workbench-header-shell__tools { width: 100%; gap: 0.5rem 1.25rem; }
 .workbench-header--welcome .workbench-header-shell__tools { justify-content: center; }
-.dashboard-builder-shell .workbench-header-shell__tools .cds--btn { padding-left: 0; }
 .workbench-header-shell__turns { width: 100%; margin: 0; padding: 0; }
 .workbench-header-shell__turns { max-height: 16rem; overflow: auto; list-style: none; }
 .workbench-header-shell__data { max-height: 50dvh; overflow: auto; }
