@@ -3,10 +3,12 @@
 The JSON schemas in this directory describe formats used by the current running
 code. They are executable interface definitions, not a second product roadmap.
 
-The running wire formats currently include a generated `catalog`, a
-PostgreSQL-only dialect value, guidance fields, and schema-version restrictions.
-[The Catalyst roadmap](../roadmap.md) changes the schemas and their consumers
-together. Product requirements are stated only in the documents below.
+The running wire formats include catalog, dialect, guidance and source/version
+provenance. Change schemas and their consumers together; do not infer working
+engine transport from the presence of a dialect field. The
+[Dashboard Builder contract](dashboard-builder-api.md) distinguishes the current
+query-backed HTTP surface from approved imported-Dataset additions awaiting
+implementation. Product requirements are stated in the documents below.
 
 Current intended behavior is stated in:
 

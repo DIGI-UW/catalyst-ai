@@ -19,8 +19,15 @@ were retired on 10 September 2026; see [retirement accounting](#prototype-retire
 
 The decisions below govern the detailed design that follows.
 
+The [reporting-pathway extension](specs/openelis-reporting-integration/spec.md)
+adds CSV-origin Datasets and ordinary PostgreSQL within this design. Its mock
+additions await owner review; the existing shell/styling remain approved. The
+[integration roadmap](https://github.com/pmanko/clinical-ai-validation-harness/blob/main/specs/openelis-reporting-catalyst-integration.md)
+owns delivery sequence. Query/Run prerequisites below apply to query-backed
+Datasets; file imports use explicit review/confirmation and no SQL step.
+
 - **Explore is the Workbench.** The primary navigation uses Explore and Saved
-  work. Saved work groups Saved queries, Charts and tables, and Dashboards;
+  work. Saved work groups Datasets, Charts and tables, and Dashboards;
   API and evidence names remain Dataset, Widget, and Dashboard.
 - **Validation is advisory.** Validate reports findings for the exact editor
   state, does not execute SQL, and never disables Run. The visible controls are
@@ -199,7 +206,7 @@ Four object types, mapped onto Superset primitives:
 | Catalyst object | Lives in | Superset counterpart | Notes |
 | --- | --- | --- | --- |
 | Session / thread | Catalyst | — | question, generated SQL, drafts, provenance trace |
-| **Dataset** | Catalyst + Superset | imported virtual-dataset YAML over the exact saved SQL | one immutable Dataset version can back many Widget versions |
+| **Dataset** | Catalyst + Superset | dataset YAML over saved SQL or an immutable imported-data version, using its actual backing connection | one immutable Dataset version can back many Widget versions |
 | **Widget** | Catalyst + Superset | imported chart YAML | stores compatible viz type + deterministic column bindings |
 | **Dashboard** | Catalyst draft + Superset runtime | imported dashboard YAML | Catalyst publishes desired layout; Superset-only edits are replaced on republish in this MVP |
 
@@ -262,7 +269,7 @@ contains the three object libraries.
 - Use a neutral horizontal header with visible **Explore** and **Saved work**
   destinations. A thin violet underline identifies the active destination; text
   remains neutral in light mode and off-white in dark mode.
-- Saved work reveals Saved queries, Charts and tables, and Dashboards. Counts
+- Saved work reveals Datasets, Charts and tables, and Dashboards. Counts
   update as objects are saved. Do not show a permanent development-style side
   rail or icon-only destinations.
 - The selected source stays visible in Explore. Changing it starts a new session
@@ -380,10 +387,10 @@ Same shell and composer, no thread.
 
 ### 3. Datasets library
 
-Purpose: find and reuse a saved query.
+Purpose: find and reuse a saved query or imported file as a Dataset.
 
 - Use the approved mock's Saved queries cards, typography and spacing. The page
-  has a "Saved work" eyebrow, "Saved queries" heading and a short description;
+  has a "Saved work" eyebrow, "Datasets" heading and a short description;
   the three Saved work category buttons, with counts, sit below that heading.
 - Each card shows its title, neutral Saved badge, source label, saved version and
   downstream chart count. Parameter names/types remain visible when present.
@@ -403,6 +410,17 @@ Purpose: find and reuse a saved query.
   historical evidence without disabling reuse. The compiled SQL remains the
   recorded execution snapshot. This addition retains the approved Explore /
   Saved work shell and the three Saved work groups.
+
+- **Upload CSV** opens a file → columns/types → confirmation flow using the
+  approved forms/cards. Keep the current question/session untouched and offer a
+  clear return path. Leaving the import flow or a failed request preserves the
+  file, name and reviewed types. A later file creates a separate version rather
+  than overwriting published data.
+- Cards identify **Query** or **Imported CSV**. Both open Dataset review and
+  create visualizations; only query-backed cards expose SQL reuse. Imported
+  review shows complete row count, file identity/checksum and reviewed types in
+  place of source-query metadata. It invents no query/session history. Shared
+  table, warning and focus behavior remain the same.
 
 ### 4. Charts and tables library
 
@@ -462,6 +480,11 @@ One panel component for query, chart and Dashboard review. Opened by any draft t
   open dialog; fixed header/footer regions must not cover focused controls.
 
 **Dataset mode body**
+The following query metadata applies to query-backed versions. For a file
+version show complete row count, reviewed columns/types, file name and immutable
+version, with checksum in file details. Omit query ordinals, SQL snapshots,
+model traces and query-specific actions. Keep one full result table, distinguish
+complete file from bounded query preview, and preserve save/retry behavior.
 1. Name text input (label `0.75rem` `#525252`; Carbon underline field: `background: #f4f4f4`, `border-bottom: 1px solid #8d8d8d`, `min-height: 2.5rem`).
 2. Metadata grid, 2 columns, `gap: 1px` on a `#e0e0e0` background so hairlines show; each cell padding `0.75rem 1rem`, background `#f4f4f4`; `dt` `0.75rem` `#6f6f6f`, `dd` `1rem`. Include bounded rows (`250 shown · total unknown` when truncated without an exact total), columns, exact `Query vN`, source, typed parameters, and truncation state.
 3. Always-visible plain-language warnings, limits, and database diagnostic,
@@ -489,9 +512,11 @@ One panel component for query, chart and Dashboard review. Opened by any draft t
    420×150 geometry as a lightweight type thumbnail, not a Catalyst chart
    renderer. Authoritative data rendering happens in Superset after import.
 2. Widget name input plus one compact compatible-visualization selector.
-   Derived bindings and incompatibility reasons are read-only. The saved Dataset
-   SQL owns report calculations; selecting a chart never asks the user to repeat
-   an aggregation or changes that SQL.
+   Compatibility reasons stay visible. Query-backed Widgets retain existing
+   saved calculations. For raw rows offer explicit grouping and aggregation,
+   including record count, as needed for a meaningful chart; preserve these
+   choices in the Widget version. Never silently change Dataset SQL or apply
+   pre-aggregated-result assumptions to an imported file.
 3. "Reads" block: label `0.75rem` `#525252`, then a `#f4f4f4` row (padding `0.75rem 1rem`) with dataset name and its Draft/Saved pill. When the dataset is unsaved, a `0.75rem` `#8e6a00` note: "Saving the widget saves this dataset too — publication includes the dataset before the chart."
 4. “Add to Dashboard” offers the latest saved version of each same-source
    Dashboard and “Save without placing”. It preserves existing order and widths,

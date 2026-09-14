@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { defaultFields, defaultFilters, exportRows, csv, catalystRecords, differences, comparisonRows } from './model.mjs';
+import { defaultFields, defaultFilters, exportRows, csv, catalystRecords, differences, comparisonRows, readPreviewCsv, previewTypeErrors } from './model.mjs';
 
 test('August export uses collection dates, status and result multiplicity', () => {
   const rows = exportRows(defaultFilters);
@@ -27,4 +27,28 @@ test('parity review identifies values and multiplicity rather than counts alone'
   const altered = structuredClone(catalystRecords); altered[0].resultValue = 'wrong';
   assert.equal(differences(reference, altered).missing.length, 1);
   assert.equal(differences(reference, altered).extra.length, 1);
+});
+
+test('import review preserves BOM, escaping, line breaks, blanks and repeated rows', () => {
+  const file = readPreviewCsv('\uFEFFIdentifier,Result,Note\r\n0012,<20,"a,b"\r\n0012,,"line\nwith ""quotes"""\r\n');
+  assert.deepEqual(file.headers, ['Identifier', 'Result', 'Note']);
+  assert.deepEqual(file.types, ['text', 'text', 'text']);
+  assert.deepEqual(file.rows, [['0012', '<20', 'a,b'], ['0012', '', 'line\nwith "quotes"']]);
+  assert.deepEqual(previewTypeErrors(file), []);
+  file.types[0] = 'number';
+  assert.match(previewTypeErrors(file)[0], /Identifier/);
+  assert.equal(file.rows[0][0], '0012');
+});
+test('review rejects partial, malformed, empty and ambiguous CSV files', () => {
+  for (const text of ['', 'A,B\n', 'A,A\n1,2', 'A,B\n1', 'A,B\n"1', 'A,B\n"1"x,2']) assert.throws(() => readPreviewCsv(text));
+});
+test('reviewed types can be corrected without replacing original cells', () => {
+  const file = readPreviewCsv('Date,Result\n2026-08-31,430\n2026-08-31,\n');
+  assert.deepEqual(file.types, ['date', 'number']);
+  assert.deepEqual(previewTypeErrors(file), []);
+  file.rows[1][0] = '2026-02-31';
+  assert.equal(previewTypeErrors(file).length, 1);
+  file.types[0] = 'text';
+  assert.deepEqual(previewTypeErrors(file), []);
+  assert.equal(file.rows[1][0], '2026-02-31');
 });

@@ -12,6 +12,31 @@ serve.
 
 Base path: `/v1/catalyst/dashboard-builder`
 
+## Approved reporting extension — not yet served
+
+The [existing integration design](../specs/openelis-reporting-integration/spec.md)
+extends this contract with an imported-file Dataset origin and PostgreSQL-backed
+publication. Its delivery order remains in the linked integration roadmap.
+The current routes/examples below continue to describe query-backed saves.
+Do not send a CSV through the execution-based save route or invent a session,
+query, or execution to satisfy it.
+
+The implementation must add explicit file upload, reviewed column/type
+confirmation and immutable save while preserving existing query APIs. The
+Dataset collection/review distinguishes query and file origins and retains the
+common version/Widget/Dashboard contract. File-origin metadata includes file
+identity/checksum, complete row count, reviewed ordered schema and immutable
+import version; query-specific fields/actions are absent. Publish resolves the
+version's actual backing connection and retains truthful matching receipts.
+
+Failed/interrupted imports create neither a ready Dataset nor partial published
+data. Retrying preserves input; later uploads cannot silently replace a saved
+version. CSV values/order, leading-zero identifiers, blanks, duplicates, mixed
+types and dates must survive persistence and restart. Raw-row grouping/counts
+are explicit Widget choices rather than an implicit query-result aggregation.
+Add executable schemas and route details with the implementation; this design
+change does not advertise an upload endpoint that does not exist.
+
 ## Product boundary
 
 Catalyst turns one successful Workbench execution into a saved Dataset, a
@@ -82,9 +107,9 @@ without reducing it to the routes that happen to exist today.
 - Dashboard review selects and arranges saved Widgets from one data source.
 - Saved Dashboards appear in the Dashboard library with their Widget count,
   layout summary, and publication state.
-- The current API persists Widget order but has no separate geometry request.
-  If the accepted arrangement experience requires more layout data, extend the
-  Dashboard request directly; do not add a parallel layout service.
+- The current save route accepts Widget order and optional `widgetWidths` in
+  the Dashboard request. Keep arrangement in this existing API; do not add a
+  parallel layout service.
 
 ### Publish and import
 

@@ -6,6 +6,13 @@ Keep the existing turn-based Workbench. The current ask and artifact being modif
 
 ## Turn routing and artifact context
 
+The existing Follow-on A follows the four-pathway reporting goal. Its context
+supports query-backed and imported Datasets: include immutable version, reviewed
+schema, origin and actual provenance. File-backed artifacts have no SQL/session
+history; do not invent it or require a query to change chart presentation. The
+SQL reuse instructions below apply only to query-backed Datasets. Grouping and
+aggregation changes must remain explicit, reviewable Widget changes.
+
 ```text
 Use the current ask and the artifact being modified to identify the affected
 artifacts. A request can change SQL/data meaning, Widgets, and Dashboard design
