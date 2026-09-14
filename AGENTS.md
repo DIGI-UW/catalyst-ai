@@ -46,6 +46,15 @@ A session binds one source. Changing source starts a new session.
 
 ## Program order
 
+The approved four OpenELIS–Catalyst reporting pathways are governed by the
+harness `specs/openelis-reporting-catalyst-integration.md`. That roadmap owns
+cross-project order/acceptance; native reporting stays in OpenELIS. Extend the
+existing integration design and Dataset contracts, not a new spec family per
+lane. PostgreSQL and CSV imports are approved additions awaiting implementation;
+the selected Spark pathway remains. This does not add a competing model-ranking
+path. Existing AI-assisted Widget/Dashboard refinement remains Follow-on A after
+the four-pathway demonstration goal, supporting both Dataset origins.
+
 The validation harness Feature 008 plan owns delivery order: approved usability
 iterations first, then Dashboard functionality after feedback on the complete
 local usability gate. Model comparison and broader conversation are separately

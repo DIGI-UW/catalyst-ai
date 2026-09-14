@@ -22,8 +22,16 @@ Catalyst helps a person:
 - create Widgets and a Dashboard; and
 - publish a deterministic native bundle for Superset.
 
-Catalyst is a generic SQL-connected application. It does not own ingestion, a
-clinical warehouse, or a preferred database engine.
+Catalyst is a generic SQL-connected application. It does not own FHIR ingestion,
+a clinical warehouse, or a preferred database engine. The approved reporting
+extension adds explicit CSV imports as a second Dataset origin; it does not
+make a file a queryable source or require SQL interaction for an import.
+
+The [four-pathway integration roadmap](https://github.com/pmanko/clinical-ai-validation-harness/blob/main/specs/openelis-reporting-catalyst-integration.md)
+owns this extension's sequence and cross-project acceptance. The
+[integration design](specs/openelis-reporting-integration/spec.md) is under
+owner review. Imported Datasets, reusable PostgreSQL transport and source-aware
+publication are approved requirements, not claims of current implementation.
 
 ## Product boundary
 
@@ -76,7 +84,7 @@ the question field. It does not lead with schema cards, model names, traces, or
 development navigation.
 
 The main navigation is **Explore** and **Saved work**. Saved work contains
-**Saved queries**, **Charts and tables**, and **Dashboards** while retaining the
+**Datasets**, **Charts and tables**, and **Dashboards** while retaining the
 Dataset, Widget, and Dashboard domain names in APIs and evidence. Use a centered
 content surface instead of a permanent development-style sidebar.
 
@@ -245,10 +253,12 @@ The binding interaction and visual contract is
 The approved visual reference is the
 [staff Workbench preview](specs/staff-workbench-ux/index.html).
 
-A Dashboard Builder Dataset is an immutable saved query and execution artifact.
-It is not a source, warehouse, or restricted schema copy.
+A Dashboard Builder Dataset is immutable-versioned reusable typed data from a
+query or imported file. Query-backed versions retain the saved query/execution
+artifact and its bounded preview; imported versions retain the complete file.
+Neither is a source, warehouse, or restricted schema copy.
 
-### Dataset
+### Query-backed Dataset
 
 - Only a successful execution for the exact current query may create or refresh
   a Dataset draft.
@@ -264,7 +274,7 @@ It is not a source, warehouse, or restricted schema copy.
   is missing, ask the person to run the query in a new session before saving;
   never substitute a default connection.
 
-**Start from this SQL** in Saved queries loads the saved Dataset's exact
+**Start from this SQL** on a query-backed Dataset loads its exact
 parameterized SQL and typed parameter values into the single editor. It retains
 the starting Dataset version and source/dialect, creates a new draft, and never
 executes SQL or changes the saved version. Preserve any ongoing draft; using a
@@ -280,6 +290,36 @@ for retry. The starting Dataset version remains visible, and Return to previous
 draft restores the preserved session. Creating the copy does not generate or run
 SQL; Run continues through the existing query-version execution path.
 
+### Imported Dataset — approved extension, implementation pending
+
+Upload CSV → review columns/types → confirm import → save Dataset uses the same
+Dataset library/review and downstream Widget/Dashboard model, without SQL,
+session creation, or fabricated query/execution provenance. Existing query-save
+APIs and saved artifacts retain their behavior; the import is an additive
+origin-specific contract.
+
+Retain original file identity, byte checksum, reviewed column order/types,
+complete row count and immutable import version. Preserve identifiers, blanks,
+mixed values, dates and repeated rows; show conversion errors before saving.
+Changing a type must not destroy the original value. Failed/interrupted imports
+produce no ready Dataset or partially published data; retain input for retry.
+Later files never replace a version already used by a saved/published Dashboard.
+
+Imported rows use durable storage in a dedicated PostgreSQL database on the
+existing demo infrastructure, separate from OpenELIS operational data and
+Superset metadata. Operating metadata remains in Catalyst's existing store.
+Publication resolves the version's actual backing connection without exposing
+storage configuration in the staff workflow. Imported Dataset review shows file
+provenance and complete counts; query actions and SQL history are absent.
+
+### PostgreSQL source — approved extension, implementation pending
+
+Ordinary PostgreSQL uses the existing source identity, complete readable-schema,
+dialect and shared execution contracts. Support its transport, parameters,
+types and execution bounds without translating SQL or restoring curated relation
+restrictions. Source discovery and preparation retrieve no incidental result
+rows; only explicit Run executes the selected query. Preserve Spark support.
+
 ### Widget
 
 - Compatibility and the initial visualization suggestion are deterministic from
@@ -290,11 +330,15 @@ SQL; Run continues through the existing query-version execution path.
   with the same logical identity and leaves earlier versions unchanged.
 - The accepted visualization families are table, key value, time series,
   grouped or stacked bar, and proportion bar.
+- For raw imported rows, expose reviewed grouping/aggregation controls including
+  record counts. Store them with the immutable Widget version. Do not silently
+  apply aggregation intended for already-aggregated query results. Existing
+  query-backed Widgets retain their saved data meaning.
 
 ### Dashboard
 
 - A Dashboard arranges multiple saved Widgets from one source.
-- Each Dataset keeps its own readable-schema reference; a harmless later schema
+- Each query-backed Dataset keeps its own readable-schema reference; a harmless later schema
   refresh does not block same-source composition.
 - A saved Dashboard is immutable and keeps stable logical identity across
   versions. Review and arrange a saved Dashboard to change chart order and widths
@@ -316,7 +360,9 @@ SQL; Run continues through the existing query-version execution path.
   imported.
 - Failures remain actionable and do not expose false success or Open controls.
 - The stable Dashboard URL opens only after successful import.
-- Superset renders the saved queries against the configured source.
+- Superset renders each Dataset against its actual backing connection: saved
+  query/source for query-backed versions, immutable imported data for file
+  versions. A global default must not retarget an existing publication.
 - Acceptance inspects one displayed value against the originating Catalyst
   result without a second database query.
 
