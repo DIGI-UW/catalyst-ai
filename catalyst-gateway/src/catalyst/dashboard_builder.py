@@ -460,8 +460,11 @@ def _native_chart(
                 column.get("databaseName", column["name"])
                 for column in bindings["columns"]
             ],
-            # Superset also applies this bound to its pagination count query.
-            "row_limit": imported_row_count if imported_row_count is not None else 1000,
+            # Keep the complete immutable file below Superset's limit-warning
+            # threshold; the same bound also feeds its pagination count query.
+            "row_limit": imported_row_count + 1
+            if imported_row_count is not None
+            else 1000,
             "order_by_cols": (
                 [json.dumps(["row_order", True])]
                 if bindings.get("importedRows")
