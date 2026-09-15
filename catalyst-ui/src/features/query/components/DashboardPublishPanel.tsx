@@ -1,4 +1,5 @@
 import { CsvImportPanel, ImportedDatasetReview } from "./CsvImportPanel";
+import { ImportedChartControls } from "./ImportedChartControls";
 import { Disclosure } from "./Disclosure";
 import { CheckmarkFilled, Close, DataBase, Renew } from "@carbon/icons-react";
 import { Button, InlineNotification, Select, SelectItem, Tag, TextInput } from "@carbon/react";
@@ -16,6 +17,7 @@ import type {
   DashboardPresentationKind,
   DashboardPublication,
   WorkbenchSession,
+  WidgetAggregation,
 } from "../types";
 import { savedQueryDraft } from "../savedQueryDraft";
 import { DashboardArrangement, type ChartWidth } from "./DashboardArrangement";
@@ -145,7 +147,11 @@ const presentationAssessments = (
   );
   const compatible = (kind: DashboardPresentationKind) => {
     if (kind === "table") return true;
-    if (dataset && configurationRecord(dataset, "origin")?.kind === "file") return false;
+    if (dataset && configurationRecord(dataset, "origin")?.kind === "file") {
+      if (kind.startsWith("time_series")) return temporal.length > 0;
+      if (kind === "proportion_bar") return columns.length > 1;
+      return true;
+    }
     if (kind === "big_number") return rowCount === 1 && columns.length === 1 && numeric.length === 1;
     if (kind === "time_series_line" || kind === "time_series_area") {
       return temporal.length > 0 && numeric.length > 0;
@@ -155,7 +161,7 @@ const presentationAssessments = (
   };
   const reason = (kind: DashboardPresentationKind) => {
     if (kind === "table") return "Table supports every returned schema.";
-    if (dataset && configurationRecord(dataset, "origin")?.kind === "file") return "Summary charts for uploaded rows follow in the next iteration.";
+    if (dataset && configurationRecord(dataset, "origin")?.kind === "file") return kind.startsWith("time_series") ? "Time series requires a Date column." : "100% stacked bar requires separate grouping and split columns.";
     if (kind === "big_number") return "Big number requires exactly one returned numeric cell.";
     if (kind === "time_series_line" || kind === "time_series_area") {
       return `${presentations.find((item) => item.value === kind)?.label} requires a temporal and numeric column.`;
@@ -173,6 +179,7 @@ const presentationAssessments = (
 };
 
 const suggestedPresentation = (dataset: DashboardBuilderEntity | null) => {
+  if (dataset && configurationRecord(dataset, "origin")?.kind === "file") return "table";
   const assessments = presentationAssessments(dataset);
   const columns = datasetColumns(dataset);
   const rowCount = Number(
@@ -276,6 +283,8 @@ export const DashboardPublishPanel = ({
   } | null>(null);
   const [datasetEvidenceLoading, setDatasetEvidenceLoading] = useState(false);
   const [widgetTitle, setWidgetTitle] = useState("");
+  const [aggregation, setAggregation] = useState<WidgetAggregation>({ operation: "count" });
+  const importedWidgetDrafts = useRef(new Map<string, { title: string; kind: DashboardPresentationKind; aggregation: WidgetAggregation }>());
   const [dashboardTitle, setDashboardTitle] = useState("");
   const [reviewedWidgetVersionId, setReviewedWidgetVersionId] = useState("");
   const [reviewedDashboardVersionId, setReviewedDashboardVersionId] = useState("");
@@ -480,6 +489,11 @@ export const DashboardPublishPanel = ({
     selectedDatasetVersionId || currentDataset?.versionId || datasets[0]?.versionId || "";
   const selectedDataset =
     datasets.find((candidate) => candidate.versionId === effectiveDatasetVersionId) ?? null;
+  const selectedFile = Boolean(selectedDataset && configurationRecord(selectedDataset, "origin")?.kind === "file");
+  const activeAggregation = selectedFile && presentationKind !== "table" ? aggregation : undefined;
+  useEffect(() => {
+    if (panel === "widget" && selectedFile) importedWidgetDrafts.current.set(reviewedWidgetVersionId || effectiveDatasetVersionId, { title: widgetTitle, kind: presentationKind, aggregation });
+  }, [panel, selectedFile, reviewedWidgetVersionId, effectiveDatasetVersionId, widgetTitle, presentationKind, aggregation]);
   const selectedPresentationAssessments = presentationAssessments(selectedDataset);
   const compatiblePresentations = selectedPresentationAssessments.filter(
     (assessment) => assessment.compatible,
@@ -488,7 +502,9 @@ export const DashboardPublishPanel = ({
   const reviewedWidget = widgets.find(item => item.versionId === reviewedWidgetVersionId);
   const widgetUnchanged = Boolean(reviewedWidget && widgetTitle.trim() === entityTitle(reviewedWidget, "Chart")
     && effectiveDatasetVersionId === reviewedWidget.configuration.datasetVersionId
-    && presentationKind === reviewedWidget.configuration.presentationKind);
+    && presentationKind === reviewedWidget.configuration.presentationKind
+    && (activeAggregation === undefined ? reviewedWidget.configuration.aggregation === undefined
+      : (["operation", "valueColumnOrdinal", "groupColumnOrdinal", "seriesColumnOrdinal"] as const).every(key => activeAggregation[key] === configurationRecord(reviewedWidget, "aggregation")?.[key])));
   const placementDashboards = dashboards.filter(candidate =>
     !dashboards.some(other => other.id === candidate.id && other.ordinal > candidate.ordinal)
     && dashboardWidgetVersionIds(candidate).every(id => {
@@ -597,9 +613,11 @@ export const DashboardPublishPanel = ({
       const dataset = datasets.find(candidate => candidate.versionId === datasetVersionId) ?? null;
       setReviewedWidgetVersionId(saved?.versionId ?? "");
       setPlacementDashboardVersionId("");
-      setWidgetTitle(saved ? entityTitle(saved, "Chart") : "");
+      const draft = importedWidgetDrafts.current.get(saved?.versionId ?? datasetVersionId);
+      setWidgetTitle(draft?.title ?? (saved ? entityTitle(saved, "Chart") : ""));
+      setAggregation(draft?.aggregation ?? saved?.configuration.aggregation as WidgetAggregation ?? { operation: "count" });
       setSelectedDatasetVersionId(datasetVersionId);
-      setPresentationKind(saved ? saved.configuration.presentationKind as DashboardPresentationKind : suggestedPresentation(dataset));
+      setPresentationKind(draft?.kind ?? (saved ? saved.configuration.presentationKind as DashboardPresentationKind : suggestedPresentation(dataset)));
     }
     if (next === "dashboard") {
       const saved = dashboards.find(item => item.versionId === entityVersionId);
@@ -609,6 +627,7 @@ export const DashboardPublishPanel = ({
       setSelectedWidgetVersionIds(saved ? dashboardWidgetVersionIds(saved)
         : entityVersionId ? [entityVersionId] : widgets[0] ? [widgets[0].versionId] : []);
     }
+    setToast(null);
     setPanel(next);
   };
 
@@ -651,8 +670,10 @@ export const DashboardPublishPanel = ({
         datasetVersionId: effectiveDatasetVersionId,
         ...(widgetTitle.trim() ? { title: widgetTitle.trim() } : {}),
         presentationKind,
+        ...(activeAggregation ? { aggregation: activeAggregation } : {}),
         ...(reviewedWidgetVersionId ? { baseVersionId: reviewedWidgetVersionId } : {}),
       });
+      importedWidgetDrafts.current.delete(reviewedWidgetVersionId || effectiveDatasetVersionId);
       setWidgets((current) => [saved, ...current.filter((item) => item.versionId !== saved.versionId)]);
       setSelectedWidgetVersionIds((current) =>
         current.includes(saved.versionId) ? current : [...current, saved.versionId],
@@ -1094,7 +1115,7 @@ export const DashboardPublishPanel = ({
               </button>
             </header>
 
-            <div className="builder-review__body">
+            <div className={`builder-review__body${panel === "widget" && selectedFile ? " builder-imported-chart" : ""}`}>
               {error && (
                 <InlineNotification
                   kind="error"
@@ -1235,10 +1256,11 @@ export const DashboardPublishPanel = ({
 
               {panel === "widget" && (
                 <>
-                  <div className="builder-widget-preview" role="img" aria-label={presentationPreview(presentationKind)}>
+                  {!selectedFile && <div className="builder-widget-preview" role="img" aria-label={presentationPreview(presentationKind)}>
                     <span aria-hidden="true">▥</span>
                     <p>{presentationPreview(presentationKind)}</p>
-                  </div>
+                  </div>}
+                  {selectedFile && <p>{entityTitle(selectedDataset!, "Dataset")} · Saved version {selectedDataset!.ordinal} · {String(configurationRecord(selectedDataset!, "rowCount")?.returned ?? "Unknown")} complete rows</p>}
                   <TextInput
                     id="builder-widget-title"
                     labelText="Chart name"
@@ -1247,6 +1269,7 @@ export const DashboardPublishPanel = ({
                     placeholder="Untitled chart"
                     onChange={(event) => setWidgetTitle(event.currentTarget.value)}
                   />
+                  <Disclosure title="Change Dataset" open={selectedFile ? undefined : true}>
                   <Select
                     id="builder-widget-dataset"
                     labelText="Dataset"
@@ -1259,6 +1282,7 @@ export const DashboardPublishPanel = ({
                       setSelectedDatasetVersionId(datasetVersionId);
                       setPlacementDashboardVersionId("");
                       setPresentationKind(suggestedPresentation(dataset));
+                      setAggregation({ operation: "count" });
                     }}
                   >
                     {datasets.map((dataset) => (
@@ -1269,7 +1293,8 @@ export const DashboardPublishPanel = ({
                       />
                     ))}
                   </Select>
-                  <Select
+                  </Disclosure>
+                  {!selectedFile && <Select
                     id="builder-presentation-kind"
                     labelText="Visualization"
                     value={presentationKind}
@@ -1284,7 +1309,17 @@ export const DashboardPublishPanel = ({
                       <SelectItem key={presentation.value} value={presentation.value} text={presentation.label} />
                       );
                     })}
-                  </Select>
+                  </Select>}
+                  {selectedFile && <ImportedChartControls columns={datasetColumns(selectedDataset)} kind={presentationKind} value={aggregation} disabled={busy} onChange={setAggregation}
+                    presentations={presentations.filter(item => compatiblePresentations.some(assessment => assessment.kind === item.value))}
+                    onKindChange={kind => {
+                      setPresentationKind(kind);
+                      setAggregation(current => ({ ...current,
+                        groupColumnOrdinal: kind === "big_number" ? undefined : kind.startsWith("time_series") ? Number(datasetColumns(selectedDataset).find(column => ["date", "date-time"].includes(String(column.logicalType)))?.ordinal) : current.groupColumnOrdinal,
+                        seriesColumnOrdinal: undefined,
+                      }));
+                    }} />}
+                  {selectedFile && presentationKind !== "table" && <div className="builder-widget-preview" role="img" aria-label="Chart layout preview"><span aria-hidden="true">▥</span><p>Chart layout preview · Superset renders your saved calculation.</p></div>}
                   <Select id="builder-widget-placement" labelText="Add to Dashboard"
                     value={placementDashboardVersionId} disabled={busy}
                     helperText="Choose a Dashboard using the same data source, or save the chart for later."
@@ -1293,13 +1328,13 @@ export const DashboardPublishPanel = ({
                     {placementDashboards.map(item => <SelectItem key={item.versionId} value={item.versionId}
                       text={entityTitle(item, "Dashboard")} />)}
                   </Select>
-                  <section className="builder-review__evidence" aria-labelledby="widget-binding-title">
+                  {!selectedFile && <section className="builder-review__evidence" aria-labelledby="widget-binding-title">
                     <h3 id="widget-binding-title">Chart binding</h3>
                     <p>
                       Suggested: {presentations.find((item) => item.value === suggestedKind)?.label}
                     </p>
                     <p>{presentationBindingSummary(selectedDataset, presentationKind)}</p>
-                  </section>
+                  </section>}
                   <section className="builder-review__evidence" aria-labelledby="widget-compatibility-title">
                     <h3 id="widget-compatibility-title">Compatibility</h3>
                     <ul>

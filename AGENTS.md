@@ -52,7 +52,8 @@ cross-project order/acceptance; native reporting stays in OpenELIS. Extend the
 existing integration design and Dataset contracts, not a new spec family per
 lane. PostgreSQL connection and source-aware query publication are implemented;
 the CSV import/table foundation uses dedicated configured storage. Raw-row
-grouping and aggregation remain the next iteration. The selected
+grouping and aggregation use explicit reviewed Widget controls; local/server
+rendering and four-pathway acceptance remain separately tracked. The selected
 Spark pathway remains; connection tests do not establish lane acceptance. This does not add a competing model-ranking
 path. Existing AI-assisted Widget/Dashboard refinement remains Follow-on A after
 the four-pathway demonstration goal, supporting both Dataset origins.

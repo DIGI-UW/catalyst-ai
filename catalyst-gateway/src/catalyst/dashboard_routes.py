@@ -157,6 +157,7 @@ def install_dashboard_routes(app: FastAPI, builder: DashboardBuilder) -> None:
             entity = builder.save_widget(
                 dataset_version_id=str(payload["datasetVersionId"]),
                 title=str(payload.get("title") or ""),
+                aggregation=payload.get("aggregation"),
                 presentation_kind=(
                     str(payload["presentationKind"])
                     if payload.get("presentationKind") is not None

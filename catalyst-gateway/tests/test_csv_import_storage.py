@@ -314,3 +314,102 @@ def test_draft_and_saved_paging_preserve_complete_count_and_original_order(
     page = builder.imported_rows(saved["versionId"], offset=100, limit=100)
     assert page["rows"] == next_page["rows"]
     assert page["rowCount"] == next_page["rowCount"]
+
+
+def test_imported_summary_publication_and_versions_use_complete_file(builder, live_pg):
+    import json
+    import zipfile
+    from src.catalyst.contracts import ContractRegistry
+
+    # More rows than the 100-row preview; repeated results remain separate records.
+    draft = builder.import_store().create(
+        "turnaround.csv",
+        b"Section,Minutes\n"
+        + b"Virology,30\n" * 120
+        + b"Virology,90\nVirology,\nOther,\n",
+    )
+    dataset = builder.confirm_import(draft["importId"])
+    average = builder.save_widget(
+        dataset_version_id=dataset["versionId"],
+        title="Average turnaround",
+        presentation_kind="grouped_bar",
+        aggregation={
+            "operation": "average",
+            "valueColumnOrdinal": 1,
+            "groupColumnOrdinal": 0,
+        },
+    )
+    count = builder.save_widget(
+        dataset_version_id=dataset["versionId"],
+        title="All records",
+        presentation_kind="big_number",
+        aggregation={"operation": "count"},
+        base_version_id=average["versionId"],
+    )
+    assert count["id"] == average["id"] and count["ordinal"] == 2
+    assert (
+        builder._entity("widget", average["versionId"]).configuration["aggregation"][
+            "operation"
+        ]
+        == "average"
+    )
+    dashboard = builder.save_dashboard(
+        title="Summary", widget_version_ids=[average["versionId"], count["versionId"]]
+    )
+    publication = builder.publish(dashboard["versionId"])
+    ContractRegistry.default().validate(
+        "catalyst-superset-bundle-v1.schema.json", publication["manifest"]
+    )
+    with zipfile.ZipFile(
+        builder.outbox / publication["pointer"]["bundle"]["fileName"]
+    ) as bundle:
+        charts = {
+            item["slice_name"]: item["params"]
+            for item in (
+                json.loads(bundle.read(name))
+                for name in bundle.namelist()
+                if "/charts/" in name
+            )
+        }
+    assert charts["Average turnaround"]["x_axis"] == "c0"
+    assert charts["Average turnaround"]["metrics"][0]["aggregate"] == "AVG"
+    assert charts["Average turnaround"]["metrics"][0]["column"]["column_name"] == "c1"
+    assert charts["All records"]["metric"]["aggregate"] == "COUNT"
+    assert charts["All records"]["metric"]["column"]["column_name"] == "row_order"
+    assert dataset["configuration"]["origin"]["rowCount"] == 123
+    assert (
+        len(builder.imported_rows(dataset["versionId"], offset=100, limit=100)["rows"])
+        == 23
+    )
+    assert (
+        builder.publish(dashboard["versionId"])["pointer"]["bundle"]
+        == publication["pointer"]["bundle"]
+    )
+
+
+@pytest.mark.parametrize(
+    "summary",
+    [
+        None,
+        [],
+        {"operation": []},
+        {"operation": "median"},
+        {"operation": "average", "valueColumnOrdinal": 0},
+        {"operation": "count", "groupColumnOrdinal": True},
+        {"operation": "count", "groupColumnOrdinal": 99},
+        {"operation": "count", "sql": "SELECT arbitrary"},
+    ],
+)
+def test_invalid_imported_summary_does_not_save_a_widget(builder, live_pg, summary):
+    from src.catalyst.dashboard_builder import DashboardBuilderError
+
+    draft = builder.import_store().create("report.csv", b"ID,Minutes\n001,30\n")
+    dataset = builder.confirm_import(draft["importId"])
+    with pytest.raises(DashboardBuilderError):
+        builder.save_widget(
+            dataset_version_id=dataset["versionId"],
+            title="Invalid",
+            presentation_kind="grouped_bar",
+            aggregation=summary,
+        )
+    assert builder.list("widget") == []

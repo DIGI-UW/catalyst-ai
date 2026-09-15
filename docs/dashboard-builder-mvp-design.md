@@ -518,6 +518,14 @@ complete file from bounded query preview, and preserve save/retry behavior.
    including record count, as needed for a meaningful chart; preserve these
    choices in the Widget version. Never silently change Dataset SQL or apply
    pre-aggregated-result assumptions to an imported file.
+   For imports, follow the owner-approved
+   [chart-control addition](specs/openelis-reporting-integration/spec.md#imported-chart-review-addition--approved-14-september-2026):
+   name and saved-file context first, compact Display as / Show / Of / For each
+   controls, then the schematic preview. Keep Change Dataset and optional Split
+   into series available through disclosures; a required proportion split stays
+   open. Number of records, Total and Average have explicit complete-file and
+   blank-value semantics. Cancel/Escape and failed saves preserve draft choices.
+   Reuse neutral labels, typography and light/dark tokens from the approved mock.
 3. "Reads" block: label `0.75rem` `#525252`, then a `#f4f4f4` row (padding `0.75rem 1rem`) with dataset name and its Draft/Saved pill. When the dataset is unsaved, a `0.75rem` `#8e6a00` note: "Saving the widget saves this dataset too — publication includes the dataset before the chart."
 4. “Add to Dashboard” offers the latest saved version of each same-source
    Dashboard and “Save without placing”. It preserves existing order and widths,

@@ -356,16 +356,88 @@ def widget_bindings(
     raise DashboardBuilderError("Unsupported presentation kind.")
 
 
-def _metric(metric_column: dict[str, Any]) -> dict[str, Any]:
-    name = str(metric_column["name"])
+def imported_widget_bindings(
+    presentation_kind: str,
+    columns: list[dict[str, Any]],
+    aggregation: Any,
+) -> dict[str, Any]:
+    """Bind explicit raw-file summaries; legacy query widgets keep their semantics."""
+    if not isinstance(aggregation, dict) or set(aggregation) - {
+        "operation",
+        "valueColumnOrdinal",
+        "groupColumnOrdinal",
+        "seriesColumnOrdinal",
+    }:
+        raise DashboardBuilderError("Choose how to summarize the imported records.")
+    operation = aggregation.get("operation")
+    if not isinstance(operation, str) or operation not in {"count", "sum", "average"}:
+        raise DashboardBuilderError("Choose Number of records, Total or Average.")
+
+    def column(key: str) -> dict[str, Any] | None:
+        ordinal = aggregation.get(key)
+        if ordinal is None:
+            return None
+        if type(ordinal) is not int:
+            raise DashboardBuilderError("Summary columns must refer to this Dataset.")
+        found = next((item for item in columns if item["ordinal"] == ordinal), None)
+        if found is None:
+            raise DashboardBuilderError("Summary column is not in this Dataset.")
+        return _column_binding(found)
+
+    value = column("valueColumnOrdinal")
+    group = column("groupColumnOrdinal")
+    series = column("seriesColumnOrdinal")
+    if operation != "count" and (
+        value is None or value["logicalType"] not in {"integer", "decimal"}
+    ):
+        raise DashboardBuilderError("Total and Average require a Number column.")
+    if operation == "count" and value is not None:
+        raise DashboardBuilderError(
+            "Number of records counts rows, not a selected column."
+        )
+    if presentation_kind == "big_number" and (group or series):
+        raise DashboardBuilderError(
+            "Single value summarizes all records without grouping."
+        )
+    if presentation_kind.startswith("time_series") and (
+        group is None or group["logicalType"] not in {"date", "date-time"}
+    ):
+        raise DashboardBuilderError("Time series requires a Date grouping column.")
+    if series and (not group or series["ordinal"] == group["ordinal"]):
+        raise DashboardBuilderError("Choose different grouping and split columns.")
+    if presentation_kind == "proportion_bar" and not series:
+        raise DashboardBuilderError("100% stacked bar requires a split column.")
     return {
-        "aggregate": _SUPERSET_METRIC_AGGREGATE,
+        "importedRows": True,
+        "aggregation": {
+            key: val for key, val in aggregation.items() if val is not None
+        },
+        **({"metricColumn": value} if value else {}),
+        **(
+            {
+                "xColumn"
+                if presentation_kind.startswith("time_series")
+                else "categoryColumn": group
+            }
+            if group
+            else {}
+        ),
+        "seriesColumns": [series] if series else [],
+    }
+
+
+def _metric(
+    metric_column: dict[str, Any], aggregate: str = _SUPERSET_METRIC_AGGREGATE
+) -> dict[str, Any]:
+    name = str(metric_column.get("databaseName", metric_column["name"]))
+    return {
+        "aggregate": aggregate,
         "column": {"column_name": name},
         "datasourceWarning": False,
         "expressionType": "SIMPLE",
         "hasCustomLabel": False,
-        "label": f"{_SUPERSET_METRIC_AGGREGATE}({name})",
-        "optionName": f"metric_{_SUPERSET_METRIC_AGGREGATE.lower()}_{name}",
+        "label": f"{aggregate}({name})",
+        "optionName": f"metric_{aggregate.lower()}_{name}",
         "sqlExpression": None,
     }
 
@@ -400,7 +472,24 @@ def _native_chart(
             ),
         }
 
-    metric = _metric(bindings["metricColumn"])
+    summary = bindings.get("aggregation")
+    if summary:
+        metric = _metric(
+            bindings.get("metricColumn", {"name": "row_order"}),
+            {"count": "COUNT", "sum": "SUM", "average": "AVG"}[summary["operation"]],
+        )
+        metric["hasCustomLabel"] = True
+        metric["label"] = (
+            "Number of records"
+            if summary["operation"] == "count"
+            else f"{'Total' if summary['operation'] == 'sum' else 'Average'} of {bindings['metricColumn']['name']}"
+        )
+    else:
+        metric = _metric(bindings["metricColumn"])
+
+    def native_column(column: dict[str, Any]) -> str:
+        return str(column.get("databaseName", column["name"]))
+
     if presentation_kind == "big_number":
         return "big_number_total", {
             "viz_type": "big_number_total",
@@ -414,22 +503,31 @@ def _native_chart(
         )
         return viz_type, {
             "viz_type": viz_type,
-            "x_axis": bindings["xColumn"]["name"],
+            "x_axis": native_column(bindings["xColumn"]),
             "metrics": [metric],
             "row_limit": 10000,
             "show_legend": True,
-            "groupby": [column["name"] for column in bindings["seriesColumns"]],
+            "groupby": [native_column(column) for column in bindings["seriesColumns"]],
+            **({"time_grain_sqla": None, "time_range": "No filter"} if summary else {}),
         }
 
-    params = {
+    params: dict[str, Any] = {
         "viz_type": "echarts_timeseries_bar",
-        "x_axis": bindings["categoryColumn"]["name"],
+        "x_axis": native_column(bindings["categoryColumn"])
+        if bindings.get("categoryColumn")
+        else {
+            "expressionType": "SQL",
+            "sqlExpression": "'All records'",
+            "label": "All records",
+        },
         "metrics": [metric],
         "row_limit": 10000,
         "show_legend": True,
     }
     if bindings["seriesColumns"]:
-        params["groupby"] = [column["name"] for column in bindings["seriesColumns"]]
+        params["groupby"] = [
+            native_column(column) for column in bindings["seriesColumns"]
+        ]
     if presentation_kind in {"stacked_bar", "proportion_bar"}:
         params["stack"] = "Stack"
     if presentation_kind == "proportion_bar":
@@ -790,6 +888,7 @@ class DashboardBuilder:
         title: str,
         presentation_kind: str | None = None,
         base_version_id: str | None = None,
+        aggregation: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         dataset = self._entity("dataset", dataset_version_id)
         row_count = int(dataset.configuration.get("rowCount", {}).get("returned", 0))
@@ -800,16 +899,22 @@ class DashboardBuilder:
             else suggest_presentation(dataset.configuration["columns"], row_count)
         )
         kind = presentation_kind or "table"
-        if imported and kind != "table":
+        if aggregation is not None and (not imported or kind == "table"):
             raise DashboardBuilderError(
-                "Imported rows currently support tables. Reviewed grouping and summary charts follow in the next iteration."
+                "Summary controls apply to imported charts; tables retain original rows."
             )
         if kind not in _PRESENTATION_KINDS:
             raise DashboardBuilderError("Unsupported presentation kind.")
-        bindings = widget_bindings(
-            presentation_kind=kind,
-            columns=dataset.configuration["columns"],
-            row_count=row_count,
+        bindings = (
+            imported_widget_bindings(
+                kind, dataset.configuration["columns"], aggregation
+            )
+            if imported and kind != "table"
+            else widget_bindings(
+                presentation_kind=kind,
+                columns=dataset.configuration["columns"],
+                row_count=row_count,
+            )
         )
         if imported:
             bindings["importedRows"] = True
@@ -821,6 +926,11 @@ class DashboardBuilder:
             "suggestedKind": suggestion,
             "columns": dataset.configuration["columns"],
             "bindings": bindings,
+            **(
+                {"aggregation": bindings["aggregation"]}
+                if "aggregation" in bindings
+                else {}
+            ),
         }
         base = self._entity("widget", base_version_id) if base_version_id else None
         return self._append(
@@ -1146,7 +1256,11 @@ class DashboardBuilder:
                     "compatibilityDigest": canonical_sha256(
                         {"suggestedKind": item.configuration["suggestedKind"]}
                     ),
-                    "vizMappingRevision": "catalyst.superset.viz.schema.v1",
+                    "vizMappingRevision": (
+                        "catalyst.superset.viz.import-summary.v1"
+                        if item.configuration.get("aggregation")
+                        else "catalyst.superset.viz.schema.v1"
+                    ),
                     "author": {"actorKind": "human"},
                     "createdAt": item.created_at,
                 }
@@ -1174,7 +1288,14 @@ class DashboardBuilder:
                         if item.configuration.get("origin", {}).get("kind") != "file"
                     }
                 ),
-                "vizMappingRevisions": ["catalyst.superset.viz.schema.v1"],
+                "vizMappingRevisions": sorted(
+                    {
+                        "catalyst.superset.viz.import-summary.v1"
+                        if item.configuration.get("aggregation")
+                        else "catalyst.superset.viz.schema.v1"
+                        for item in widgets
+                    }
+                ),
             },
             "assetMembers": assets,
             "assetContentDigest": canonical_sha256(assets),

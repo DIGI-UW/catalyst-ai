@@ -447,3 +447,11 @@
 .builder-import .workbench-execution__pagination { flex-wrap: wrap; }
 
 .builder-import-review { display: grid; gap: 1rem; }
+
+.builder-summary-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.builder-summary-controls > * { min-width: 0; }
+@media (max-width: 640px) {
+  .builder-summary-controls { grid-template-columns: 1fr; }
+}
+.builder-imported-chart .cds--label { font-size: 1rem; font-weight: 600; color: var(--cds-text-primary); }
+.builder-imported-chart .cds--text-input, .builder-imported-chart .cds--select-input { font-size: 1rem; min-height: 48px; }

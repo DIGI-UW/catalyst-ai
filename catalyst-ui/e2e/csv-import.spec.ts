@@ -47,6 +47,48 @@ for (const theme of ["light", "dark"] as const) test(`imports a reviewed CSV thr
   expect(writes.some(url => /sessions|execute|generate/.test(url))).toBe(false);
 });
 
+for (const theme of ["light", "dark"] as const) test(`saves and reopens reviewed imported chart calculations (${theme})`, async ({ page }, testInfo) => {
+  test.skip(process.env.CATALYST_CSV_BROWSER !== "1", "Requires a configured disposable import database and real Gateway");
+  const title = `Turnaround summary ${theme} ${Date.now()}`;
+  const writes: string[] = [];
+  page.on("request", request => { if (request.method() === "POST") writes.push(request.url()); });
+  await page.emulateMedia({ colorScheme: theme });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Saved work", exact: true }).click();
+  await page.getByRole("button", { name: "Upload CSV", exact: true }).click();
+  await page.locator('input[type="file"]').setInputFiles({name:"turnaround.csv", mimeType:"text/csv",
+    buffer:Buffer.from('Section,Minutes\n' + 'Virology,30\n'.repeat(120) + 'Virology,90\nVirology,\nOther,\n')});
+  await page.getByLabel("Dataset name").fill(title);
+  await page.getByRole("button", { name: "Confirm import and save Dataset" }).click();
+  const dialog = page.getByRole("dialog", { name: "Review panel" });
+  await expect(dialog.getByRole("table", { name: "Imported Dataset rows" })).toBeVisible();
+  await dialog.getByRole("button", { name: "Close", exact:true }).first().click();
+  await page.getByRole("article", {name:title, exact:true}).getByRole("button", {name:"Create chart or table", exact:true}).click();
+  await dialog.getByLabel("Chart name").fill(title + " chart");
+  await dialog.getByLabel("Display as").selectOption("grouped_bar");
+  await dialog.getByLabel("Show").selectOption("average");
+  await dialog.getByLabel("For each").selectOption("0");
+  await page.keyboard.press("Escape");
+  await page.getByRole("article", {name:title, exact:true}).getByRole("button", {name:"Create chart or table", exact:true}).click();
+  await expect(dialog.getByLabel("Show")).toHaveValue("average");
+  await expect(dialog.getByLabel("Of")).toHaveValue("1");
+  await page.screenshot({path:testInfo.outputPath("imported-chart-desktop.png"),fullPage:false});
+  await page.setViewportSize({width:390,height:844});
+  await page.screenshot({path:testInfo.outputPath("imported-chart-narrow.png"),fullPage:false});
+  const response = page.waitForResponse(r => r.url().endsWith('/widgets') && r.request().method() === 'POST');
+  await dialog.getByRole("button", {name:"Save chart or table",exact:true}).click();
+  const saved = await (await response).json();
+  expect(saved.configuration.aggregation).toEqual({operation:"average",valueColumnOrdinal:1,groupColumnOrdinal:0});
+  await page.reload();
+  await page.getByRole("button", {name:"Saved work",exact:true}).click();
+  await page.getByRole("button", {name:"Charts and tables",exact:true}).click();
+  await page.getByRole("button", {name:`Review ${title} chart`,exact:true}).click();
+  await expect(dialog.getByLabel("Show")).toHaveValue("average");
+  await expect(dialog.getByLabel("For each")).toHaveValue("0");
+  await expect(dialog.getByRole("button",{name:"Saved",exact:true})).toBeDisabled();
+  expect(writes.some(url => /sessions|execute|generate/.test(url))).toBe(false);
+});
+
 
 test("web proxy accepts a report above 1 MB and preserves the Gateway upload limit", async ({ request }) => {
   test.skip(process.env.CATALYST_CSV_BROWSER !== "1", "Requires the real web proxy and configured import storage");

@@ -32,7 +32,7 @@ owns this extension's sequence and cross-project acceptance. The
 [integration design](specs/openelis-reporting-integration/spec.md) additions
 were approved on 14 September 2026. PostgreSQL connection execution and
 source-aware query publication and the CSV import/table foundation are implemented.
-Raw-row grouping and summary charts remain the next iteration. Real-source lane acceptance
+Raw-row grouping and summary charts use explicit imported-Widget controls. Real-source lane acceptance
 remains separate.
 
 ## Product boundary
@@ -349,6 +349,14 @@ tracked in the integration roadmap.
   record counts. Store them with the immutable Widget version. Do not silently
   apply aggregation intended for already-aggregated query results. Existing
   query-backed Widgets retain their saved data meaning.
+- Imported charts explicitly select Number of records, Total or Average. Count
+  includes every record, including repeats and blank values. Total/Average accept
+  only reviewed numeric columns and exclude blanks; all-blank groups remain null.
+  Grouping and optional split use selected Dataset column ordinals; time series
+  require a Date column. Single value has no hidden grouping. Calculations use
+  the complete immutable import, never the bounded preview page. Tables retain
+  original rows without aggregation. Cancel/Escape and failed saves retain the
+  chart draft; reopening a saved version restores its reviewed choices.
 
 ### Dashboard
 

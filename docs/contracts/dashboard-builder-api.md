@@ -61,9 +61,10 @@ and publication. The native bundle references the immutable table, labels its
 columns with the original headings and retains row order and duplicates.
 `datasetRef` accepts either the unchanged query contract or the file-origin
 contract. File bundles contain no fabricated compiler history or result rows.
-Reviewed grouping, aggregation and record-count charts are the next integration
-iteration; non-table imported Widgets remain unavailable until those controls
-can express their meaning. Query-backed visualization behavior is unchanged.
+Reviewed grouping, aggregation and record-count charts use the explicit Widget
+controls below. Their native mapping revision is
+`catalyst.superset.viz.import-summary.v1`. Earlier table and query mappings stay
+unchanged, as does query-backed visualization behavior.
 
 ### Import storage configuration
 
@@ -228,6 +229,34 @@ keeps Save disabled when its visible editor differs from that execution.
 `table`. The reviewed UI sends the person's compatible selection. The Gateway
 derives bindings from the Dataset's typed columns and rejects an incompatible
 type.
+
+Imported chart requests also require `aggregation`, for example:
+
+```json
+{
+  "datasetVersionId": "imported-dataset-version-id",
+  "title": "Average turnaround by section",
+  "presentationKind": "grouped_bar",
+  "aggregation": {
+    "operation": "average",
+    "valueColumnOrdinal": 1,
+    "groupColumnOrdinal": 0
+  }
+}
+```
+
+`operation` is `count`, `sum` or `average`. Sum/Average require a numeric
+`valueColumnOrdinal`; count has none and includes records with blank cells.
+Optional `groupColumnOrdinal` and `seriesColumnOrdinal` refer to distinct columns
+of the saved Dataset. Time series requires a temporal group; proportion bars
+require a split. Big number has neither group nor split. A bar without a group
+shows All records. No date filter or grain is silently introduced.
+Unknown options, invalid ordinals and incompatible types return 422 before any
+Widget is saved. Tables and query-backed Widgets reject imported aggregation
+options and retain their prior behavior. The reviewed choices are saved in both
+the Widget configuration and its bindings; `baseVersionId` creates a new version
+with the same logical identity. Native publication maps physical import columns
+to their reviewed labels and uses COUNT, SUM or AVG over the complete file.
 
 ### Save Dashboard
 
