@@ -71,6 +71,10 @@ Another upload creates a separate version; previously saved values remain fixed.
 To review reopening: Saved work → Upload CSV → use the fictional example →
 confirm import and save → Open Dataset. The review wrapper explains this path
 and that reloading resets mock data; production persistence remains required.
+The review-only **Try CSV import** shortcut (also `?try=csv`) opens the import
+review with the fictional file and name prefilled. It preserves any existing
+import draft and question; saving still requires explicit confirmation. This
+shortcut belongs to the review wrapper, not the application navigation.
 
 Both query and file origins appear under **Datasets**, using the same approved
 cards and review treatment. Query-specific actions remain limited to queries.

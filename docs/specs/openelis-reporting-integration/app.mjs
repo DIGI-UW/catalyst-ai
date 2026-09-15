@@ -226,3 +226,14 @@ if (app === 'parity') {
   document.querySelector('#user-state').closest('label').hidden = true;
 }
 render();
+
+function tryCsvImport() {
+  if (app !== 'catalyst' || user !== 'signed-in') return;
+  catalyst.page = 'import'; catalyst.sourcePicker = false; catalyst.message = '';
+  if (catalyst.imported || catalyst.importing) render('main');
+  else void loadFile(new File([csv(exportRows(defaultFilters))], 'fictional-virology-august-2026.csv', { type: 'text/csv' }));
+}
+window.addEventListener('message', event => {
+  if (event.origin === location.origin && event.source === parent && event.data?.type === 'preview:csv') tryCsvImport();
+});
+if (new URLSearchParams(location.search).get('try') === 'csv') tryCsvImport();
