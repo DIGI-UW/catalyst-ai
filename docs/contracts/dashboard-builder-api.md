@@ -63,8 +63,10 @@ columns with the original headings and retains row order and duplicates.
 contract. File bundles contain no fabricated compiler history or result rows.
 Reviewed grouping, aggregation and record-count charts use the explicit Widget
 controls below. Their native mapping revision is
-`catalyst.superset.viz.import-summary.v1`. Earlier table and query mappings stay
-unchanged, as does query-backed visualization behavior.
+`catalyst.superset.viz.import-summary.v2`. Earlier table and query mappings stay
+unchanged, as does query-backed visualization behavior. Version 2 corrects the
+ungrouped category expression for PostgreSQL; saved Datasets and Widgets do not
+require migration.
 
 ### Import storage configuration
 

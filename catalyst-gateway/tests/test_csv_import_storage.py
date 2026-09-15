@@ -388,6 +388,78 @@ def test_imported_summary_publication_and_versions_use_complete_file(builder, li
 
 
 @pytest.mark.parametrize(
+    "operation, expected", [("count", 122), ("sum", 4800), ("average", 40)]
+)
+def test_ungrouped_imported_summary_executes_published_grouping_in_postgres(
+    builder, live_pg, operation, expected
+):
+    import json
+    import zipfile
+
+    import psycopg
+    from psycopg import sql
+
+    # Rows beyond the preview change every summary; blanks and duplicates count
+    # as records, while numeric summaries ignore the two blank values.
+    draft = builder.import_store().create(
+        "all-records.csv",
+        b"Section,Minutes\n"
+        + b"Virology,30\n" * 100
+        + b"Other,90\n" * 20
+        + b"Virology,\nOther,\n",
+    )
+    dataset = builder.confirm_import(draft["importId"])
+    aggregation = {"operation": operation}
+    if operation != "count":
+        aggregation["valueColumnOrdinal"] = 1
+    widget = builder.save_widget(
+        dataset_version_id=dataset["versionId"],
+        title="Complete file summary",
+        presentation_kind="grouped_bar",
+        aggregation=aggregation,
+    )
+    dashboard = builder.save_dashboard(
+        title="All records", widget_version_ids=[widget["versionId"]]
+    )
+    publication = builder.publish(dashboard["versionId"])
+    assert publication["manifest"]["widgets"][0]["vizMappingRevision"] == (
+        "catalyst.superset.viz.import-summary.v2"
+    )
+    assert publication["manifest"]["generator"]["vizMappingRevisions"] == [
+        "catalyst.superset.viz.import-summary.v2"
+    ]
+    with zipfile.ZipFile(
+        builder.outbox / publication["pointer"]["bundle"]["fileName"]
+    ) as bundle:
+        native_dataset = json.loads(
+            bundle.read(
+                next(name for name in bundle.namelist() if "/datasets/" in name)
+            )
+        )
+        params = json.loads(
+            bundle.read(next(name for name in bundle.namelist() if "/charts/" in name))
+        )["params"]
+    axis = params["x_axis"]
+    metric = params["metrics"][0]
+    # Superset 6.1 repeats its selected adhoc axis expression in GROUP BY
+    # (superset/models/helpers.py:get_sqla_query). Exercise that SQL shape,
+    # rather than only checking the published expression or aggregating locally.
+    query = sql.SQL(
+        "SELECT {axis} AS {axis_label}, {aggregate}({column}) AS {metric_label} "
+        "FROM {table} GROUP BY {axis}"
+    ).format(
+        axis=sql.SQL(axis["sqlExpression"]),
+        axis_label=sql.Identifier(axis["label"]),
+        aggregate=sql.SQL(metric["aggregate"]),
+        column=sql.Identifier(metric["column"]["column_name"]),
+        metric_label=sql.Identifier(metric["label"]),
+        table=sql.Identifier(native_dataset["schema"], native_dataset["table_name"]),
+    )
+    with psycopg.connect(live_pg) as connection:
+        assert connection.execute(query).fetchall() == [("All records", expected)]
+
+
+@pytest.mark.parametrize(
     "summary",
     [
         None,
