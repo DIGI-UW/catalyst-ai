@@ -241,7 +241,7 @@ for (const source of ["openelis", "openmrs-hiv"]) {
       const dataset = await saveQuery(queryTitle);
       timing.mark("saved-query");
       await followup.fill("Keep this question for later");
-      await library("Saved queries");
+      await library("Datasets");
       const savedCard = page.getByRole("article", { name: queryTitle, exact: true });
       await savedCard.scrollIntoViewIfNeeded();
       await dwell(5000);
@@ -311,7 +311,7 @@ for (const source of ["openelis", "openmrs-hiv"]) {
       const chartIds: string[] = [];
       for (const [index, kind] of scenario.chartKinds.entries()) {
         await page.getByRole("button", { name: "New chart or table", exact: true }).click();
-        await panel.getByLabel("Saved query", { exact: true }).selectOption(reused.versionId);
+        await panel.getByLabel("Dataset", { exact: true }).selectOption(reused.versionId);
         await panel.getByLabel("Chart name", { exact: true }).fill(chartTitles[index]!);
         const visualization = panel.getByLabel("Visualization", { exact: true });
         await expect(visualization).toBeVisible();

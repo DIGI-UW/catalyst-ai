@@ -1,3 +1,4 @@
+import type { CsvImportDraft, ImportedRows } from "./types";
 import type {
   CatalystExecutionResponse,
   CatalystPreview,
@@ -125,6 +126,11 @@ export interface CatalystApi {
     browserState: Record<string, unknown>,
     signal?: AbortSignal,
   ): Promise<WorkbenchSession>;
+  uploadCsv?(file: File, signal?: AbortSignal): Promise<CsvImportDraft>;
+  reviewCsvImport?(importId: string, offset?: number, signal?: AbortSignal): Promise<CsvImportDraft>;
+  updateCsvImport?(importId: string, input: { title: string; types: CsvImportDraft["types"] }, signal?: AbortSignal): Promise<CsvImportDraft>;
+  confirmCsvImport?(importId: string, signal?: AbortSignal): Promise<DashboardBuilderEntity>;
+  getImportedRows?(versionId: string, offset?: number, signal?: AbortSignal): Promise<ImportedRows>;
   listDashboardDatasets?(signal?: AbortSignal): Promise<DashboardBuilderCollection>;
   listDashboardWidgets?(signal?: AbortSignal): Promise<DashboardBuilderCollection>;
   listDashboards?(signal?: AbortSignal): Promise<DashboardBuilderCollection>;
@@ -635,6 +641,41 @@ export const createCatalystApi = ({
         throw new CatalystApiError(errorMessage(body, response.status), response.status);
       }
       return body as unknown as WorkbenchSession;
+    },
+
+    async uploadCsv(file, signal) {
+      const response = await fetcher(`${root}/dashboard-builder/datasets/imports?filename=${encodeURIComponent(file.name)}`, {
+        method: "POST", headers: { "Content-Type": "text/csv" }, body: file, signal,
+      });
+      const body = await parseJson(response);
+      if (!response.ok || !isRecord(body) || typeof body.importId !== "string") throw new CatalystApiError(errorMessage(body, response.status), response.status);
+      return body as unknown as CsvImportDraft;
+    },
+    async reviewCsvImport(importId, offset = 0, signal) {
+      const response = await fetcher(`${root}/dashboard-builder/datasets/imports/${encodeURIComponent(importId)}?offset=${offset}`, { signal });
+      const body = await parseJson(response);
+      if (!response.ok || !isRecord(body) || typeof body.importId !== "string") throw new CatalystApiError(errorMessage(body, response.status), response.status);
+      return body as unknown as CsvImportDraft;
+    },
+    async updateCsvImport(importId, input, signal) {
+      const response = await fetcher(`${root}/dashboard-builder/datasets/imports/${encodeURIComponent(importId)}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input), signal,
+      });
+      const body = await parseJson(response);
+      if (!response.ok || !isRecord(body) || typeof body.importId !== "string") throw new CatalystApiError(errorMessage(body, response.status), response.status);
+      return body as unknown as CsvImportDraft;
+    },
+    async confirmCsvImport(importId, signal) {
+      const response = await fetcher(`${root}/dashboard-builder/datasets/imports/${encodeURIComponent(importId)}/confirm`, { method: "POST", signal });
+      const body = await parseJson(response);
+      if (!response.ok || !isDashboardEntity(body)) throw new CatalystApiError(errorMessage(body, response.status), response.status);
+      return body;
+    },
+    async getImportedRows(versionId, offset = 0, signal) {
+      const response = await fetcher(`${root}/dashboard-builder/datasets/${encodeURIComponent(versionId)}/rows?offset=${offset}&limit=100`, { signal });
+      const body = await parseJson(response);
+      if (!response.ok || !isRecord(body) || !Array.isArray(body.rows)) throw new CatalystApiError(errorMessage(body, response.status), response.status);
+      return body as unknown as ImportedRows;
     },
 
     async listDashboardDatasets(signal) {

@@ -36,6 +36,8 @@ class GatewayConfig:
     default_query_profile_id: str
     superset_outbox_path: str
     superset_receipts_path: str
+    import_source: DataSourceConfig | None = None
+    import_directory: str | None = None
 
 
 def _data_source(entry: dict) -> DataSourceConfig:
@@ -71,6 +73,25 @@ def _load_extra_data_sources() -> tuple[DataSourceConfig, ...]:
     return tuple(_data_source(entry) for entry in raw.get("dataSources", []))
 
 
+def _import_source() -> DataSourceConfig | None:
+    uri = os.getenv("CATALYST_IMPORT_DATABASE_URI")
+    if not uri:
+        return None
+    superset_uri = os.getenv("CATALYST_IMPORT_SUPERSET_URI")
+    if not superset_uri:
+        raise ValueError(
+            "CSV storage requires CATALYST_IMPORT_SUPERSET_URI for its read-only publication connection."
+        )
+    return DataSourceConfig(
+        source_id="catalyst-imports",
+        label="Uploaded files",
+        connection_uri=uri,
+        dialect="postgresql",
+        dialect_adapter="postgresql",
+        superset_uri=superset_uri,
+    )
+
+
 def load_config() -> GatewayConfig:
     default_source_id = os.getenv("CATALYST_DATA_SOURCE_ID", "openelis")
     default_source = DataSourceConfig(
@@ -98,6 +119,8 @@ def load_config() -> GatewayConfig:
         execution_lease_seconds=int(
             os.getenv("CATALYST_EXECUTION_LEASE_SECONDS", "60")
         ),
+        import_source=_import_source(),
+        import_directory=os.getenv("CATALYST_IMPORT_DIRECTORY"),
         data_sources=data_sources,
         default_data_source_id=default_source_id,
         default_query_profile_id=os.getenv(

@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 from typing import Any
+import sqlite3
 
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 
 from .dashboard_builder import DashboardBuilder, DashboardBuilderError
+from .csv_import import CsvImportError
+from .import_store import MAX_IMPORT_BYTES
+from starlette.concurrency import run_in_threadpool
 
 
 def _error(status: int, code: str, message: str) -> JSONResponse:
@@ -58,6 +62,87 @@ def install_dashboard_routes(app: FastAPI, builder: DashboardBuilder) -> None:
         except DashboardBuilderError as error:
             return _error(422, "dataset_not_saveable", str(error))
         return JSONResponse(status_code=201, content=entity)
+
+    @app.post(f"{root}/datasets/imports")
+    async def upload_csv(request: Request, filename: str = "") -> JSONResponse:
+        try:
+            store = builder.import_store()
+            content = bytearray()
+            async for part in request.stream():
+                if len(content) + len(part) > MAX_IMPORT_BYTES:
+                    return _error(
+                        413, "file_too_large", "Choose a CSV no larger than 10 MB."
+                    )
+                content.extend(part)
+            draft = await run_in_threadpool(store.create, filename, bytes(content))
+        except CsvImportError as error:
+            return _error(422, "import_not_ready", str(error))
+        except (OSError, sqlite3.Error):
+            return _error(
+                503,
+                "import_not_ready",
+                "Your file could not be stored. Keep it selected and retry when storage is available.",
+            )
+        return JSONResponse(status_code=201, content=draft)
+
+    @app.get(f"{root}/datasets/imports/{{import_id}}")
+    async def review_import(import_id: str, offset: int = 0) -> JSONResponse:
+        try:
+            draft = await run_in_threadpool(builder.review_import, import_id, offset)
+        except CsvImportError as error:
+            return _error(422, "import_not_ready", str(error))
+        return JSONResponse(content=draft)
+
+    @app.patch(f"{root}/datasets/imports/{{import_id}}")
+    async def update_import(import_id: str, request: Request) -> JSONResponse:
+        payload = await _body(request)
+        if isinstance(payload, JSONResponse):
+            return payload
+        types = payload.get("types")
+        title = payload.get("title")
+        if (
+            not isinstance(types, list)
+            or not all(isinstance(kind, str) for kind in types)
+            or not isinstance(title, str)
+        ):
+            return _error(
+                400,
+                "invalid_request",
+                "Provide a name and reviewed type for each column.",
+            )
+        try:
+            draft = await run_in_threadpool(
+                builder.update_import, import_id, title=title, types=types
+            )
+        except CsvImportError as error:
+            return _error(422, "import_not_ready", str(error))
+        return JSONResponse(content=draft)
+
+    @app.post(f"{root}/datasets/imports/{{import_id}}/confirm")
+    async def confirm_import(import_id: str) -> JSONResponse:
+        try:
+            dataset = await run_in_threadpool(builder.confirm_import, import_id)
+        except (CsvImportError, DashboardBuilderError) as error:
+            return _error(422, "import_not_saved", str(error))
+        except (OSError, sqlite3.Error):
+            return _error(
+                503,
+                "import_not_saved",
+                "The save could not be completed. Your draft is retained; try again.",
+            )
+        return JSONResponse(status_code=201, content=dataset)
+
+    @app.get(f"{root}/datasets/{{version_id}}/rows")
+    async def imported_rows(
+        version_id: str, offset: int = 0, limit: int = 100
+    ) -> JSONResponse:
+        try:
+            rows = await run_in_threadpool(
+                builder.imported_rows, version_id, offset=offset, limit=limit
+            )
+        except (CsvImportError, DashboardBuilderError) as error:
+            return _error(422, "dataset_rows_unavailable", str(error))
+        return JSONResponse(content=rows)
 
     @app.get(f"{root}/widgets")
     async def list_widgets() -> dict[str, Any]:

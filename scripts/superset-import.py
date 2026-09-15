@@ -15,6 +15,7 @@ import uuid
 import zipfile
 from pathlib import Path, PurePosixPath
 from typing import Any, NoReturn
+from urllib.parse import parse_qsl, urlencode, urlsplit
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -461,6 +462,36 @@ def _bundle_database_uri(bundle_path: Path, manifest: dict[str, Any]) -> str:
         )
 
 
+def _file_bundle(manifest: dict[str, Any]) -> bool:
+    datasets = manifest.get("datasets", [])
+    return bool(datasets) and all(
+        item.get("origin", {}).get("kind") == "file" for item in datasets
+    )
+
+
+def _resolve_import_connection(manifest: dict[str, Any], asset_uri: str) -> str:
+    """Resolve only this import store's secret; the bundle still owns its endpoint."""
+    if not _file_bundle(manifest):
+        return asset_uri
+    configured = os.environ.get("CATALYST_IMPORT_SUPERSET_URI", "")
+    parsed = urlsplit(configured)
+    host = parsed.netloc.rsplit("@", 1)[-1]
+    authority = f"{parsed.username}@{host}" if parsed.username is not None else host
+    options = [
+        (key, value)
+        for key, value in parse_qsl(parsed.query, keep_blank_values=True)
+        if key.lower() not in {"password", "passfile", "sslpassword", "sslkey"}
+    ]
+    public_uri = parsed._replace(netloc=authority, query=urlencode(options)).geturl()
+    if not configured or public_uri != asset_uri:
+        _fail(
+            "credential_resolution",
+            "import_connection_not_configured",
+            "Configure the import store's matching read-only Superset connection. The bundle's endpoint cannot be substituted.",
+        )
+    return configured
+
+
 def _reconcile_database(manifest: dict[str, Any], analytics_uri: str) -> dict[str, Any]:
     """Refuse to change a connection shared by previously imported dashboards.
 
@@ -480,6 +511,17 @@ def _reconcile_database(manifest: dict[str, Any], analytics_uri: str) -> dict[st
             db.session.query(Database).filter_by(uuid=database_uuid).one_or_none()
         )
         if existing is None:
+            if _file_bundle(manifest):
+                # Provision this exact new native connection with deployment-only
+                # credentials. Existing connections are never silently changed.
+                db.session.add(
+                    Database(
+                        database_name=f"Catalyst imported files {str(database_uuid)[:12]}",
+                        sqlalchemy_uri=analytics_uri,
+                        uuid=database_uuid,
+                    )
+                )
+                db.session.commit()
             return {"present": False, "reconnected": False}
 
         previous = existing.sqlalchemy_uri_decrypted
@@ -796,7 +838,10 @@ def run_import(*, bootstrap: bool = False) -> int:
             validate_manifest(manifest, pointer, contracts)
             importer_revision = require_exact_importer_revision()
             reconciliation = _reconcile_database(
-                manifest, _bundle_database_uri(bundle_path, manifest)
+                manifest,
+                _resolve_import_connection(
+                    manifest, _bundle_database_uri(bundle_path, manifest)
+                ),
             )
             actual_command = [
                 "superset",

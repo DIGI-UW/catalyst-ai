@@ -1,10 +1,10 @@
+import { TypedRowsTable, TaggedCellValue } from "./TypedRowsTable";
 import { Disclosure } from "./Disclosure";
 import { Button, InlineNotification, Tag } from "@carbon/react";
 import { useState } from "react";
 import type {
   BoundParameter,
   ParameterType,
-  TaggedCell,
   WorkbenchEditorCatalog,
   WorkbenchExecution,
   WorkbenchSession,
@@ -110,23 +110,6 @@ const parseParameterValue = (source: string, type: ParameterType): unknown => {
     }
   }
   return source;
-};
-
-const renderTaggedCell = (cell: TaggedCell | undefined) => {
-  if (!cell || cell.type === "null") {
-    return <span aria-label="No value">—</span>;
-  }
-  if (cell.type === "string" && !cell.value.trim()) {
-    return (
-      <span className="workbench-execution__blank-cell" aria-label="Empty string">
-        Empty string
-      </span>
-    );
-  }
-  if (cell.type === "json" || cell.type === "array") {
-    return JSON.stringify(cell.value);
-  }
-  return String(cell.value);
 };
 
 const executionResultWarnings = (
@@ -325,7 +308,7 @@ export const ExecutionPreview = ({ execution, questionNumber }: {
         <caption>First {rows.length} of {result.rowCount.returned} returned {result.rowCount.returned === 1 ? "row" : "rows"}</caption>
         <thead><tr>{columnOrder.map(index => <th key={index} scope="col">{result.columns[index]!.name}</th>)}</tr></thead>
         <tbody>{rows.map((row, rowIndex) => <tr key={rowIndex}>
-          {columnOrder.map(index => <td key={index}>{renderTaggedCell(row[index])}</td>)}
+          {columnOrder.map(index => <td key={index}><TaggedCellValue cell={row[index]} /></td>)}
         </tr>)}</tbody>
       </table>
     </div>
@@ -452,9 +435,6 @@ export const ExecutionResult = ({
       </section>
     );
   }
-  const columnOrder = result.columns
-    .map((_, index) => index)
-    .sort((left, right) => result.columns[left]!.ordinal - result.columns[right]!.ordinal);
   const resultWarnings = executionResultWarnings(result);
   const boundedPageSize = pageSize && pageSize > 0 ? pageSize : result.rows.length;
   const pageCount = Math.max(1, Math.ceil(result.rows.length / Math.max(1, boundedPageSize)));
@@ -511,39 +491,8 @@ export const ExecutionResult = ({
           joins, then run it again.
         </p>
       ) : (
-        <div className="workbench-execution__table-wrap workbench-execution__table-wrap--bounded">
-          <table>
-            {/*
-              A compact result sits inside a cell that already names the
-              dataset it belongs to, so the caption names the table for a
-              screen reader rather than repeating a run counter.
-            */}
-            <caption>
-              {compact ? "Result rows" : `Execution ${execution.ordinal} results`}
-            </caption>
-            <thead>
-              <tr>
-                {columnOrder.map((sourceIndex) => (
-                  <th key={`${result.columns[sourceIndex]!.ordinal}-${sourceIndex}`} scope="col">
-                    {result.columns[sourceIndex]!.name}
-                    <small className="workbench-execution__column-type">{result.columns[sourceIndex]!.databaseType || result.columns[sourceIndex]!.logicalType}</small>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {visibleRows.map((row, rowIndex) => (
-                <tr key={`${execution.executionId}-${firstVisibleRow + rowIndex}`}>
-                  {columnOrder.map((sourceIndex) => (
-                    <td key={`${sourceIndex}-${firstVisibleRow + rowIndex}`}>
-                      {renderTaggedCell(row[sourceIndex])}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <TypedRowsTable columns={result.columns} rows={visibleRows}
+          caption={compact ? "Result rows" : `Execution ${execution.ordinal} results`} />
       )}
       {result.rows.length > boundedPageSize && (
         <nav className="workbench-execution__pagination" aria-label="Result pages">

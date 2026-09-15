@@ -2,8 +2,8 @@
 
 This is intentionally a small local-MVP persistence layer.  It owns desired
 configuration and lineage, while Superset owns rendering.  It never copies
-execution rows into builder state or calls the model/database to save or
-publish a draft.
+query execution rows into builder state or calls a model to save/publish.
+Explicit file imports persist reviewed rows through the dedicated import store.
 """
 
 from __future__ import annotations
@@ -17,17 +17,19 @@ import tempfile
 import threading
 import uuid
 import zipfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Iterable, Sequence
-from urllib.parse import unquote, urlsplit
+from urllib.parse import parse_qsl, unquote, urlencode, urlsplit
 
 from ..config import DataSourceConfig, load_config
 from .analytics import SqlAnalyticsAdapter
 from .digest import canonical_sha256
 from .storage import WorkbenchStore
+from .csv_import import CsvImportError
+from .import_store import ImportStore
 
 
 _NAMESPACE = uuid.UUID("8567e617-8772-585f-8f1a-c9e9a63b2f20")
@@ -194,6 +196,18 @@ def compile_parameterized_sql(
     return compiled
 
 
+def _public_import_uri(uri: str) -> str:
+    parsed = urlsplit(uri)
+    host = parsed.netloc.rsplit("@", 1)[-1]
+    authority = f"{parsed.username}@{host}" if parsed.username is not None else host
+    options = [
+        (key, value)
+        for key, value in parse_qsl(parsed.query, keep_blank_values=True)
+        if key.lower() not in {"password", "passfile", "sslpassword", "sslkey"}
+    ]
+    return parsed._replace(netloc=authority, query=urlencode(options)).geturl()
+
+
 def _publication_connection(source: DataSourceConfig) -> tuple[str, str, str]:
     """Resolve one source's Superset transport and credential-free identity."""
     engines = {
@@ -284,6 +298,9 @@ def _column_binding(column: dict[str, Any]) -> dict[str, Any]:
         "ordinal": int(column["ordinal"]),
         "name": str(column["name"]),
         "logicalType": str(column["logicalType"]),
+        **(
+            {"databaseName": column["databaseName"]} if "databaseName" in column else {}
+        ),
     }
 
 
@@ -362,9 +379,25 @@ def _native_chart(
     if presentation_kind == "table":
         return "table", {
             "viz_type": "table",
-            "all_columns": [column["name"] for column in bindings["columns"]],
+            "all_columns": [
+                column.get("databaseName", column["name"])
+                for column in bindings["columns"]
+            ],
             "row_limit": 1000,
-            "order_by_cols": [],
+            "order_by_cols": (
+                [json.dumps(["row_order", True])]
+                if bindings.get("importedRows")
+                else []
+            ),
+            **(
+                {
+                    "query_mode": "raw",
+                    "server_pagination": True,
+                    "server_page_length": 100,
+                }
+                if bindings.get("importedRows")
+                else {}
+            ),
         }
 
     metric = _metric(bindings["metricColumn"])
@@ -415,6 +448,8 @@ class DashboardBuilder:
         outbox: str | Path,
         receipts: str | Path | None = None,
         data_sources: Sequence[DataSourceConfig] | None = None,
+        import_source: DataSourceConfig | None = None,
+        import_directory: str | Path | None = None,
     ):
         self.data_sources = {
             source.source_id: source
@@ -432,8 +467,20 @@ class DashboardBuilder:
         )
         self._connection.row_factory = sqlite3.Row
         self._initialize()
+        self.import_source = import_source
+        self.imports = (
+            ImportStore(
+                self.path,
+                Path(import_directory or (self.path + ".imports")),
+                import_source.connection_uri,
+            )
+            if import_source is not None
+            else None
+        )
 
     def close(self) -> None:
+        if self.imports is not None:
+            self.imports.close()
         self._connection.close()
 
     def _initialize(self) -> None:
@@ -549,6 +596,99 @@ class DashboardBuilder:
             for row in rows
         ]
 
+    def import_store(self) -> ImportStore:
+        if self.imports is None:
+            raise CsvImportError(
+                "CSV storage is not configured. Contact the administrator to enable imports."
+            )
+        return self.imports
+
+    def review_import(self, import_id: str, offset: int = 0) -> dict[str, Any]:
+        with self._lock:
+            store = self.import_store()
+            for saved in self.list("dataset"):
+                if (
+                    saved["configuration"].get("origin", {}).get("importId")
+                    == import_id
+                ):
+                    store.mark_saved(import_id, saved["versionId"])
+                    break
+            return store.review(import_id, offset)
+
+    def update_import(
+        self, import_id: str, *, title: str, types: Sequence[str]
+    ) -> dict[str, Any]:
+        with self._lock:
+            self.review_import(import_id)
+            return self.import_store().update(import_id, title=title, types=types)
+
+    def confirm_import(self, import_id: str) -> dict[str, Any]:
+        with self._lock:
+            store = self.import_store()
+            # A response or draft-marker write may have been lost after the
+            # immutable Dataset committed. Return that save instead of importing again.
+            for saved in self.list("dataset"):
+                if (
+                    saved["configuration"].get("origin", {}).get("importId")
+                    == import_id
+                ):
+                    store.mark_saved(import_id, saved["versionId"])
+                    return saved
+            assert self.import_source is not None
+            _, _, identity = _publication_connection(self.import_source)
+            record, origin = store.persist(import_id)
+            columns = origin["columns"]
+            configuration = {
+                "title": record["title"],
+                "origin": origin,
+                "columns": columns,
+                "source": {
+                    "dataSourceId": self.import_source.source_id,
+                    "publicationConnectionIdentity": identity,
+                    "storageConnectionIdentity": _publication_connection(
+                        replace(self.import_source, superset_uri=None)
+                    )[2],
+                },
+                "rowCount": {
+                    "total": origin["rowCount"],
+                    "returned": origin["rowCount"],
+                    "truncated": False,
+                },
+            }
+            saved = self._append(
+                "dataset", configuration, logical_id=import_id
+            ).as_dict()
+            store.mark_saved(import_id, saved["versionId"])
+            return saved
+
+    def imported_rows(
+        self, version_id: str, *, offset: int, limit: int
+    ) -> dict[str, Any]:
+        dataset = self._entity("dataset", version_id)
+        origin = dataset.configuration.get("origin", {})
+        if origin.get("kind") != "file":
+            raise CsvImportError(
+                "This Dataset has query results, not an imported file."
+            )
+        if (
+            self.import_source is None
+            or dataset.configuration["source"]["publicationConnectionIdentity"]
+            != _publication_connection(self.import_source)[2]
+        ):
+            raise CsvImportError(
+                "This Dataset's storage connection changed. Restore its configuration to review the original rows."
+            )
+        if (
+            dataset.configuration["source"].get("storageConnectionIdentity")
+            != _publication_connection(replace(self.import_source, superset_uri=None))[
+                2
+            ]
+        ):
+            raise CsvImportError(
+                "This Dataset's storage connection changed. Restore its configuration to review the original rows."
+            )
+        return self.import_store().rows(origin, offset=offset, limit=limit)
+
     def save_dataset(
         self, *, session_id: str, execution_id: str, title: str
     ) -> dict[str, Any]:
@@ -653,8 +793,17 @@ class DashboardBuilder:
     ) -> dict[str, Any]:
         dataset = self._entity("dataset", dataset_version_id)
         row_count = int(dataset.configuration.get("rowCount", {}).get("returned", 0))
-        suggestion = suggest_presentation(dataset.configuration["columns"], row_count)
+        imported = dataset.configuration.get("origin", {}).get("kind") == "file"
+        suggestion = (
+            "table"
+            if imported
+            else suggest_presentation(dataset.configuration["columns"], row_count)
+        )
         kind = presentation_kind or "table"
+        if imported and kind != "table":
+            raise DashboardBuilderError(
+                "Imported rows currently support tables. Reviewed grouping and summary charts follow in the next iteration."
+            )
         if kind not in _PRESENTATION_KINDS:
             raise DashboardBuilderError("Unsupported presentation kind.")
         bindings = widget_bindings(
@@ -662,6 +811,8 @@ class DashboardBuilder:
             columns=dataset.configuration["columns"],
             row_count=row_count,
         )
+        if imported:
+            bindings["importedRows"] = True
         configuration = {
             "title": title.strip() or dataset.configuration["title"],
             "datasetVersionId": dataset.version_id,
@@ -712,7 +863,9 @@ class DashboardBuilder:
         sources = {item.configuration["source"]["dataSourceId"] for item in datasets}
         if len(sources) != 1:
             raise DashboardBuilderError("A dashboard cannot mix data sources.")
-        catalogs = {item.configuration["source"]["catalogVersion"] for item in datasets}
+        catalogs = {
+            item.configuration["source"].get("catalogVersion") for item in datasets
+        }
         configuration = {
             "title": title.strip() or "Catalyst dashboard",
             "widgets": [
@@ -728,7 +881,11 @@ class DashboardBuilder:
                 for item in widgets
             ],
             "dataSourceId": datasets[0].configuration["source"]["dataSourceId"],
-            **({"catalogVersion": next(iter(catalogs))} if len(catalogs) == 1 else {}),
+            **(
+                {"catalogVersion": next(iter(catalogs))}
+                if len(catalogs) == 1 and None not in catalogs
+                else {}
+            ),
         }
         base = self._entity("dashboard", base_version_id) if base_version_id else None
         return self._append(
@@ -749,7 +906,11 @@ class DashboardBuilder:
             for item in widgets
         }
         source_id = dashboard.configuration["dataSourceId"]
-        source = self.data_sources.get(source_id)
+        source = (
+            self.import_source
+            if self.import_source and source_id == self.import_source.source_id
+            else self.data_sources.get(source_id)
+        )
         if source is None:
             raise DashboardBuilderError(
                 "The Dashboard's data source is no longer configured."
@@ -785,7 +946,12 @@ class DashboardBuilder:
         database: dict[str, Any] = {
             "database_name": f"Catalyst {source_id} analytics"
             + (f" {identity[:12]}" if suffix else ""),
-            "sqlalchemy_uri": publication_uri,
+            "sqlalchemy_uri": _public_import_uri(publication_uri)
+            if all(
+                item.configuration.get("origin", {}).get("kind") == "file"
+                for item in datasets.values()
+            )
+            else publication_uri,
             "password": None,
             # Superset's native importer rejects an empty encrypted-extra map;
             # omit it when the local demo connection has no encrypted extras.
@@ -821,19 +987,37 @@ class DashboardBuilder:
                         "filterable": True,
                     }
                 )
+            origin = dataset.configuration.get("origin", {})
+            imported = origin.get("kind") == "file"
+            if imported:
+                for native, column in zip(columns, dataset.configuration["columns"]):
+                    native["column_name"] = column["databaseName"]
+                    native["verbose_name"] = column["name"]
+                columns.append(
+                    {
+                        "column_name": "row_order",
+                        "type": "bigint",
+                        "is_dttm": False,
+                        "is_active": True,
+                        "groupby": False,
+                        "filterable": False,
+                    }
+                )
             dataset_config = {
-                "table_name": f"catalyst_dataset_{dataset.version_id.replace('-', '_')}",
+                "table_name": origin["storage"]["table"]
+                if imported
+                else f"catalyst_dataset_{dataset.version_id.replace('-', '_')}",
                 "main_dttm_col": next(
                     (
-                        column["name"]
+                        column.get("databaseName", column["name"])
                         for column in dataset.configuration["columns"]
                         if column.get("logicalType") in {"date", "date-time"}
                     ),
                     None,
                 ),
                 "description": dataset.configuration["title"],
-                "schema": None,
-                "sql": dataset.configuration["compiledSql"],
+                "schema": origin["storage"]["schema"] if imported else None,
+                "sql": None if imported else dataset.configuration["compiledSql"],
                 "source_db_engine": engine,
                 "params": {},
                 "template_params": None,
@@ -968,33 +1152,7 @@ class DashboardBuilder:
                 }
                 for item in widgets
             ],
-            "datasets": [
-                {
-                    "id": item.logical_id,
-                    "versionId": item.version_id,
-                    "configurationDigest": item.configuration_digest,
-                    "source": item.configuration["source"],
-                    "parameterizedSql": item.configuration["parameterizedSql"],
-                    "parameterizedSqlDigest": canonical_sha256(
-                        item.configuration["parameterizedSql"]
-                    ),
-                    "compiledSqlDigest": canonical_sha256(
-                        item.configuration["compiledSql"]
-                    ),
-                    "typedParameters": item.configuration["parameters"],
-                    "typedParametersDigest": canonical_sha256(
-                        item.configuration["parameters"]
-                    ),
-                    "parameterCompilerRevision": item.configuration.get(
-                        "parameterCompilerRevision", "catalyst.named-parameters.v1"
-                    ),
-                    "resultSchema": item.configuration["columns"],
-                    "resultBounds": item.configuration["resultBounds"],
-                    "author": {"actorKind": "human"},
-                    "createdAt": item.created_at,
-                }
-                for item in datasets.values()
-            ],
+            "datasets": [self._manifest_dataset(item) for item in datasets.values()],
             "assetUuids": {
                 "database": database_uuid,
                 "dashboard": dashboard_uuid,
@@ -1013,6 +1171,7 @@ class DashboardBuilder:
                             "parameterCompilerRevision", "catalyst.named-parameters.v1"
                         )
                         for item in datasets.values()
+                        if item.configuration.get("origin", {}).get("kind") != "file"
                     }
                 ),
                 "vizMappingRevisions": ["catalyst.superset.viz.schema.v1"],
@@ -1021,6 +1180,32 @@ class DashboardBuilder:
             "assetContentDigest": canonical_sha256(assets),
         }
         return members, manifest
+
+    def _manifest_dataset(self, item: BuilderEntity) -> dict[str, Any]:
+        config = item.configuration
+        common = {
+            "id": item.logical_id,
+            "versionId": item.version_id,
+            "configurationDigest": item.configuration_digest,
+            "source": config["source"],
+            "resultSchema": config["columns"],
+            "author": {"actorKind": "human"},
+            "createdAt": item.created_at,
+        }
+        if config.get("origin", {}).get("kind") == "file":
+            return {**common, "origin": config["origin"]}
+        return {
+            **common,
+            "parameterizedSql": config["parameterizedSql"],
+            "parameterizedSqlDigest": canonical_sha256(config["parameterizedSql"]),
+            "compiledSqlDigest": canonical_sha256(config["compiledSql"]),
+            "typedParameters": config["parameters"],
+            "typedParametersDigest": canonical_sha256(config["parameters"]),
+            "parameterCompilerRevision": config.get(
+                "parameterCompilerRevision", "catalyst.named-parameters.v1"
+            ),
+            "resultBounds": config["resultBounds"],
+        }
 
     def publish(self, dashboard_version_id: str) -> dict[str, Any]:
         dashboard = self._entity("dashboard", dashboard_version_id)

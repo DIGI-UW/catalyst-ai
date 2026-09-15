@@ -1,0 +1,34 @@
+.typed-rows table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.typed-rows caption {
+  padding: 0.75rem 1rem;
+  color: var(--cds-text-secondary);
+  text-align: left;
+}
+
+.typed-rows th,
+.typed-rows td {
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--cds-border-subtle-01);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.typed-rows th {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  background: var(--cds-layer-hover-01);
+}
+
+.typed-rows tbody tr:nth-child(even) {
+  background: var(--cds-background);
+}
+
+
+.typed-rows { font-size: 14px; line-height: 1.5; }
+.typed-rows:focus-visible { outline: 2px solid var(--cds-focus); outline-offset: 2px; }
+.typed-rows .workbench-execution__blank-cell { color: var(--cds-text-secondary); }

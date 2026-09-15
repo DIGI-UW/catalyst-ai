@@ -121,7 +121,7 @@
         },
         "parameterCompilerRevisions": {
           "type": "array",
-          "minItems": 1,
+          "minItems": 0,
           "uniqueItems": true,
           "items": {
             "$ref": "#/$defs/nonEmpty"
@@ -199,6 +199,30 @@
           }
         }
       }
+    },
+    {
+      "if": {
+        "properties": {
+          "datasets": {
+            "contains": {
+              "required": [
+                "parameterizedSql"
+              ]
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "generator": {
+            "properties": {
+              "parameterCompilerRevisions": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      }
     }
   ],
   "$defs": {
@@ -265,8 +289,12 @@
         "turnId": {
           "description": "Question turn when one exists; null for a first manual or reused-SQL query without a generated turn.",
           "anyOf": [
-            {"$ref": "#/$defs/uuidCanonical"},
-            {"type": "null"}
+            {
+              "$ref": "#/$defs/uuidCanonical"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "queryVersionId": {
@@ -283,7 +311,10 @@
         },
         "dialect": {
           "description": "SQL dialect recorded at session creation; absent or null for older saved queries.",
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "minLength": 1
         },
         "publicationConnectionIdentity": {
@@ -545,6 +576,10 @@
             "array",
             "unknown"
           ]
+        },
+        "databaseName": {
+          "type": "string",
+          "pattern": "^c[0-9]+$"
         }
       }
     },
@@ -618,6 +653,16 @@
       ]
     },
     "datasetRef": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/queryDatasetRef"
+        },
+        {
+          "$ref": "#/$defs/importedDatasetRef"
+        }
+      ]
+    },
+    "queryDatasetRef": {
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -689,6 +734,157 @@
           "pattern": "Z$"
         }
       }
+    },
+    "importedDatasetRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "versionId",
+        "configurationDigest",
+        "resultSchema",
+        "author",
+        "createdAt",
+        "source",
+        "origin"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuidV4"
+        },
+        "versionId": {
+          "$ref": "#/$defs/uuidV4"
+        },
+        "configurationDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "resultSchema": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/importColumn"
+          }
+        },
+        "author": {
+          "$ref": "#/$defs/actor"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "dataSourceId",
+            "publicationConnectionIdentity",
+            "storageConnectionIdentity"
+          ],
+          "properties": {
+            "dataSourceId": {
+              "$ref": "#/$defs/nonEmpty"
+            },
+            "publicationConnectionIdentity": {
+              "$ref": "#/$defs/sha256"
+            },
+            "storageConnectionIdentity": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        },
+        "origin": {
+          "$ref": "#/$defs/fileOrigin"
+        }
+      }
+    },
+    "fileOrigin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "importId",
+        "filename",
+        "sha256",
+        "bytes",
+        "rowCount",
+        "types",
+        "columns",
+        "storage"
+      ],
+      "properties": {
+        "kind": {
+          "const": "file"
+        },
+        "importId": {
+          "$ref": "#/$defs/uuidV4"
+        },
+        "filename": {
+          "$ref": "#/$defs/nonEmpty"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "rowCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "types": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "enum": [
+              "text",
+              "number",
+              "date"
+            ]
+          }
+        },
+        "columns": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/importColumn"
+          }
+        },
+        "storage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "schema",
+            "table",
+            "digest"
+          ],
+          "properties": {
+            "schema": {
+              "const": "catalyst_imports"
+            },
+            "table": {
+              "type": "string",
+              "pattern": "^file_[0-9a-f]{48}$"
+            },
+            "digest": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        }
+      }
+    },
+    "importColumn": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/column"
+        },
+        {
+          "required": [
+            "databaseName"
+          ]
+        }
+      ]
     }
   }
 }

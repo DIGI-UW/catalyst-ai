@@ -7,8 +7,8 @@ The running wire formats include catalog, dialect, guidance and source/version
 provenance. Change schemas and their consumers together; do not infer working
 engine transport from the presence of a dialect field. The
 [Dashboard Builder contract](dashboard-builder-api.md) distinguishes the current
-query-backed HTTP surface from approved imported-Dataset additions awaiting
-implementation. Product requirements are stated in the documents below.
+query-backed HTTP surface from the additive imported-Dataset routes and their
+origin-specific provenance. Product requirements are stated in the documents below.
 
 Current intended behavior is stated in:
 

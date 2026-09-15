@@ -315,7 +315,7 @@ describe("Dashboard Builder Ask shell", () => {
     await user.type(input, "Visits by month\nInclude missing dates");
     await user.click(within(primary).getByRole("button", { name: "Saved work" }));
     const saved = screen.getByRole("navigation", { name: "Saved work" });
-    for (const name of ["Saved queries", "Charts and tables", "Dashboards"]) {
+    for (const name of ["Datasets", "Charts and tables", "Dashboards"]) {
       expect(within(saved).getByRole("button", { name })).toBeVisible();
     }
     await user.click(within(saved).getByRole("button", { name: "Charts and tables" }));
@@ -763,7 +763,7 @@ describe("Dashboard Builder Ask shell", () => {
 
     await user.click(within(sections).getByRole("button", { name: "Saved work" }));
     expect(
-      screen.getByRole("heading", { level: 1, name: "Saved queries" }),
+      screen.getByRole("heading", { level: 1, name: "Datasets" }),
     ).toBeVisible();
     expect(
       screen.queryByRole("heading", { level: 1, name: session.name! }),

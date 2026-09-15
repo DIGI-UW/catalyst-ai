@@ -946,8 +946,8 @@ test("question to iterative notebook to imported dashboard", async ({
   };
 
   if (useMockApi) {
-    await navigate("Saved queries");
-    await expect(page.getByText(/No saved queries yet\./)).toBeVisible();
+    await navigate("Datasets");
+    await expect(page.getByText(/Save a query result or upload a CSV to find it here\./)).toBeVisible();
     await navigate("Charts and tables");
     await expect(page.getByText(/No charts or tables saved yet\./)).toBeVisible();
     await navigate("Dashboards");
@@ -1073,7 +1073,7 @@ test("question to iterative notebook to imported dashboard", async ({
     await expect(datasetReview.locator("pre")).toContainText("LIMIT 1");
     await datasetReview.getByLabel("Query name").fill("Initial viral load result");
     await datasetReview.getByRole("button", { name: "Save query" }).click();
-    await expect(page.getByRole("status").filter({ hasText: /saved to Saved queries\./ }))
+    await expect(page.getByRole("status").filter({ hasText: /saved to Datasets\./ }))
       .toBeVisible();
     // Saving leads somewhere: the next step is offered where the user is.
     await expect(
@@ -1137,7 +1137,7 @@ test("question to iterative notebook to imported dashboard", async ({
       .toBeVisible();
     await successorReview.getByLabel("Query name").fill("Viral load with units");
     await successorReview.getByRole("button", { name: "Save query" }).click();
-    await expect(page.getByText(/Viral load with units.*saved to Saved queries\./)).toBeVisible();
+    await expect(page.getByText(/Viral load with units.*saved to Datasets\./)).toBeVisible();
 
     // --------------------------------------------- dataset -> widget -> dash
     await successorReview
@@ -1215,7 +1215,7 @@ test("question to iterative notebook to imported dashboard", async ({
     // Both levels of navigation are keyboard operable.
     await tabTo(page, primary.getByRole("button", { name: "Saved work", exact: true }), "Saved work navigation");
     await page.keyboard.press("Enter");
-    for (const destination of ["Saved queries", "Charts and tables", "Dashboards"]) {
+    for (const destination of ["Datasets", "Charts and tables", "Dashboards"]) {
       await tabTo(page, sections.getByRole("button", { name: destination }), `${destination} navigation`);
     }
     await navigate("Explore");
@@ -1244,8 +1244,8 @@ test("question to iterative notebook to imported dashboard", async ({
         }),
       ).toBeVisible();
 
-      await navigate("Saved queries");
-      await expect(page.getByRole("heading", { level: 1, name: "Saved queries" }))
+      await navigate("Datasets");
+      await expect(page.getByRole("heading", { level: 1, name: "Datasets" }))
         .toBeVisible();
       await expect(page.getByText("Viral load with units", { exact: true })).toBeVisible();
       await expectNoHorizontalOverflow(`${width}px Dataset library`);

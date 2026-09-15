@@ -311,36 +311,6 @@
   font-size: var(--cds-body-compact-01-font-size, 0.875rem);
 }
 
-.workbench-execution table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.workbench-execution caption {
-  padding: 0.75rem 1rem;
-  color: var(--workbench-muted);
-  text-align: left;
-}
-
-.workbench-execution th,
-.workbench-execution td {
-  padding: 0.75rem 1rem;
-  border-top: 1px solid var(--cds-border-subtle-01);
-  text-align: left;
-  white-space: nowrap;
-}
-
-.workbench-execution th {
-  position: sticky;
-  z-index: 1;
-  top: 0;
-  background: var(--cds-layer-hover-01);
-}
-
-.workbench-execution tbody tr:nth-child(even) {
-  background: var(--cds-background);
-}
-
 .workbench-database-error {
   padding: 1rem;
   border-left: 4px solid var(--cds-support-error);

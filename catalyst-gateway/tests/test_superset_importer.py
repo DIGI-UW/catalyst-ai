@@ -201,6 +201,7 @@ def test_importer_is_standalone_and_uses_only_runtime_builtins() -> None:
         "zipfile",
         "pathlib",
         "typing",
+        "urllib",
     }
     for name in ("superset-import.py", "superset-import-state.py"):
         source = (ROOT / f"scripts/{name}").read_text(encoding="utf-8")
@@ -450,3 +451,57 @@ def test_driver_qualified_source_password_is_redacted():
     )
     assert "private-value" not in diagnostic["text"]
     assert "reader:***@native/db" in diagnostic["text"]
+
+
+def test_import_credentials_cannot_redirect_the_bundle(monkeypatch):
+    importer = _load_importer_module()
+    manifest = {"datasets": [{"origin": {"kind": "file"}}]}
+    asset_uri = "postgresql+psycopg2://reader@imports/reports?sslmode=require"
+    with pytest.raises(importer.ImportFailure):
+        importer._resolve_import_connection(manifest, asset_uri)
+    configured = (
+        "postgresql+psycopg2://reader:fixture-only@imports/reports?sslmode=require"
+    )
+    monkeypatch.setenv("CATALYST_IMPORT_SUPERSET_URI", configured)
+    assert importer._resolve_import_connection(manifest, asset_uri) == configured
+    monkeypatch.setenv(
+        "CATALYST_IMPORT_SUPERSET_URI",
+        configured.replace("imports/reports", "other/reports"),
+    )
+    with pytest.raises(importer.ImportFailure) as failure:
+        importer._resolve_import_connection(manifest, asset_uri)
+    assert failure.value.code == "import_connection_not_configured"
+    assert "fixture-only" not in str(failure.value)
+
+
+def test_only_new_import_connection_is_provisioned_with_deployment_credentials(
+    monkeypatch,
+):
+    importer = _load_importer_module()
+    session = Mock()
+    session.query.return_value.filter_by.return_value.one_or_none.return_value = None
+    database = Mock()
+    monkeypatch.setitem(
+        sys.modules, "superset", SimpleNamespace(db=SimpleNamespace(session=session))
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "superset.app",
+        SimpleNamespace(create_app=lambda: SimpleNamespace(app_context=nullcontext)),
+    )
+    monkeypatch.setitem(
+        sys.modules, "superset.models.core", SimpleNamespace(Database=database)
+    )
+    manifest = {
+        "assetUuids": {"database": "22222222-2222-5222-8222-222222222222"},
+        "datasets": [{"origin": {"kind": "file"}}],
+    }
+    importer._reconcile_database(
+        manifest, "postgresql://reader:fixture-only@pg/imports"
+    )
+    assert (
+        database.call_args.kwargs["sqlalchemy_uri"]
+        == "postgresql://reader:fixture-only@pg/imports"
+    )
+    session.add.assert_called_once_with(database.return_value)
+    session.commit.assert_called_once()
