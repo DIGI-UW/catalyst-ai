@@ -227,7 +227,15 @@ The current Dataset configuration retains the Workbench source identities,
 exact parameterized query, typed parameters, compiled publication query, typed
 columns, result bounds, and digests. It does not copy result rows into Dashboard
 Builder state. The Dataset's source execution remains the source for the review
-table.
+table. New configurations also retain `parameterCompilerRevision` and
+`source.publicationConnectionIdentity`. The optional source identity is a hash
+of the non-password publication connection configuration, not query execution
+proof or a connection credential. Earlier versions omit it and continue to
+publish their recorded SQL with compiler revision `catalyst.named-parameters.v1`.
+New versions use `catalyst.named-parameters.v2`, sharing execution's placeholder
+lexer and rendering literals for the recorded Spark or PostgreSQL dialect.
+Publication fails if a recorded connection identity no longer matches; prior
+saved entities and publication remain available.
 
 The current Widget configuration retains its exact Dataset version, chosen and
 suggested presentation types, typed columns, and derived bindings. The current

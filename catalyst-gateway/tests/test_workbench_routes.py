@@ -3527,11 +3527,13 @@ def test_saved_query_draft_session_round_trips_without_generation_or_execution(
 @pytest.mark.parametrize("source_id", ["openelis-demo", "openmrs-hiv"])
 @pytest.mark.parametrize("manual", [False, True])
 def test_saved_query_retains_the_real_store_session_source(
-    tmp_path: Path, source_id: str, manual: bool
+    tmp_path: Path, source_id: str, manual: bool, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    catalog = replace(_catalog(), data_source=source_id)
+    monkeypatch.setenv("CATALYST_DATA_SOURCE_ID", source_id)
+    catalog = replace(_catalog(), data_source=source_id, dialect="spark")
     query = _ready_query()
     query["target"]["dataSource"] = source_id
+    query["target"]["dialect"] = "spark"
     client, _ = _client(tmp_path, query, catalog=catalog)
     session = _create_session(client, question="" if manual else QUESTION)
     if manual:

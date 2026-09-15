@@ -49,6 +49,21 @@ ENTITY_IDS = (
 )
 
 
+class LegacyFixtureBuilder(DashboardBuilder):
+    """Exercise publication of the frozen, pre-connection-identity Dataset shape."""
+
+    def _append(self, kind, configuration, **kwargs):
+        if kind == "dataset":
+            configuration = dict(configuration)
+            configuration.pop("parameterCompilerRevision", None)
+            configuration["source"] = {
+                key: value
+                for key, value in configuration["source"].items()
+                if key not in {"publicationConnectionIdentity", "dialect"}
+            }
+        return super()._append(kind, configuration, **kwargs)
+
+
 class FixtureWorkbench:
     def __init__(self) -> None:
         detailed = self._session(
@@ -181,7 +196,7 @@ def _build(output: Path) -> None:
     try:
         with tempfile.TemporaryDirectory() as temporary:
             temporary_path = Path(temporary)
-            builder = DashboardBuilder(
+            builder = LegacyFixtureBuilder(
                 temporary_path / "state.sqlite3",
                 workbench=workbench,
                 outbox=temporary_path / "outbox",

@@ -256,7 +256,7 @@ def redacted_diagnostic(message: str, *, secrets: list[str]) -> dict[str, Any]:
     for secret in secrets:
         if secret:
             text = text.replace(secret, "***")
-    text = re.sub(r"(postgres(?:ql)?://[^:/\s]+:)[^@\s]+(@)", r"\1***\2", text)
+    text = re.sub(r"([a-zA-Z][a-zA-Z0-9+.-]*://[^:/\s]+:)[^@\s]+(@)", r"\1***\2", text)
     truncated = len(text) > MAX_DIAGNOSTIC_CHARS
     return {
         "text": text[:MAX_DIAGNOSTIC_CHARS],
@@ -430,18 +430,43 @@ def _failure_receipt(
     return receipt
 
 
+def _bundle_database_uri(bundle_path: Path, manifest: dict[str, Any]) -> str:
+    """Read the protected connection from the validated bundle, never a global default."""
+    relative = f"databases/{manifest['assetUuids']['database']}.yaml"
+    matching = [item for item in manifest["assetMembers"] if item["path"] == relative]
+    try:
+        with zipfile.ZipFile(bundle_path) as archive:
+            contents = archive.read(f"{manifest['bundleRoot']}/{relative}")
+        if (
+            len(matching) != 1
+            or len(contents) != matching[0]["bytes"]
+            or hashlib.sha256(contents).hexdigest() != matching[0]["sha256"]
+        ):
+            raise ValueError
+        # Catalyst emits JSON-compatible YAML; no general YAML parser is needed.
+        asset = json.loads(contents)
+        uri = asset["sqlalchemy_uri"]
+        if (
+            asset["uuid"] != manifest["assetUuids"]["database"]
+            or not isinstance(uri, str)
+            or not uri
+        ):
+            raise ValueError
+        return uri
+    except (KeyError, ValueError, TypeError, OSError, zipfile.BadZipFile):
+        _fail(
+            "credential_resolution",
+            "database_asset_invalid",
+            "The bundle's database asset is missing or does not match its manifest.",
+        )
+
+
 def _reconcile_database(manifest: dict[str, Any], analytics_uri: str) -> dict[str, Any]:
-    """Point an already-imported database at the connection the bundle names.
+    """Refuse to change a connection shared by previously imported dashboards.
 
-    Superset matches assets by UUID, and the bundle derives its database UUID
-    deterministically, so a database imported under an earlier connection keeps
-    that connection forever: the import reports success while the dashboard
-    resolves to whatever engine was configured the first time. Superset 6.1's
-    ``import-dashboards`` CLI has no overwrite flag, so reconciliation happens
-    here, before the import runs.
-
-    Returns what was found and what, if anything, was changed. A database that
-    does not exist yet needs nothing -- the import creates it from the bundle.
+    Superset's CLI retains existing databases by UUID. A different URI therefore
+    requires operator reconciliation, including a credential rotation; silently
+    rewriting it here would change earlier dashboards before import verification.
     """
     from superset.app import create_app
 
@@ -451,7 +476,9 @@ def _reconcile_database(manifest: dict[str, Any], analytics_uri: str) -> dict[st
         from superset.models.core import Database
 
         database_uuid = uuid.UUID(manifest["assetUuids"]["database"])
-        existing = db.session.query(Database).filter_by(uuid=database_uuid).one_or_none()
+        existing = (
+            db.session.query(Database).filter_by(uuid=database_uuid).one_or_none()
+        )
         if existing is None:
             return {"present": False, "reconnected": False}
 
@@ -459,14 +486,11 @@ def _reconcile_database(manifest: dict[str, Any], analytics_uri: str) -> dict[st
         if previous == analytics_uri:
             return {"present": True, "reconnected": False}
 
-        existing.set_sqlalchemy_uri(analytics_uri)
-        db.session.commit()
-        return {
-            "present": True,
-            "reconnected": True,
-            "previousBackend": (previous or "").split("://", 1)[0] or None,
-            "backend": analytics_uri.split("://", 1)[0],
-        }
+        _fail(
+            "credential_resolution",
+            "database_connection_changed",
+            "The existing Superset connection differs from this bundle. Restore the matching connection or publish a new Dataset with a distinct source identity; credential changes require operator reconciliation.",
+        )
 
 
 def _verify_superset(manifest: dict[str, Any]) -> dict[str, Any]:
@@ -771,14 +795,8 @@ def run_import(*, bootstrap: bool = False) -> int:
             manifest = inspect_bundle(bundle_path, pointer)
             validate_manifest(manifest, pointer, contracts)
             importer_revision = require_exact_importer_revision()
-            if not os.environ.get("CATALYST_ANALYTICS_DATABASE_URI"):
-                _fail(
-                    "credential_resolution",
-                    "analytics_credential_missing",
-                    "CATALYST_ANALYTICS_DATABASE_URI is required",
-                )
             reconciliation = _reconcile_database(
-                manifest, os.environ["CATALYST_ANALYTICS_DATABASE_URI"]
+                manifest, _bundle_database_uri(bundle_path, manifest)
             )
             actual_command = [
                 "superset",
@@ -804,8 +822,7 @@ def run_import(*, bootstrap: bool = False) -> int:
                     exit_code=completed.returncode,
                 )
             verification = _verify_superset(manifest)
-            # A reconnect changes which engine the dashboard resolves to, so it
-            # is reported rather than left to look like an ordinary import.
+            # Record whether this import reused the exact existing connection.
             verification = {**verification, "databaseReconciliation": reconciliation}
             receipt = _successful_receipt(
                 receipt_id=receipt_id,

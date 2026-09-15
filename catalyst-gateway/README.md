@@ -25,8 +25,31 @@ Git):
 Use a database role with only the required read grants. Percent-encode URI
 credentials and use the connection's PostgreSQL SSL options when required.
 `postgresql` is also accepted as a dialect name. This adds a source without
-retargeting existing sessions or replacing the Spark source. Source-aware
-Superset publication is a subsequent integration step.
+retargeting existing sessions or replacing the Spark source.
+
+Publication resolves each Dataset's own source. Set optional
+`supersetSqlalchemyUri` on a source when Superset needs a different hostname,
+port or driver. Otherwise PostgreSQL uses the query URI with the
+`postgresql+psycopg2` driver and Spark uses `hive`. These addresses must resolve
+from Superset's network and address the same underlying data. The legacy
+`CATALYST_SUPERSET_ANALYTICS_URI` applies only to the default source;
+`CATALYST_ANALYTICS_DATABASE_URI` no longer overrides imported bundles.
+
+New saved Datasets record a credential-free publication-connection identity.
+Changing its endpoint, database, account or options requires restoring the
+configuration or explicitly executing and saving a new Dataset. New identities
+get different Superset database UUIDs, preserving earlier dashboards. A matching
+existing UUID with a different URI fails before import instead of being changed.
+For credential rotation, reconcile the existing Superset connection explicitly
+before retrying. The manifest contains no connection URI; URI passwords are
+redacted from importer diagnostics.
+The protected native bundle still includes its connection URI under the existing
+local-demo credential policy.
+
+Legacy Dataset versions retain their compiled SQL and database UUID. They lack
+a recorded connection identity, so their original configuration must be retained;
+the importer still refuses to redirect an existing UUID. This is publication
+support, not proof of a deployed reporting-source journey.
 
 The shared adapter exposes readable catalog metadata, preserves database result
 types, starts execution in a read-only transaction and sets `statement_timeout`.

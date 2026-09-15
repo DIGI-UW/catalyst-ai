@@ -21,6 +21,7 @@ class DataSourceConfig:
     connection_uri: str
     dialect: str
     dialect_adapter: str
+    superset_uri: str | None = None
 
 
 @dataclass(frozen=True)
@@ -47,6 +48,7 @@ def _data_source(entry: dict) -> DataSourceConfig:
         # A source may name its adapter explicitly; the common case is that the
         # adapter is the one implementing the dialect it declares.
         dialect_adapter=str(entry.get("dialectAdapter", dialect)),
+        superset_uri=entry.get("supersetSqlalchemyUri"),
     )
 
 
@@ -78,6 +80,7 @@ def load_config() -> GatewayConfig:
             "CATALYST_CONNECTION_URI",
             "hive2://catalyst@spark-thriftserver:10000/openelis",
         ),
+        superset_uri=os.getenv("CATALYST_SUPERSET_ANALYTICS_URI"),
         dialect=os.getenv("CATALYST_DIALECT", "spark"),
         dialect_adapter=os.getenv(
             "CATALYST_DIALECT_ADAPTER", os.getenv("CATALYST_DIALECT", "spark")

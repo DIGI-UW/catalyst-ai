@@ -30,9 +30,10 @@ make a file a queryable source or require SQL interaction for an import.
 The [four-pathway integration roadmap](https://github.com/pmanko/clinical-ai-validation-harness/blob/main/specs/openelis-reporting-catalyst-integration.md)
 owns this extension's sequence and cross-project acceptance. The
 [integration design](specs/openelis-reporting-integration/spec.md) additions
-were approved on 14 September 2026. PostgreSQL connection execution is implemented;
-imported Datasets and source-aware publication remain approved requirements
-awaiting implementation. Real-source lane acceptance remains separate.
+were approved on 14 September 2026. PostgreSQL connection execution and
+source-aware query publication are implemented; imported Datasets remain an
+approved requirement awaiting implementation. Real-source lane acceptance
+remains separate.
 
 ## Product boundary
 
@@ -331,7 +332,7 @@ returned rows without adding a SQL limit. The editor uses PostgreSQL syntax and
 formatting; named bindings, casts and literal text retain their meaning.
 
 This is connection support, not completed lane-3 deployment or publication.
-Source-aware Superset publication and the real OpenELIS workflow are still
+The real OpenELIS workflow and deployed Superset rendering are still
 tracked in the integration roadmap.
 
 ### Widget
@@ -377,6 +378,15 @@ tracked in the integration roadmap.
 - Superset renders each Dataset against its actual backing connection: saved
   query/source for query-backed versions, immutable imported data for file
   versions. A global default must not retarget an existing publication.
+- New query-backed Dataset versions retain a credential-free publication
+  connection identity and dialect-aware compiler revision. Publishing checks
+  that identity, preserves saved compiled SQL, and assigns a separate Superset
+  database identity when the backing connection changes for a new Dataset.
+- Legacy versions retain their original SQL, compiler provenance and database
+  UUID. They cannot retrospectively prove a connection identity they did not
+  record. Operators retain their original source configuration. Import refuses
+  to alter an existing connection; credential rotation requires explicit
+  operator reconciliation before retrying.
 - Acceptance inspects one displayed value against the originating Catalyst
   result without a second database query.
 

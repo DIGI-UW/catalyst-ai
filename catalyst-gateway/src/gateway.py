@@ -79,6 +79,7 @@ def create_app(
         workbench=cast(WorkbenchStore, catalyst.workbench_store),
         outbox=config.superset_outbox_path,
         receipts=config.superset_receipts_path,
+        data_sources=config.data_sources,
     )
 
     @asynccontextmanager
