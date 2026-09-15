@@ -959,3 +959,31 @@ it("retains a saved chart when Dashboard placement fails and retries without ano
     widgetVersionIds: ["widget-v1", "chart-2-v1"], widgetWidths: {"widget-v1":12,"chart-2-v1":12} });
   expect(savedDashboard.configuration.widgets).toEqual([{versionId:"widget-v1"}]);
 });
+
+it("retains imported chart calculations after failure and Escape without adding query provenance", async () => {
+  const user = userEvent.setup();
+  const file = { ...savedDataset, configuration: {
+    title: "Imported turnaround", origin: { kind: "file", filename: "turnaround.csv" },
+    source: { dataSourceId: "catalyst-imports" }, rowCount: { returned: 123 },
+    columns: [{ ordinal: 0, name: "Section", logicalType: "string" }, { ordinal: 1, name: "Minutes", logicalType: "decimal" }],
+  } };
+  const api = makeApi();
+  vi.mocked(api.listDashboardDatasets!).mockResolvedValue(collection("dataset", [file]));
+  vi.mocked(api.saveDashboardWidget!).mockRejectedValueOnce(new Error("Save failed; retry"));
+  render(<DashboardPublishPanel api={api} session={null} sql="" parameters={[]} activeSection="datasets" onNavigate={vi.fn()} />);
+  await user.click(await screen.findByRole("button", { name: "Create chart or table" }));
+  await user.type(screen.getByLabelText("Chart name"), "Average turnaround");
+  await user.selectOptions(screen.getByLabelText("Display as"), "grouped_bar");
+  await user.selectOptions(screen.getByLabelText("Show"), "average");
+  await user.selectOptions(screen.getByLabelText("For each"), "0");
+  await user.click(screen.getByRole("button", { name: "Save chart or table" }));
+  expect(await screen.findByText("Save failed; retry")).toBeVisible();
+  await user.keyboard("{Escape}");
+  await user.click(screen.getByRole("button", { name: "Create chart or table" }));
+  expect(screen.getByLabelText("Chart name")).toHaveValue("Average turnaround");
+  expect(screen.getByLabelText("Show")).toHaveValue("average");
+  expect(screen.getByLabelText("For each")).toHaveValue("0");
+  await user.click(screen.getByRole("button", { name: "Save chart or table" }));
+  expect(api.saveDashboardWidget).toHaveBeenLastCalledWith({ datasetVersionId: file.versionId, title: "Average turnaround", presentationKind: "grouped_bar",
+    aggregation: { operation: "average", valueColumnOrdinal: 1, groupColumnOrdinal: 0, seriesColumnOrdinal: undefined } });
+});

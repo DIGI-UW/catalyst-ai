@@ -784,3 +784,9 @@ export interface CsvImportDraft {
   error: string | null;
   datasetVersionId: string | null;
 }
+export interface WidgetAggregation {
+  operation: "count" | "sum" | "average";
+  valueColumnOrdinal?: number;
+  groupColumnOrdinal?: number;
+  seriesColumnOrdinal?: number;
+}

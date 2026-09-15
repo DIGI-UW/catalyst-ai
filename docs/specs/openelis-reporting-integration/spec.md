@@ -47,9 +47,11 @@ the shell/style authority.
 
 All Dataset origins continue into the existing Widget/Dashboard/publication
 design. These are complementary workflows, not interchangeable competitors.
-The preview illustrates only query/save and import/review/save additions;
-chart arrangement and publication retain their existing binding design and
-still need real implementation/verification for the new backing connections.
+The preview illustrates query/save, import/review/save and the proposed imported
+chart summary controls below. Chart arrangement and publication retain their
+existing binding design and still need real implementation/verification for the
+new backing connections. The chart-control addition was approved by the owner on 14 September 2026;
+it does not reopen the already-approved CSV entry/import journey.
 
 ## Import a report
 
@@ -89,6 +91,41 @@ the page; reload resets mock state. Persisted/restarted application behavior
 is an implementation acceptance requirement, not a claim of this mock.
 
 ## Catalyst experience
+
+### Imported chart review addition — approved 14 September 2026
+
+From an opened imported Dataset, **Create chart or table** opens the existing
+approved review drawer. Keep the same shell, typography, neutral text, controls
+and light/dark tokens. The initial Table keeps original rows and column order.
+Bar chart and Single value expose **Show**: Number of records, Total or Average.
+Totals and averages require a reviewed Number column; unavailable calculations
+are omitted rather than silently converting identifiers or mixed text. Bar
+charts expose **For each** to choose a grouping column; All records is explicit.
+Single value summarizes all records without a hidden grouping.
+
+Count includes repeated records and rows with blank values. Total/Average exclude
+blank numeric values; an all-blank group displays No numeric values, not zero.
+Date grouping uses the exact reviewed date here; it introduces no implicit month
+conversion, filter or date boundary. The illustrated summary uses the complete
+fictional file and identifies itself as a preview; production uses the complete
+immutable import, not the bounded preview page. Superset remains the chart renderer.
+
+Cancel/Escape retain unfinished choices for reopening this Dataset's chart
+drawer. Failure retains name and selections; retry saves an immutable Widget
+version. Saved versions can be reviewed again; saving another version leaves
+the earlier one unchanged. This addition illustrates the summary controls and
+their save behavior only. It does not invent a dashboard import receipt or replace
+the existing arrangement/publication design. Other compatible visualization
+families remain governed by the binding design.
+
+Quick review: **Try CSV import → Confirm import and save Dataset → Open Dataset
+→ Create chart or table → Bar chart → For each: Accession number**. DEMO-0831
+has two distinct results and must show 2. A small fictional CSV with a Number
+column also allows Total/Average; the supplied mixed viral-load Result column
+intentionally does not. All mock state remains local to the page and resets on
+reload.
+
+### Source-backed questions
 
 Reuse the approved logo, title typography, neutral light/dark surfaces, spacing,
 composer and Explore / Saved work navigation directly from

@@ -1,4 +1,4 @@
-import type { CsvImportDraft, ImportedRows } from "./types";
+import type { CsvImportDraft, ImportedRows, WidgetAggregation } from "./types";
 import type {
   CatalystExecutionResponse,
   CatalystPreview,
@@ -143,6 +143,7 @@ export interface CatalystApi {
       datasetVersionId: string;
       title?: string;
       presentationKind?: DashboardPresentationKind;
+      aggregation?: WidgetAggregation;
       baseVersionId?: string;
     },
     signal?: AbortSignal,

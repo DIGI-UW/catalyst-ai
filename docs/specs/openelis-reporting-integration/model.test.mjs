@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { defaultFields, defaultFilters, exportRows, csv, catalystRecords, differences, comparisonRows, readPreviewCsv, previewTypeErrors } from './model.mjs';
+import { defaultFields, defaultFilters, exportRows, csv, catalystRecords, differences, comparisonRows, readPreviewCsv, previewTypeErrors, summarizePreview } from './model.mjs';
 
 test('August export uses collection dates, status and result multiplicity', () => {
   const rows = exportRows(defaultFilters);
@@ -51,4 +51,19 @@ test('reviewed types can be corrected without replacing original cells', () => {
   file.types[0] = 'text';
   assert.deepEqual(previewTypeErrors(file), []);
   assert.equal(file.rows[1][0], '2026-02-31');
+});
+
+test('chart summaries count repeated records and exclude only blank numeric values from averages', () => {
+  const file = readPreviewCsv('Section,Minutes\nVirology,30\nVirology,90\nVirology,\nOther,\n');
+  const original = structuredClone(file);
+  assert.deepEqual(summarizePreview(file, { group: '0', measure: 'count' }), [{ label: 'Virology', value: 3 }, { label: 'Other', value: 1 }]);
+  assert.deepEqual(summarizePreview(file, { group: '0', measure: 'average', value: '1' }), [{ label: 'Virology', value: 60 }, { label: 'Other', value: null }]);
+  assert.deepEqual(summarizePreview(file, { measure: 'sum', value: '1' }), [{ label: 'All records', value: 120 }]);
+  assert.deepEqual(file, original);
+  assert.throws(() => summarizePreview(file, { measure: 'average', value: '0' }), /Number column/);
+});
+test('fictional virology chart retains duplicate accession results and mixed text', () => {
+  const file = readPreviewCsv(csv(exportRows(defaultFilters)));
+  assert.equal(summarizePreview(file, { group: '0' }).find(item => item.label === 'DEMO-0831').value, 2);
+  assert.throws(() => summarizePreview(file, { measure: 'average', value: '4' }), /Number column/);
 });
