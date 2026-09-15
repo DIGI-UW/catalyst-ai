@@ -29,9 +29,10 @@ make a file a queryable source or require SQL interaction for an import.
 
 The [four-pathway integration roadmap](https://github.com/pmanko/clinical-ai-validation-harness/blob/main/specs/openelis-reporting-catalyst-integration.md)
 owns this extension's sequence and cross-project acceptance. The
-[integration design](specs/openelis-reporting-integration/spec.md) is under
-owner review. Imported Datasets, reusable PostgreSQL transport and source-aware
-publication are approved requirements, not claims of current implementation.
+[integration design](specs/openelis-reporting-integration/spec.md) additions
+were approved on 14 September 2026. PostgreSQL connection execution is implemented;
+imported Datasets and source-aware publication remain approved requirements
+awaiting implementation. Real-source lane acceptance remains separate.
 
 ## Product boundary
 
@@ -312,13 +313,26 @@ Publication resolves the version's actual backing connection without exposing
 storage configuration in the staff workflow. Imported Dataset review shows file
 provenance and complete counts; query actions and SQL history are absent.
 
-### PostgreSQL source — approved extension, implementation pending
+### PostgreSQL source
 
 Ordinary PostgreSQL uses the existing source identity, complete readable-schema,
 dialect and shared execution contracts. Support its transport, parameters,
 types and execution bounds without translating SQL or restoring curated relation
 restrictions. Source discovery and preparation retrieve no incidental result
 rows; only explicit Run executes the selected query. Preserve Spark support.
+
+The shared adapter supports `postgres` / `postgresql` dialects with Psycopg
+transport. PostgreSQL catalog discovery includes readable tables, partitioned
+and foreign tables, views, materialized views and readable columns, including
+column-only grants. Result type metadata survives empty/all-null results.
+Execution starts a read-only transaction and applies server `statement_timeout`;
+the database role's grants remain the authorization boundary. The client bounds
+returned rows without adding a SQL limit. The editor uses PostgreSQL syntax and
+formatting; named bindings, casts and literal text retain their meaning.
+
+This is connection support, not completed lane-3 deployment or publication.
+Source-aware Superset publication and the real OpenELIS workflow are still
+tracked in the integration roadmap.
 
 ### Widget
 

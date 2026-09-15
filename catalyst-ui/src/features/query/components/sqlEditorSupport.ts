@@ -1,5 +1,5 @@
 import type { SQLNamespace } from "@codemirror/lang-sql";
-import { format } from "sql-formatter";
+import { format, type SqlLanguage } from "sql-formatter";
 
 export interface SqlCatalogRelation {
   schema: string;
@@ -45,11 +45,15 @@ export const buildSqlCompletionSchema = (
 // The editor formats in the source's declared dialect. sql-formatter names
 // Spark's grammar "spark"; anything the gateway declares that it does not
 // know falls back to standard SQL rather than to a specific engine.
-const FORMATTER_LANGUAGES = new Set(["spark"]);
+const FORMATTER_LANGUAGES: Record<string, SqlLanguage> = {
+  spark: "spark",
+  postgres: "postgresql",
+  postgresql: "postgresql",
+};
 
 export const formatSql = (source: string, dialect: string) =>
   format(source, {
-    language: (FORMATTER_LANGUAGES.has(dialect) ? dialect : "sql") as never,
+    language: FORMATTER_LANGUAGES[dialect.toLowerCase()] ?? "sql",
     keywordCase: "upper",
     tabWidth: 2,
     useTabs: false,

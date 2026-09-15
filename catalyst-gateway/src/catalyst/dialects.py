@@ -11,15 +11,16 @@ core on engine identity. So each dialect gets a small module here declaring
 what its grammar needs, configuration names which adapter a source uses, and
 the Gateway resolves it and asks it -- it never asks *which engine is this*.
 
-This repository ships one production adapter, for Spark. A fixture adapter in
-tests exercises the same code path, which is how the seam stays honest without
-a second engine to maintain.
+Spark and PostgreSQL use this shared interface. A separate fixture adapter
+continues to test that the execution path is driven by the declared dialect.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Mapping, Sequence
+
+from . import postgres
 
 
 @dataclass(frozen=True)
@@ -71,6 +72,11 @@ class DialectAdapter:
     # hand the existing correction flow an actionable finding instead of letting
     # the database discover it at execution time.
     unsupported_functions: Mapping[str, str] | None = None
+
+    prepare_cursor: Callable[[Any, int], None] | None = None
+    describe_columns: Callable[[Sequence[Any], Any], list[tuple[str, str]]] | None = (
+        None
+    )
 
     def quote_identifier(self, name: str) -> str:
         quote = self.identifier_quote
@@ -247,7 +253,34 @@ SPARK = DialectAdapter(
 )
 
 
-_ADAPTERS: dict[str, DialectAdapter] = {SPARK.name: SPARK}
+POSTGRES = DialectAdapter(
+    name="postgres",
+    sql_dialect="postgres",
+    sqlglot_dialect="postgres",
+    editor_language="postgresql",
+    statement_label="PostgreSQL",
+    identifier_quote='"',
+    parameter_style="pyformat",
+    row_bound=ExecutionGuarantee(
+        "the client returns at most the configured number of rows"
+    ),
+    time_limit=ExecutionGuarantee(
+        "PostgreSQL statement_timeout cancels the statement on the server"
+    ),
+    read_only=ExecutionGuarantee(
+        "execution starts in a read-only transaction; database-role grants remain the authorization boundary"
+    ),
+    discover_relations=postgres.discover_relations,
+    logical_type=postgres.logical_type,
+    prepare_cursor=postgres.prepare_cursor,
+    describe_columns=postgres.describe_columns,
+)
+
+_ADAPTERS: dict[str, DialectAdapter] = {
+    SPARK.name: SPARK,
+    POSTGRES.name: POSTGRES,
+    "postgresql": POSTGRES,
+}
 
 
 class UnknownDialectAdapter(KeyError):
@@ -268,8 +301,7 @@ def resolve_dialect_adapter(name: str) -> DialectAdapter:
 def register_dialect_adapter(adapter: DialectAdapter) -> None:
     """Add an adapter. Tests use this to prove the seam with a fixture.
 
-    Production configuration never calls this: the one production adapter is
-    declared above, and a second production engine is out of scope.
+    Production adapters are declared above; configuration selects one by name.
     """
     _ADAPTERS[adapter.name] = adapter
 

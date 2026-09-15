@@ -1,4 +1,4 @@
-import { StandardSQL, sql } from "@codemirror/lang-sql";
+import { PostgreSQL, StandardSQL, sql } from "@codemirror/lang-sql";
 import { syntaxHighlighting } from "@codemirror/language";
 import { Compartment, EditorState } from "@codemirror/state";
 import { Button } from "@carbon/react";
@@ -28,13 +28,11 @@ export interface SqlEditorProps {
 
 const EMPTY_CATALOG: readonly SqlCatalogRelation[] = [];
 
-// CodeMirror ships no Spark grammar, and this build serves one engine, so
-// standard SQL is what the editor highlights and completes with. It is the
-// honest choice for a dialect CodeMirror does not model: the shared language,
-// without claiming to understand extensions it has no grammar for. The
-// declared dialect still drives formatting and the editor's language mode.
+// Use the source grammar when CodeMirror supplies it; Spark uses standard SQL.
 const EDITOR_DIALECTS: Record<string, typeof StandardSQL> = {
   spark: StandardSQL,
+  postgres: PostgreSQL,
+  postgresql: PostgreSQL,
 };
 
 const editorDialect = (dialect: string) =>
