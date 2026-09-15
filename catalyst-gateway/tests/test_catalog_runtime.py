@@ -466,3 +466,17 @@ SECOND_SOURCE_BROWSER = {
     "valueColumn": "measure_numeric",
     "valueFallbackColumns": ["measure_text"],
 }
+
+
+def test_discovered_relationships_reach_writer_without_losing_annotations():
+    base = _base_catalog()
+    relation = deepcopy(DISCOVERED_RELATION)
+    declared = 'Declared foreign key: "analytics"."lab_result_fact_v1"."patient_id" = "public"."patients"."id"'
+    relation["relationships"] = [declared]
+    base.views[0]["relationships"] = [declared, "Optional source explanation"]
+    expanded = base.with_discovered_relations([relation])
+    assert expanded.request_catalog()["views"][0]["relationships"] == [
+        declared,
+        "Optional source explanation",
+    ]
+    assert relation["relationships"] == [declared]

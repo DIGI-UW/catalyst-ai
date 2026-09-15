@@ -122,4 +122,68 @@ def discover_relations(cursor: Any) -> list[dict[str, Any]]:
             if column_comment:
                 field["description"] = column_comment
             relation["fields"].append(field)
+    _add_foreign_keys(cursor, relations)
     return list(relations.values())
+
+
+def _add_foreign_keys(
+    cursor: Any, relations: dict[tuple[str, str], dict[str, Any]]
+) -> None:
+    """Enrich readable relations with declared joins, without reading data rows."""
+    cursor.execute(
+        """
+        SELECT sn.nspname, sc.relname, tn.nspname, tc.relname,
+               array_agg(sa.attname ORDER BY k.position),
+               array_agg(ta.attname ORDER BY k.position)
+        FROM pg_catalog.pg_constraint f
+        JOIN pg_catalog.pg_class sc ON sc.oid = f.conrelid
+        JOIN pg_catalog.pg_namespace sn ON sn.oid = sc.relnamespace
+        JOIN pg_catalog.pg_class tc ON tc.oid = f.confrelid
+        JOIN pg_catalog.pg_namespace tn ON tn.oid = tc.relnamespace
+        JOIN LATERAL unnest(f.conkey, f.confkey) WITH ORDINALITY
+             AS k(source_column, target_column, position) ON true
+        JOIN pg_catalog.pg_attribute sa
+             ON sa.attrelid = sc.oid AND sa.attnum = k.source_column
+        JOIN pg_catalog.pg_attribute ta
+             ON ta.attrelid = tc.oid AND ta.attnum = k.target_column
+        WHERE f.contype = 'f'
+        GROUP BY f.oid, sn.nspname, sc.relname, tn.nspname, tc.relname
+        ORDER BY sn.nspname, sc.relname, tn.nspname, tc.relname, f.conname
+        """
+    )
+    for (
+        source_schema,
+        source_table,
+        target_schema,
+        target_table,
+        source_columns,
+        target_columns,
+    ) in cursor.fetchall():
+        source = relations.get((source_schema, source_table))
+        target = relations.get((target_schema, target_table))
+        if source is None or target is None:
+            continue
+        # A partially readable composite key must not expose hidden columns or
+        # suggest that joining only the visible part is a complete relationship.
+        source_fields = {field["name"] for field in source["fields"]}
+        target_fields = {field["name"] for field in target["fields"]}
+        if (
+            not set(source_columns) <= source_fields
+            or not set(target_columns) <= target_fields
+        ):
+            continue
+        joins = [
+            f"{_qualified_column(source_schema, source_table, left)} = "
+            f"{_qualified_column(target_schema, target_table, right)}"
+            for left, right in zip(source_columns, target_columns, strict=True)
+        ]
+        relationship = "Declared foreign key: " + " AND ".join(joins)
+        relationships = source.setdefault("relationships", [])
+        if relationship not in relationships:
+            relationships.append(relationship)
+
+
+def _qualified_column(schema: str, table: str, column: str) -> str:
+    return ".".join(
+        '"' + part.replace('"', '""') + '"' for part in (schema, table, column)
+    )
