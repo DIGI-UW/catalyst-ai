@@ -121,6 +121,25 @@ class Catalog:
             }
             for key in ("relationships", "semanticDimensions"):
                 value = curated.get(key)
+                if key == "relationships":
+                    discovered = relation.get(key) or []
+                    previous = set(curated.get("discoveredRelationships") or [])
+                    value = list(
+                        dict.fromkeys(
+                            [
+                                *discovered,
+                                *(
+                                    item
+                                    for item in (value or [])
+                                    if item not in previous
+                                ),
+                            ]
+                        )
+                    )
+                    if discovered:
+                        # Keep provenance internal so a later refresh can remove
+                        # hints whose constraints or readable columns disappeared.
+                        view["discoveredRelationships"] = deepcopy(discovered)
                 if key == "semanticDimensions" and value:
                     value = [
                         dimension

@@ -46,7 +46,11 @@ A source supplies:
 - every table, view, column, and type readable through that connection.
 
 Optional source annotations may add descriptions, relationships, units, or
-examples. They cannot hide, approve, or rank readable relations.
+examples. They cannot hide, approve, or rank readable relations. PostgreSQL discovery
+includes declared foreign-key joins only when both relations and every column
+in the key are readable. Composite keys retain all paired columns in declared
+order. This is metadata enrichment, not a guarantee of query correctness or a
+restriction on which joins the person may execute.
 
 A session binds one source at creation. Selecting another source starts another
 session. An unavailable source does not prevent application startup or another

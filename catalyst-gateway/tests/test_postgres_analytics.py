@@ -298,3 +298,79 @@ async def test_published_postgres_literals_match_bound_query_values(postgres_sou
     )
     assert rendered.rows == bound.rows
     assert rendered.rows[0][0] == {"type": "string", "value": parameters[0]["value"]}
+
+
+@pytest.mark.asyncio
+async def test_foreign_keys_keep_composite_order_and_readable_columns(postgres_source):
+    from urllib.parse import urlsplit
+
+    from src.catalyst.catalog import Catalog
+
+    adapter, schema = postgres_source
+    reader = urlsplit(adapter.connection_uri).username
+    with psycopg.connect(
+        os.environ["CATALYST_TEST_POSTGRES_URI"], autocommit=True
+    ) as admin:
+        with admin.cursor() as cursor:
+            cursor.execute(
+                sql.SQL("SET search_path TO {}").format(sql.Identifier(schema))
+            )
+            cursor.execute(
+                'CREATE TABLE parent ("Key A" int, "Key B" int, PRIMARY KEY ("Key B", "Key A"))'
+            )
+            cursor.execute("ALTER TABLE hidden ADD UNIQUE (secret)")
+            cursor.execute("ALTER TABLE partial ADD UNIQUE (hidden)")
+            cursor.execute(
+                'CREATE TABLE child (first int, second int, hidden_link text REFERENCES hidden(secret), partial_link text REFERENCES partial(hidden), FOREIGN KEY (first, second) REFERENCES parent("Key B", "Key A"))'
+            )
+            cursor.execute(
+                'CREATE TABLE limited (first int, second int, FOREIGN KEY (first, second) REFERENCES parent("Key B", "Key A"))'
+            )
+            cursor.execute(
+                sql.SQL("GRANT SELECT ON parent, child TO {}").format(
+                    sql.Identifier(reader)
+                )
+            )
+            cursor.execute(
+                sql.SQL("GRANT SELECT (first) ON limited TO {}").format(
+                    sql.Identifier(reader)
+                )
+            )
+
+            relations = await adapter.discover_relations()
+            by_name = {r["name"]: r for r in relations}
+            expected = (
+                f'Declared foreign key: "{schema}"."child"."first" = "{schema}"."parent"."Key B"'
+                f' AND "{schema}"."child"."second" = "{schema}"."parent"."Key A"'
+            )
+            assert by_name[f"{schema}.child"]["relationships"] == [expected]
+            assert "relationships" not in by_name[f"{schema}.limited"]
+            assert f"{schema}.hidden" not in by_name
+            catalog = Catalog("native", "live", "v1", "postgresql", "native", [], {})
+            runtime = catalog.with_discovered_relations(relations)
+            writer_views = {r["name"]: r for r in runtime.request_catalog()["views"]}
+            assert writer_views[f"{schema}.child"]["relationships"] == [expected]
+            assert set(writer_views) == set(by_name)
+            assert runtime == catalog.with_discovered_relations(
+                await adapter.discover_relations()
+            )
+
+            # Losing one target-column grant removes the entire composite hint,
+            # while keeping the readable relation and its remaining column.
+            cursor.execute(
+                sql.SQL("REVOKE SELECT ON parent FROM {}").format(
+                    sql.Identifier(reader)
+                )
+            )
+            cursor.execute(
+                sql.SQL('GRANT SELECT ("Key A") ON parent TO {}').format(
+                    sql.Identifier(reader)
+                )
+            )
+            refreshed = runtime.with_discovered_relations(
+                await adapter.discover_relations()
+            )
+            views = {r["name"]: r for r in refreshed.request_catalog()["views"]}
+            assert "relationships" not in views[f"{schema}.child"]
+            assert [f["name"] for f in views[f"{schema}.parent"]["fields"]] == ["Key A"]
+            assert refreshed.catalog_version != runtime.catalog_version
