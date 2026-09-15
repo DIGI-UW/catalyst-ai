@@ -88,3 +88,19 @@ for (const theme of ["light", "dark"] as const) test(`saves and reopens reviewed
   await expect(dialog.getByRole("button",{name:"Saved",exact:true})).toBeDisabled();
   expect(writes.some(url => /sessions|execute|generate/.test(url))).toBe(false);
 });
+
+
+test("web proxy accepts a report above 1 MB and preserves the Gateway upload limit", async ({ request }) => {
+  test.skip(process.env.CATALYST_CSV_BROWSER !== "1", "Requires the real web proxy and configured import storage");
+  const path = "/v1/catalyst/dashboard-builder/datasets/imports?filename=large-fixture.csv";
+  const report = Buffer.from("ID,Notes\n" + ("001," + "x".repeat(600) + "\n").repeat(2000));
+  expect(report.byteLength).toBeGreaterThan(1024 * 1024);
+  const uploaded = await request.post(path, { data: report, headers: { "Content-Type": "text/csv" } });
+  expect(uploaded.status()).toBe(201);
+  const draft = await uploaded.json();
+  expect(draft.preview.rowCount.total).toBe(2000);
+  expect(draft.datasetVersionId).toBeNull();
+  const oversized = await request.post(path, { data: Buffer.alloc(10 * 1024 * 1024 + 1, "x"), headers: { "Content-Type": "text/csv" } });
+  expect(oversized.status()).toBe(413);
+  expect((await oversized.json()).error.code).toBe("file_too_large");
+});
