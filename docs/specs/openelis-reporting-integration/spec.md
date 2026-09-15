@@ -53,8 +53,10 @@ still need real implementation/verification for the new backing connections.
 
 ## Import a report
 
-Upload CSV is reachable from Explore and Saved work without changing the current
-question or source-bound session. Review a file name, complete row/column count,
+Upload CSV is a collection action beside the **Datasets** heading in **Saved
+work**. Explore stays focused on writing questions; navigating to Saved work
+and importing must retain the current question and source-bound session. Saved
+work remains the active navigation item during import and Dataset review. Review a file name, complete row/column count,
 ordered columns, suggested types and full preview table. Types are editable;
 identifiers with leading zeros and mixed results such as `<20` remain Text.
 Null/blank cells and repeated result rows must survive unchanged.
@@ -65,6 +67,10 @@ the file or reviewed types. Cancellation creates no saved Dataset. Going back
 to Explore retains the question, and returning to Upload CSV retains the import
 draft. Reopening a saved import has file/version provenance and no SQL history.
 Another upload creates a separate version; previously saved values remain fixed.
+
+To review reopening: Saved work → Upload CSV → use the fictional example →
+confirm import and save → Open Dataset. The review wrapper explains this path
+and that reloading resets mock data; production persistence remains required.
 
 Both query and file origins appear under **Datasets**, using the same approved
 cards and review treatment. Query-specific actions remain limited to queries.
