@@ -765,3 +765,22 @@ export const isTable = (
   response: CatalystExecutionResponse,
 ): response is CatalystTable =>
   response.contractVersion === "catalyst.table.v1";
+
+export interface ImportedRows {
+  columns: Array<{ ordinal: number; name: string; logicalType: string; databaseType?: string }>;
+  rows: TaggedCell[][];
+  rowCount: { total: number; returned: number; truncated: boolean };
+  offset?: number;
+}
+
+export interface CsvImportDraft {
+  importId: string;
+  filename: string;
+  sha256: string;
+  bytes: number;
+  title: string;
+  types: Array<"text" | "number" | "date">;
+  preview: ImportedRows;
+  error: string | null;
+  datasetVersionId: string | null;
+}

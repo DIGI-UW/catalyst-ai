@@ -31,8 +31,8 @@ The [four-pathway integration roadmap](https://github.com/pmanko/clinical-ai-val
 owns this extension's sequence and cross-project acceptance. The
 [integration design](specs/openelis-reporting-integration/spec.md) additions
 were approved on 14 September 2026. PostgreSQL connection execution and
-source-aware query publication are implemented; imported Datasets remain an
-approved requirement awaiting implementation. Real-source lane acceptance
+source-aware query publication and the CSV import/table foundation are implemented.
+Raw-row grouping and summary charts remain the next iteration. Real-source lane acceptance
 remains separate.
 
 ## Product boundary
@@ -292,7 +292,7 @@ for retry. The starting Dataset version remains visible, and Return to previous
 draft restores the preserved session. Creating the copy does not generate or run
 SQL; Run continues through the existing query-version execution path.
 
-### Imported Dataset — approved extension, implementation pending
+### Imported Dataset
 
 Upload CSV → review columns/types → confirm import → save Dataset uses the same
 Dataset library/review and downstream Widget/Dashboard model, without SQL,

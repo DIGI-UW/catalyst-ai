@@ -323,7 +323,7 @@ describe("Dashboard Builder supervised promotion", () => {
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
     await user.click(within(card).getByRole("button", { name: "Create chart or table" }));
     const review = screen.getByRole("dialog", { name: "Review panel" });
-    expect(within(review).getByLabelText("Saved query")).toHaveValue(savedDataset.versionId);
+    expect(within(review).getByLabelText("Dataset")).toHaveValue(savedDataset.versionId);
   });
 
   it("opens a saved Dataset from the library in the same evidence panel", async () => {
@@ -339,7 +339,7 @@ describe("Dashboard Builder supervised promotion", () => {
       />,
     );
 
-    await screen.findByRole("heading", { name: "Saved queries" });
+    await screen.findByRole("heading", { name: "Datasets" });
     await user.click(screen.getByRole("button", { name: "Review Count result" }));
     expect(screen.getByRole("heading", { name: "Review saved query" })).toBeVisible();
     expect(screen.getByRole("table", { name: "Result rows" })).toBeVisible();

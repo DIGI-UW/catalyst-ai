@@ -80,6 +80,8 @@ def create_app(
         outbox=config.superset_outbox_path,
         receipts=config.superset_receipts_path,
         data_sources=config.data_sources,
+        import_source=config.import_source,
+        import_directory=config.import_directory,
     )
 
     @asynccontextmanager

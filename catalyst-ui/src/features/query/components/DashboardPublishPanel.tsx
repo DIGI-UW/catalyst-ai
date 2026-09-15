@@ -1,3 +1,4 @@
+import { CsvImportPanel, ImportedDatasetReview } from "./CsvImportPanel";
 import { Disclosure } from "./Disclosure";
 import { CheckmarkFilled, Close, DataBase, Renew } from "@carbon/icons-react";
 import { Button, InlineNotification, Select, SelectItem, Tag, TextInput } from "@carbon/react";
@@ -144,6 +145,7 @@ const presentationAssessments = (
   );
   const compatible = (kind: DashboardPresentationKind) => {
     if (kind === "table") return true;
+    if (dataset && configurationRecord(dataset, "origin")?.kind === "file") return false;
     if (kind === "big_number") return rowCount === 1 && columns.length === 1 && numeric.length === 1;
     if (kind === "time_series_line" || kind === "time_series_area") {
       return temporal.length > 0 && numeric.length > 0;
@@ -153,6 +155,7 @@ const presentationAssessments = (
   };
   const reason = (kind: DashboardPresentationKind) => {
     if (kind === "table") return "Table supports every returned schema.";
+    if (dataset && configurationRecord(dataset, "origin")?.kind === "file") return "Summary charts for uploaded rows follow in the next iteration.";
     if (kind === "big_number") return "Big number requires exactly one returned numeric cell.";
     if (kind === "time_series_line" || kind === "time_series_area") {
       return `${presentations.find((item) => item.value === kind)?.label} requires a temporal and numeric column.`;
@@ -261,6 +264,7 @@ export const DashboardPublishPanel = ({
   onNavigate,
   onReuseQuery,
 }: DashboardPublishPanelProps) => {
+  const [importOpen, setImportOpen] = useState(false);
   const [datasets, setDatasets] = useState<DashboardBuilderEntity[]>([]);
   const [widgets, setWidgets] = useState<DashboardBuilderEntity[]>([]);
   const [dashboards, setDashboards] = useState<DashboardBuilderEntity[]>([]);
@@ -349,6 +353,7 @@ export const DashboardPublishPanel = ({
     : reviewedExecutionId
       ? null
       : currentDataset;
+  const reviewedFile = Boolean(reviewedDataset && configurationRecord(reviewedDataset, "origin")?.kind === "file");
   const reviewedDatasetSource = reviewedDataset
     ? configurationRecord(reviewedDataset, "source")
     : null;
@@ -624,7 +629,7 @@ export const DashboardPublishPanel = ({
       });
       setDatasets((current) => [saved, ...current.filter((item) => item.versionId !== saved.versionId)]);
       setSelectedDatasetVersionId(saved.versionId);
-      setToast(`“${entityTitle(saved, "Dataset")}” saved to Saved queries.`);
+      setToast(`“${entityTitle(saved, "Dataset")}” saved to Datasets.`);
       // Stay open. Saving used to close onto the thread, and the next step —
       // a Widget — lived in a nav section you had to already know about, so
       // the chain ended at the moment it should have continued. Re-pointing
@@ -796,7 +801,7 @@ export const DashboardPublishPanel = ({
   const renderLibraryNavigation = () => (
     <nav className="builder-library__navigation" aria-label="Saved work">
       {([
-        ["datasets", "Saved queries", datasets.length],
+        ["datasets", "Datasets", datasets.length],
         ["widgets", "Charts and tables", widgets.length],
         ["dashboards", "Dashboards", dashboards.length],
       ] as const).map(([id, label, count]) => (
@@ -812,16 +817,19 @@ export const DashboardPublishPanel = ({
       <header className="builder-library__header">
         <div>
           <p className="eyebrow">Saved work</p>
-          <h1 id="datasets-title">Saved queries</h1>
-          <p>Saved queries you can reuse in charts and dashboards.</p>
+          <h1 id="datasets-title">Datasets</h1>
+          <p>Your saved queries and imported files, ready to use again.</p>
         </div>
+        {api.uploadCsv && <Button onClick={() => setImportOpen(true)}>Upload CSV</Button>}
       </header>
       {renderLibraryNavigation()}
       {datasets.length === 0 ? (
-        <p className="builder-empty-note">No saved queries yet. Start with a question in Explore, get results, then save your query.</p>
+        <p className="builder-empty-note">Save a query result or upload a CSV to find it here.</p>
       ) : (
         <div className="builder-saved-list">
           {datasets.map((dataset) => {
+            const origin = configurationRecord(dataset, "origin");
+            const imported = origin?.kind === "file";
             const source = configurationRecord(dataset, "source");
             const sourceId = String(source?.dataSourceId ?? "Unknown");
             const columns = configurationValue(dataset, "columns");
@@ -831,7 +839,7 @@ export const DashboardPublishPanel = ({
             const widgetCount = widgets.filter(
               (widget) => configurationValue(widget, "datasetVersionId") === dataset.versionId,
             ).length;
-            const title = entityTitle(dataset, "Saved query");
+            const title = entityTitle(dataset, "Dataset");
             return (
               <article key={dataset.versionId} className="builder-saved-card" aria-label={title}>
                 <header className="builder-saved-card__header">
@@ -839,28 +847,28 @@ export const DashboardPublishPanel = ({
                   <Tag type="gray">Saved</Tag>
                 </header>
                 <dl className="builder-saved-card__facts">
-                  <div><dt>Source</dt><dd>{dataSources.find((item) => item.id === sourceId)?.label ?? sourceId}</dd></div>
+                  <div><dt>{imported ? "Imported CSV" : "Query source"}</dt><dd>{imported ? String(origin?.filename) : dataSources.find((item) => item.id === sourceId)?.label ?? sourceId}</dd></div>
                   <div><dt>Saved version</dt><dd>{dataset.ordinal}</dd></div>
                   <div><dt>Used by</dt><dd>{widgetCount} {widgetCount === 1 ? "chart" : "charts"}</dd></div>
                 </dl>
                 {parameters.length > 0 && <p className="builder-saved-card__parameters">
                   {parameters.map((parameter) => `${parameter.name} · ${parameter.type}`).join("; ")}
                 </p>}
-                <Disclosure className="builder-saved-card__details" open={advancedMode || undefined} title="Query details">
-                  <p>{Array.isArray(columns) ? columns.length : "Unknown"} columns · {String(rowCount?.returned ?? "Unknown")} rows · {parameters.length} parameters · Saved {dateLabel(dataset.createdAt)}</p>
+                <Disclosure className="builder-saved-card__details" open={advancedMode || undefined} title={imported ? "File details" : "Query details"}>
+                  <p>{Array.isArray(columns) ? columns.length : "Unknown"} columns · {String(rowCount?.returned ?? "Unknown")} {imported ? "complete rows" : "rows at save"} {imported ? "" : `· ${parameters.length} parameters`} · Saved {dateLabel(dataset.createdAt)}</p>
                 </Disclosure>
                 <div className="builder-saved-card__actions">
                   <Button type="button" aria-label={`Review ${title}`}
                     onClick={(event) => {
                       setReturnFocusTarget(event.currentTarget);
                       openPanel("dataset", dataset.versionId);
-                    }}>Review saved query</Button>
+                    }}>{imported ? "Open Dataset" : "Review saved query"}</Button>
                   <Button type="button" kind="tertiary" disabled={disabled || busy}
                     onClick={(event) => {
                       setReturnFocusTarget(event.currentTarget);
                       openPanel("widget", dataset.versionId);
                     }}>Create chart or table</Button>
-                  {onReuseQuery && <Button type="button" kind="ghost"
+                  {!imported && onReuseQuery && <Button type="button" kind="ghost"
                     disabled={disabled || busy || !savedQueryDraft(dataset)}
                     onClick={() => onReuseQuery(dataset)}>Start from this SQL</Button>}
                 </div>
@@ -878,7 +886,7 @@ export const DashboardPublishPanel = ({
         <div>
           <p className="eyebrow">Saved work</p>
           <h1 id="widgets-title">Charts and tables</h1>
-          <p>Charts and tables built from your saved queries.</p>
+          <p>Charts and tables built from your Datasets.</p>
         </div>
         <Button
           type="button"
@@ -893,7 +901,7 @@ export const DashboardPublishPanel = ({
       </header>
       {renderLibraryNavigation()}
       {widgets.length === 0 ? (
-        <p className="builder-empty-note">No charts or tables saved yet. Choose a saved query to create one.</p>
+        <p className="builder-empty-note">No charts or tables saved yet. Choose a Dataset to create one.</p>
       ) : (
         <div className="builder-saved-list">
           {widgets.map(widget => {
@@ -1024,7 +1032,14 @@ export const DashboardPublishPanel = ({
   return (
     <>
       {activeSection === "ask" && renderAskArtifacts()}
-      {activeSection === "datasets" && renderDatasets()}
+      {activeSection === "datasets" && !importOpen && renderDatasets()}
+      {api.uploadCsv && <CsvImportPanel api={api} visible={activeSection === "datasets" && importOpen}
+        onClose={() => setImportOpen(false)} onSaved={saved => {
+          setDatasets(previous => [saved, ...previous.filter(item => item.versionId !== saved.versionId)]);
+          setImportOpen(false); setReviewedDatasetVersionId(saved.versionId); setPanel("dataset");
+          setToast("Dataset saved. Your imported values are ready to use.");
+        }} />}
+
       {activeSection === "widgets" && renderWidgets()}
       {activeSection === "dashboards" && renderDashboards()}
 
@@ -1058,11 +1073,11 @@ export const DashboardPublishPanel = ({
             <header className="builder-review__header">
               <div>
                 <p className="eyebrow">
-                  {panel === "dataset" ? "Query result" : panel === "widget" ? "Chart or table" : "Dashboard"}
+                  {panel === "dataset" ? reviewedFile ? "Imported Dataset" : "Query result" : panel === "widget" ? "Chart or table" : "Dashboard"}
                 </p>
                 <h2>
                   {panel === "dataset"
-                    ? reviewedDataset ? "Review saved query" : "Review results"
+                    ? reviewedFile ? "Review Dataset" : reviewedDataset ? "Review saved query" : "Review results"
                     : panel === "widget"
                       ? reviewedWidgetVersionId ? "Review saved chart" : "Review chart draft"
                       : reviewedDashboardVersionId ? "Review and arrange Dashboard" : "Create Dashboard"}
@@ -1089,7 +1104,8 @@ export const DashboardPublishPanel = ({
                   subtitle={error}
                 />
               )}
-              {panel === "dataset" && reviewedSession && reviewedExecution && (
+              {panel === "dataset" && reviewedFile && reviewedDataset && <ImportedDatasetReview key={reviewedDataset.versionId} api={api} dataset={reviewedDataset} />}
+              {panel === "dataset" && !reviewedFile && reviewedSession && reviewedExecution && (
                 <>
                   <TextInput
                     id="builder-dataset-title"
@@ -1196,7 +1212,7 @@ export const DashboardPublishPanel = ({
                   </Disclosure>
                 </>
               )}
-              {panel === "dataset" && reviewedDataset && <Disclosure className="builder-review__sql" title="Saved SQL and values">
+              {panel === "dataset" && !reviewedFile && reviewedDataset && <Disclosure className="builder-review__sql" title="Saved SQL and values">
                 <pre>{String(reviewedDataset.configuration.parameterizedSql ?? "Saved SQL is unavailable.")}</pre>
                 <p>Source: {String(reviewedDatasetSource?.dataSourceId ?? "Unknown")} · Dialect: {String(reviewedDatasetSource?.dialect ?? "Not recorded")}</p>
                 <dl>{savedQueryDraft(reviewedDataset)?.parameters.map((parameter) => <div key={parameter.name}>
@@ -1207,7 +1223,7 @@ export const DashboardPublishPanel = ({
               {panel === "dataset" && datasetEvidenceLoading && (
                 <p role="status">Loading exact Dataset execution evidence…</p>
               )}
-              {panel === "dataset" && !datasetEvidenceLoading && (!reviewedSession || !reviewedExecution) && (
+              {panel === "dataset" && !reviewedFile && !datasetEvidenceLoading && (!reviewedSession || !reviewedExecution) && (
                 <InlineNotification
                   kind="warning"
                   lowContrast
@@ -1233,7 +1249,7 @@ export const DashboardPublishPanel = ({
                   />
                   <Select
                     id="builder-widget-dataset"
-                    labelText="Saved query"
+                    labelText="Dataset"
                     value={effectiveDatasetVersionId}
                     disabled={busy}
                     onChange={(event) => {
@@ -1368,7 +1384,7 @@ export const DashboardPublishPanel = ({
                     {busy ? "Saving…" : "Save query"}
                   </Button>
                 ))}
-              {panel === "dataset" && reviewedDataset && onReuseQuery && <Button type="button" kind="ghost"
+              {panel === "dataset" && !reviewedFile && reviewedDataset && onReuseQuery && <Button type="button" kind="ghost"
                 disabled={disabled || busy || !savedQueryDraft(reviewedDataset)}
                 onClick={() => { setPanel(null); onReuseQuery(reviewedDataset); }}>Start from this SQL</Button>}
               {panel === "widget" && (

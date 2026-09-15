@@ -111,6 +111,7 @@ services:
     environment:
       <<: *superset-environment
       CATALYST_ANALYTICS_DATABASE_URI: "hive://catalyst@spark-thriftserver:10000/openelis"
+      CATALYST_IMPORT_SUPERSET_URI: "${CATALYST_IMPORT_SUPERSET_URI:-}"
       CATALYST_SUPERSET_OUTBOX: /opt/catalyst/outbox
       CATALYST_SUPERSET_RECEIPTS: /opt/catalyst/receipts
       CATALYST_SUPERSET_PUBLIC_URL: "${CATALYST_SUPERSET_PUBLIC_URL:-http://localhost:${SUPERSET_PORT:-8088}${SUPERSET_APP_ROOT:-}}"
@@ -322,6 +323,9 @@ services:
       CATALYST_CONNECTION_URI: "hive2://catalyst@spark-thriftserver:10000/openelis"
       CATALYST_DIALECT: "spark"
       CATALYST_PREVIEW_STORE_PATH: "/app/state/previews.sqlite3"
+      CATALYST_IMPORT_DATABASE_URI: "${CATALYST_IMPORT_DATABASE_URI:-}"
+      CATALYST_IMPORT_SUPERSET_URI: "${CATALYST_IMPORT_SUPERSET_URI:-}"
+      CATALYST_IMPORT_DIRECTORY: "/app/state/imports"
       CATALYST_SUPERSET_OUTBOX: "/app/superset-outbox"
       CATALYST_SUPERSET_RECEIPTS: "/app/superset-receipts"
       CATALYST_SUPERSET_ANALYTICS_URI: "hive://catalyst@spark-thriftserver:10000/openelis"

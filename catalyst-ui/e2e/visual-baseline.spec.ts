@@ -118,7 +118,7 @@ test.describe(`visual baseline (${theme})`, () => {
     await expect(dialog).toHaveScreenshot(`review-dialog-${theme}.png`, shot);
   });
 
-  for (const section of ["Saved queries", "Charts and tables", "Dashboards"] as const) {
+  for (const section of ["Datasets", "Charts and tables", "Dashboards"] as const) {
     test(`${section.toLowerCase()} library`, async ({ page }) => {
       await useTheme(page, theme);
       await installBaselineApi(page);

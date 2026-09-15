@@ -12,7 +12,7 @@ serve.
 
 Base path: `/v1/catalyst/dashboard-builder`
 
-## Approved reporting extension — not yet served
+## Imported-file Dataset extension
 
 The [existing integration design](../specs/openelis-reporting-integration/spec.md)
 extends this contract with an imported-file Dataset origin and PostgreSQL-backed
@@ -21,21 +21,73 @@ The current routes/examples below continue to describe query-backed saves.
 Do not send a CSV through the execution-based save route or invent a session,
 query, or execution to satisfy it.
 
-The implementation must add explicit file upload, reviewed column/type
-confirmation and immutable save while preserving existing query APIs. The
-Dataset collection/review distinguishes query and file origins and retains the
-common version/Widget/Dashboard contract. File-origin metadata includes file
-identity/checksum, complete row count, reviewed ordered schema and immutable
-import version; query-specific fields/actions are absent. Publish resolves the
-version's actual backing connection and retains truthful matching receipts.
+The additive import routes use explicit upload, type review and immutable save.
+They do not create or consult a query session. Both origins use the existing
+Dataset collection/review and Widget/Dashboard versions. Query-specific fields
+and actions remain absent for files.
 
-Failed/interrupted imports create neither a ready Dataset nor partial published
-data. Retrying preserves input; later uploads cannot silently replace a saved
-version. CSV values/order, leading-zero identifiers, blanks, duplicates, mixed
-types and dates must survive persistence and restart. Raw-row grouping/counts
-are explicit Widget choices rather than an implicit query-result aggregation.
-Add executable schemas and route details with the implementation; this design
-change does not advertise an upload endpoint that does not exist.
+| Method | Route | Behavior |
+| --- | --- | --- |
+| `POST` | `/datasets/imports?filename=report.csv` | Raw UTF-8 CSV bytes; returns a durable draft and bounded preview. |
+| `GET` | `/datasets/imports/{importId}?offset=0` | Restore the draft and up to 100 ordered rows; reports complete file count. |
+| `PATCH` | `/datasets/imports/{importId}` | `{ "title": "Report", "types": ["text", "number", "date"] }`; retains original cells and selected types even when conversion needs correction. |
+| `POST` | `/datasets/imports/{importId}/confirm` | Validate every row, commit typed storage, then save an immutable Dataset. Identical retry returns the same version. |
+| `GET` | `/datasets/{versionId}/rows?offset=0&limit=100` | Page the saved file's typed rows in original order, without a Workbench execution. |
+
+Uploads are bounded to 10 MB, 100,000 result rows and 200 columns. Empty files,
+invalid UTF-8, duplicate/empty headings and inconsistent row widths are rejected
+before a draft is saved. Text preserves leading zeros, mixed values, blanks and
+repeated rows. Number uses exact decimal conversion; Date requires an ISO date.
+Blank numeric/date values become null while original file bytes stay unchanged.
+The preview is bounded; the imported file is complete and can be paged in full.
+
+Original bytes are protected files; the existing SQLite store holds only import
+and Dataset metadata. Explicit confirmation transactionally creates a versioned
+table in the dedicated PostgreSQL import database. If the metadata save or its
+response fails after that commit, retry reuses the same table/version. No ready
+Dataset or publication is produced from a partial database write. Tables left
+without a Dataset after an interrupted save are retained for retry; automatic
+orphan cleanup remains deferred. Later uploads never overwrite saved versions.
+
+A file-origin Dataset contains `origin.kind: "file"`, import/file identity,
+SHA-256, byte and complete row counts, reviewed ordered columns/types and its
+immutable storage reference. It contains no SQL, parameters, session, turn or
+execution identity. Internal physical column names are independent of CSV
+headings so long, Unicode or quoted headings retain their full display names.
+Storage and publication connection identities prevent silent retargeting.
+
+This foundation supports a raw table Widget and existing Dashboard arrangement
+and publication. The native bundle references the immutable table, labels its
+columns with the original headings and retains row order and duplicates.
+`datasetRef` accepts either the unchanged query contract or the file-origin
+contract. File bundles contain no fabricated compiler history or result rows.
+Reviewed grouping, aggregation and record-count charts are the next integration
+iteration; non-table imported Widgets remain unavailable until those controls
+can express their meaning. Query-backed visualization behavior is unchanged.
+
+### Import storage configuration
+
+Set `CATALYST_IMPORT_DATABASE_URI` to the dedicated import PostgreSQL database
+and `CATALYST_IMPORT_SUPERSET_URI` to its separate read-only publication account.
+Never use the OpenELIS operational database or Superset metadata database for
+imported rows. Leaving import storage unset preserves application startup and
+query functionality; upload returns an actionable configuration error.
+
+Gateway needs `CREATE` on the dedicated database and ownership of the
+`catalyst_imports` schema/tables. Provision the schema's read-only role with
+`USAGE`, `SELECT` and default `SELECT` privileges for tables created by the
+Gateway role. Superset needs no insert/update/create privilege. The URI's host
+must be reachable from its respective process. The file bundle omits passwords
+and credential-file options. The importer resolves the matching read-only URI
+from its deployment environment and provisions a new native Superset connection
+only for that exact endpoint/account. A mismatch fails before importing; an
+existing connection is never retargeted or given a different password silently. The deployment owner provisions
+these accounts; the application does not create users or change another database.
+
+`CATALYST_IMPORT_DIRECTORY` defaults beside the metadata file. The reference
+Compose maps it to `/app/state/imports` in the existing retained Gateway volume.
+Keep this directory, metadata and the dedicated database together when backing
+up/restoring an environment. Storage details are not staff workflow controls.
 
 ## Product boundary
 
@@ -60,9 +112,10 @@ The following rules apply across the whole path:
   second source boundary.
 - Dataset, Widget, and Dashboard saves create immutable records. A saved object
   is never silently rebound to a later query, Dataset, Widget, schema, or source.
-- Only explicit Workbench **Run** executes SQL. Saving, browsing libraries,
-  choosing a visualization, publishing, downloading, and reading publication
-  status do not run SQL or call a model.
+- Only explicit Workbench **Run** executes a selected source query. Query saves,
+  browsing libraries, choosing a visualization and publication do not rerun it
+  or call a model. Confirming a CSV writes its reviewed rows to the import store;
+  saved-file review reads that stored version, with no source query or model call.
 - Catalyst stores desired Dashboard configuration. Superset renders it.
 - A ready bundle is not an imported Dashboard. Catalyst shows imported success
   and enables the stable Superset link only after a matching importer result.
