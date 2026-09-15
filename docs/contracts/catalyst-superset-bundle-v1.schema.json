@@ -286,6 +286,10 @@
           "type": ["string", "null"],
           "minLength": 1
         },
+        "publicationConnectionIdentity": {
+          "description": "Credential-free connection identity recorded when saving a new Dataset; absent for legacy versions.",
+          "$ref": "#/$defs/sha256"
+        },
         "catalogVersion": {
           "$ref": "#/$defs/nonEmpty"
         },

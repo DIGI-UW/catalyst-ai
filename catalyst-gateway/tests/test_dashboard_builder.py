@@ -5,9 +5,11 @@ import stat
 import uuid
 import zipfile
 from pathlib import Path
+from dataclasses import replace
 
 import pytest
 
+from src.config import DataSourceConfig, load_config
 from src.catalyst.contracts import ContractRegistry
 from src.catalyst.dashboard_builder import (
     DashboardBuilder,
@@ -558,7 +560,15 @@ def test_same_source_schema_refresh_composes_but_another_source_does_not(
 ) -> None:
     workbench = _Workbench()
     builder = DashboardBuilder(
-        tmp_path / "state.sqlite3", workbench=workbench, outbox=tmp_path / "outbox"
+        tmp_path / "state.sqlite3",
+        workbench=workbench,
+        outbox=tmp_path / "outbox",
+        data_sources=(
+            *load_config().data_sources,
+            DataSourceConfig(
+                "another-source", "Other", "hive2://reader@other/db", "spark", "spark"
+            ),
+        ),
     )
     first = builder.save_dataset(
         session_id=workbench.session_id,
@@ -691,3 +701,162 @@ def test_public_save_route_keeps_layout_and_rejects_invalid_widths(
         )
         assert rejected.status_code == 422
     assert len(client.get(endpoint).json()["items"]) == 2
+
+
+def test_publication_compiler_keeps_literals_comments_and_percent_signs():
+    query = "SELECT ':ignored', $$:ignored$$, `:ignored`, 10 % 3, :value::integer /* :ignored */ -- :ignored\n"
+    assert compile_parameterized_sql(
+        query, [{"name": "value", "type": "integer", "value": 9}], "postgresql"
+    ) == query.replace(":value::integer", "9::integer")
+    with pytest.raises(DashboardBuilderError, match="no value for :missing"):
+        compile_parameterized_sql("SELECT :missing", [], "postgresql")
+    with pytest.raises(DashboardBuilderError, match="unused"):
+        compile_parameterized_sql(
+            "SELECT ':value'", [{"name": "value", "type": "integer", "value": 9}]
+        )
+
+
+@pytest.mark.parametrize("value", ["1; SELECT 999", "NaN", "Infinity", "1.2"])
+def test_publication_compiler_rejects_invalid_integer_literals(value):
+    with pytest.raises(DashboardBuilderError, match="Invalid numeric"):
+        compile_parameterized_sql(
+            "SELECT :value",
+            [{"name": "value", "type": "integer", "value": value}],
+            "postgresql",
+        )
+
+
+def _source_publication(tmp_path, source):
+    workbench = _Workbench()
+    session = workbench.get_session(workbench.session_id)
+    session["provenance"] = {
+        "dataSourceId": source.source_id,
+        "dialect": source.dialect,
+    }
+    workbench.get_session = lambda _: session
+    builder = DashboardBuilder(
+        tmp_path / "builder.sqlite3",
+        workbench=workbench,
+        outbox=tmp_path / "outbox",
+        data_sources=[source],
+    )
+    dataset = builder.save_dataset(
+        session_id=workbench.session_id,
+        execution_id=workbench.execution_id,
+        title="Results",
+    )
+    widget = builder.save_widget(
+        dataset_version_id=dataset["versionId"], title="Results"
+    )
+    dashboard = builder.save_dashboard(
+        title="Reporting", widget_version_ids=[widget["versionId"]]
+    )
+    return builder, dataset, dashboard
+
+
+def _database_asset(builder, publication):
+    manifest = publication["manifest"]
+    with zipfile.ZipFile(
+        builder.outbox / publication["pointer"]["bundle"]["fileName"]
+    ) as archive:
+        return json.loads(
+            archive.read(
+                f"{manifest['bundleRoot']}/databases/{manifest['assetUuids']['database']}.yaml"
+            )
+        )
+
+
+def test_postgres_publication_uses_own_source_and_preserves_saved_identity(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("CATALYST_SUPERSET_ANALYTICS_URI", "hive://wrong@global/wrong")
+    source = DataSourceConfig(
+        "native-oe",
+        "Native OE",
+        "postgresql://reader:fixture-only@query-host/openelis",
+        "postgresql",
+        "postgresql",
+        "postgresql+psycopg2://reader:fixture-only@superset-host/openelis",
+    )
+    builder, dataset, dashboard = _source_publication(tmp_path, source)
+    first = builder.publish(dashboard["versionId"])
+    assert _database_asset(builder, first)["sqlalchemy_uri"] == source.superset_uri
+    assert "fixture-only" not in json.dumps(first["manifest"])
+    assert (
+        first["manifest"]["datasets"][0]["parameterCompilerRevision"]
+        == "catalyst.named-parameters.v2"
+    )
+    ContractRegistry.default().validate(
+        "catalyst-superset-bundle-v1.schema.json", first["manifest"]
+    )
+    assert (
+        builder.publish(dashboard["versionId"])["pointer"]["bundle"]
+        == first["pointer"]["bundle"]
+    )
+    builder.data_sources[source.source_id] = replace(
+        source, superset_uri=source.superset_uri.replace("/openelis", "/different")
+    )
+    with pytest.raises(DashboardBuilderError, match="publication connection changed"):
+        builder.publish(dashboard["versionId"])
+    assert (
+        builder.publication(dashboard["versionId"])["pointer"]["bundle"]
+        == first["pointer"]["bundle"]
+    )
+    assert builder.list("dataset")[0]["configuration"] == dataset["configuration"]
+    builder.close()
+
+
+def test_new_source_connection_gets_new_database_identity_and_legacy_sql_survives(
+    tmp_path,
+):
+    source = DataSourceConfig(
+        "openelis", "OpenELIS", "hive2://reader@spark/source", "spark", "spark"
+    )
+    builder, dataset, dashboard = _source_publication(tmp_path, source)
+    first = builder.publish(dashboard["versionId"])
+    configuration = dict(dataset["configuration"])
+    configuration["source"] = {
+        key: value
+        for key, value in configuration["source"].items()
+        if key != "publicationConnectionIdentity"
+    }
+    configuration.pop("parameterCompilerRevision")
+    configuration["compiledSql"] = "SELECT 'historical SQL remains unchanged'"
+    legacy = builder._append("dataset", configuration)
+    widget = builder.save_widget(
+        dataset_version_id=legacy.version_id, title="Historical result"
+    )
+    old_dashboard = builder.save_dashboard(
+        title="Historical", widget_version_ids=[widget["versionId"]]
+    )
+    published = builder.publish(old_dashboard["versionId"])
+    assert (
+        published["manifest"]["datasets"][0]["parameterCompilerRevision"]
+        == "catalyst.named-parameters.v1"
+    )
+    with zipfile.ZipFile(
+        builder.outbox / published["pointer"]["bundle"]["fileName"]
+    ) as archive:
+        native = next(
+            json.loads(archive.read(name))
+            for name in archive.namelist()
+            if "/datasets/" in name
+        )
+        assert native["sql"] == configuration["compiledSql"]
+    builder.data_sources[source.source_id] = replace(
+        source, dialect="postgresql", connection_uri="postgresql://reader@native/source"
+    )
+    with pytest.raises(DashboardBuilderError, match="recorded SQL dialect"):
+        builder.publish(old_dashboard["versionId"])
+    builder.close()
+    other_path = tmp_path / "other"
+    other_path.mkdir()
+    other, _, changed_dashboard = _source_publication(
+        other_path, replace(source, connection_uri="hive2://reader@spark/different")
+    )
+    changed = other.publish(changed_dashboard["versionId"])
+    assert (
+        changed["manifest"]["assetUuids"]["database"]
+        != first["manifest"]["assetUuids"]["database"]
+    )
+    other.close()

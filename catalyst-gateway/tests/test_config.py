@@ -66,3 +66,32 @@ def test_set_but_missing_registry_path_fails_boot(monkeypatch, tmp_path: Path) -
     )
     with pytest.raises(FileNotFoundError, match="CATALYST_DATA_SOURCES_PATH"):
         load_config()
+
+
+def test_publication_connection_belongs_to_each_registered_source(
+    tmp_path, monkeypatch
+):
+    registry = tmp_path / "sources.json"
+    registry.write_text(
+        json.dumps(
+            {
+                "dataSources": [
+                    {
+                        "id": "native",
+                        "label": "Native",
+                        "connectionUri": "postgresql://reader@query/oe",
+                        "dialect": "postgresql",
+                        "supersetSqlalchemyUri": "postgresql+psycopg2://reader@superset/oe",
+                    }
+                ]
+            }
+        )
+    )
+    monkeypatch.setenv("CATALYST_DATA_SOURCES_PATH", str(registry))
+    monkeypatch.setenv("CATALYST_SUPERSET_ANALYTICS_URI", "hive://reader@spark/oe")
+    config = load_config()
+    assert config.data_sources[0].superset_uri == "hive://reader@spark/oe"
+    assert (
+        config.data_sources[1].superset_uri
+        == "postgresql+psycopg2://reader@superset/oe"
+    )

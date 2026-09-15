@@ -5,6 +5,10 @@ import hashlib
 import importlib.util
 import json
 import zipfile
+import sys
+from contextlib import nullcontext
+from types import SimpleNamespace
+from unittest.mock import Mock
 from pathlib import Path
 
 import pytest
@@ -362,3 +366,87 @@ def test_failure_receipt_preservation_is_stage_scoped(
     assert receipt["recovery"]["currentSuccessClaimEnabled"] is False
     assert receipt["recovery"]["requiredAction"] == expected_action
     assert receipt["diagnostic"]["text"] == "safe diagnostic"
+
+
+@pytest.mark.parametrize(
+    "previous", [None, "postgresql://reader@pg/oe", "hive://reader@spark/oe"]
+)
+def test_existing_database_cannot_be_redirected(previous, monkeypatch):
+    importer = _load_importer_module()
+    existing = (
+        None
+        if previous is None
+        else SimpleNamespace(
+            sqlalchemy_uri_decrypted=previous, set_sqlalchemy_uri=Mock()
+        )
+    )
+    session = Mock()
+    session.query.return_value.filter_by.return_value.one_or_none.return_value = (
+        existing
+    )
+    monkeypatch.setitem(
+        sys.modules, "superset", SimpleNamespace(db=SimpleNamespace(session=session))
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "superset.app",
+        SimpleNamespace(create_app=lambda: SimpleNamespace(app_context=nullcontext)),
+    )
+    monkeypatch.setitem(
+        sys.modules, "superset.models.core", SimpleNamespace(Database=object)
+    )
+    manifest = {"assetUuids": {"database": "22222222-2222-5222-8222-222222222222"}}
+    uri = "postgresql://reader@pg/oe"
+    if previous and previous != uri:
+        with pytest.raises(importer.ImportFailure) as error:
+            importer._reconcile_database(manifest, uri)
+        assert error.value.code == "database_connection_changed"
+        assert error.value.stage == "credential_resolution"
+    else:
+        assert importer._reconcile_database(manifest, uri) == {
+            "present": previous is not None,
+            "reconnected": False,
+        }
+    session.commit.assert_not_called()
+    if existing:
+        existing.set_sqlalchemy_uri.assert_not_called()
+
+
+def test_database_uri_comes_from_verified_bundle_not_global_environment(
+    tmp_path, monkeypatch
+):
+    importer = _load_importer_module()
+    monkeypatch.setenv("CATALYST_ANALYTICS_DATABASE_URI", "hive://wrong@global/default")
+    identity = "22222222-2222-5222-8222-222222222222"
+    relative = f"databases/{identity}.yaml"
+    uri = "postgresql+psycopg2://reader:fixture-only@native-oe/oe"
+    payload = json.dumps({"uuid": identity, "sqlalchemy_uri": uri}).encode()
+    manifest = {
+        "bundleRoot": "bundle",
+        "assetUuids": {"database": identity},
+        "assetMembers": [
+            {
+                "path": relative,
+                "bytes": len(payload),
+                "sha256": hashlib.sha256(payload).hexdigest(),
+            }
+        ],
+    }
+    bundle = tmp_path / "bundle.zip"
+    with zipfile.ZipFile(bundle, "w") as archive:
+        archive.writestr(f"bundle/{relative}", payload)
+    assert importer._bundle_database_uri(bundle, manifest) == uri
+    manifest["assetMembers"][0]["sha256"] = "0" * 64
+    with pytest.raises(importer.ImportFailure) as error:
+        importer._bundle_database_uri(bundle, manifest)
+    assert error.value.code == "database_asset_invalid"
+    assert "fixture-only" not in str(error.value)
+
+
+def test_driver_qualified_source_password_is_redacted():
+    importer = _load_importer_module()
+    diagnostic = importer.redacted_diagnostic(
+        "failed postgresql+psycopg2://reader:private-value@native/db", secrets=[]
+    )
+    assert "private-value" not in diagnostic["text"]
+    assert "reader:***@native/db" in diagnostic["text"]

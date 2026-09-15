@@ -836,7 +836,7 @@ class SqlAnalyticsAdapter:
                 index += 2
                 block_depth = 1
                 continue
-            if char in {"'", '"'}:
+            if char in {"'", '"', "`"}:
                 quote = char
                 # PostgreSQL E'...' allows backslash-escaped quotes. Ordinary
                 # literals retain SQL's doubled-quote behavior.

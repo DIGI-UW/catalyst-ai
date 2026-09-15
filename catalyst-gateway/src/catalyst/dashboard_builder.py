@@ -19,9 +19,13 @@ import uuid
 import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Iterable, Sequence
+from urllib.parse import unquote, urlsplit
 
+from ..config import DataSourceConfig, load_config
+from .analytics import SqlAnalyticsAdapter
 from .digest import canonical_sha256
 from .storage import WorkbenchStore
 
@@ -87,7 +91,7 @@ def _uuid4() -> str:
     return str(uuid.uuid4())
 
 
-def _sql_literal(parameter: dict[str, Any]) -> str:
+def _sql_literal(parameter: dict[str, Any], dialect: str) -> str:
     value = parameter.get("value")
     kind = parameter.get("type")
     if value is None:
@@ -97,7 +101,17 @@ def _sql_literal(parameter: dict[str, Any]) -> str:
             raise DashboardBuilderError(
                 f"Invalid numeric value for :{parameter['name']}."
             )
-        return str(value)
+        try:
+            numeric = Decimal(str(value))
+            if not numeric.is_finite() or (
+                kind == "integer" and numeric != int(numeric)
+            ):
+                raise ValueError
+        except (InvalidOperation, ValueError, OverflowError):
+            raise DashboardBuilderError(
+                f"Invalid numeric value for :{parameter['name']}."
+            ) from None
+        return str(int(numeric)) if kind == "integer" else str(numeric)
     if kind == "boolean":
         if not isinstance(value, bool):
             raise DashboardBuilderError(
@@ -108,15 +122,21 @@ def _sql_literal(parameter: dict[str, Any]) -> str:
         if not isinstance(value, list):
             raise DashboardBuilderError(f"Invalid list value for :{parameter['name']}.")
         nested_type = "integer" if kind == "integer-list" else "string"
+        postgres = dialect in {"postgres", "postgresql"}
         return (
-            "("
+            ("ARRAY[" if postgres else "(")
             + ", ".join(
                 _sql_literal(
-                    {"name": parameter["name"], "type": nested_type, "value": item}
+                    {"name": parameter["name"], "type": nested_type, "value": item},
+                    dialect,
                 )
                 for item in value
             )
-            + ")"
+            + (
+                ("]::bigint[]" if kind == "integer-list" else "]::text[]")
+                if postgres
+                else ")"
+            )
         )
     if not isinstance(value, str):
         raise DashboardBuilderError(f"Invalid text value for :{parameter['name']}.")
@@ -127,36 +147,104 @@ def _sql_literal(parameter: dict[str, Any]) -> str:
     if kind == "date":
         return f"DATE '{escaped}'"
     if kind == "date-time":
+        if dialect in {"postgres", "postgresql"}:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            timestamp_type = "TIMESTAMPTZ" if parsed.tzinfo else "TIMESTAMP"
+            return f"{timestamp_type} '{escaped}'"
         return f"TIMESTAMP '{escaped}'"
-    return f"'{escaped}'"
+    prefix = "E" if dialect in {"postgres", "postgresql"} else ""
+    return f"{prefix}'{escaped}'"
 
 
-def compile_parameterized_sql(sql: str, parameters: list[dict[str, Any]]) -> str:
-    """Compile accepted workbench parameter values into Spark SQL literals.
+def compile_parameterized_sql(
+    sql: str, parameters: list[dict[str, Any]], dialect: str = "spark"
+) -> str:
+    """Render publication literals using the same placeholder lexer as execution.
 
-    The source Query version and its typed parameters remain the authority;
-    compilation creates the Superset virtual-dataset SQL only.  Unbound names
-    are rejected rather than guessed.
+    Quoted text, identifiers, comments, casts and literal percent signs remain
+    unchanged. Previously saved compiled SQL is never recompiled at publication.
     """
-
+    if dialect not in {"spark", "hive", "postgres", "postgresql"}:
+        raise DashboardBuilderError(
+            "Superset publication does not support this SQL dialect."
+        )
     by_name = {str(item.get("name")): item for item in parameters}
+    if len(by_name) != len(parameters):
+        raise DashboardBuilderError(
+            "Superset export includes duplicate parameter names."
+        )
     seen: set[str] = set()
 
-    def replace(match: re.Match[str]) -> str:
-        name = match.group(1)
-        parameter = by_name.get(name)
-        if parameter is None:
-            raise DashboardBuilderError(f"Superset export has no value for :{name}.")
-        seen.add(name)
-        return _sql_literal(parameter)
+    class Literals(dict):
+        def __getitem__(self, name: str) -> str:
+            if name not in by_name:
+                raise DashboardBuilderError(
+                    f"Superset export has no value for :{name}."
+                )
+            seen.add(name)
+            return _sql_literal(by_name[name], dialect)
 
-    compiled = _PARAMETER.sub(replace, sql)
+    candidates = set(_PARAMETER.findall(sql))
+    compiled = SqlAnalyticsAdapter._driver_sql(sql, candidates) % Literals()
     unused = sorted(set(by_name) - seen)
     if unused:
         raise DashboardBuilderError(
             "Superset export includes unused parameter values: " + ", ".join(unused)
         )
     return compiled
+
+
+def _publication_connection(source: DataSourceConfig) -> tuple[str, str, str]:
+    """Resolve one source's Superset transport and credential-free identity."""
+    engines = {
+        "spark": "hive",
+        "hive": "hive",
+        "postgres": "postgresql",
+        "postgresql": "postgresql",
+    }
+    engine = engines.get(source.dialect)
+    if engine is None:
+        raise DashboardBuilderError(
+            "Superset publication does not support this SQL dialect."
+        )
+    try:
+        uri = source.superset_uri
+        if not uri:
+            query = urlsplit(source.connection_uri)
+            compatible = (
+                {"hive", "hive2", "spark"}
+                if engine == "hive"
+                else {"postgres", "postgresql"}
+            )
+            if query.scheme not in compatible:
+                raise ValueError
+            scheme = "hive" if engine == "hive" else "postgresql+psycopg2"
+            uri = query._replace(scheme=scheme).geturl()
+        parsed = urlsplit(uri)
+        if (
+            parsed.scheme.split("+")[0] != engine
+            or not parsed.hostname
+            or not parsed.path.strip("/")
+        ):
+            raise ValueError
+        # Passwords never enter the saved provenance or identity hash. Endpoint,
+        # account and connection options still distinguish different data access.
+        identity = canonical_sha256(
+            {
+                "sourceId": source.source_id,
+                "engine": engine,
+                "host": parsed.hostname,
+                "port": parsed.port,
+                "database": unquote(parsed.path),
+                "username": unquote(parsed.username or ""),
+                "options": parsed.query,
+            }
+        )
+    except (ValueError, TypeError):
+        raise DashboardBuilderError(
+            "The source has an invalid Superset connection configuration."
+        ) from None
+    return uri, engine, identity
 
 
 def suggest_presentation(columns: Iterable[dict[str, Any]], row_count: int) -> str:
@@ -326,7 +414,14 @@ class DashboardBuilder:
         workbench: WorkbenchStore,
         outbox: str | Path,
         receipts: str | Path | None = None,
+        data_sources: Sequence[DataSourceConfig] | None = None,
     ):
+        self.data_sources = {
+            source.source_id: source
+            for source in (
+                data_sources if data_sources is not None else load_config().data_sources
+            )
+        }
         self.path = str(path)
         self.workbench = workbench
         self.outbox = Path(outbox)
@@ -488,7 +583,18 @@ class DashboardBuilder:
             raise DashboardBuilderError(
                 "The query's data source was not recorded. Run it in a new session before saving."
             )
-        dialect = provenance.get("dialect")
+        source = self.data_sources.get(data_source_id)
+        if source is None:
+            raise DashboardBuilderError(
+                "The query's data source is no longer configured."
+            )
+        dialect = provenance.get("dialect") or source.dialect
+        aliases = {"postgres": "postgresql"}
+        if aliases.get(dialect, dialect) != aliases.get(source.dialect, source.dialect):
+            raise DashboardBuilderError(
+                "The query's SQL dialect no longer matches its source."
+            )
+        _, _, connection_identity = _publication_connection(source)
         configuration = {
             "title": title.strip() or f"Dataset from Query v{current['ordinal']}",
             "source": {
@@ -499,6 +605,7 @@ class DashboardBuilder:
                 "executionId": execution_id,
                 "dataSourceId": data_source_id,
                 **({"dialect": dialect} if dialect else {}),
+                "publicationConnectionIdentity": connection_identity,
                 "catalogVersion": session.get("catalogVersion") or "unknown",
                 "resultSchemaDigest": canonical_sha256(columns),
                 "resultDigest": canonical_sha256(
@@ -516,7 +623,9 @@ class DashboardBuilder:
             "compiledSql": compile_parameterized_sql(
                 str(query.get("sql") or current["sql"]),
                 list(query.get("parameters") or current["parameters"]),
+                dialect,
             ),
+            "parameterCompilerRevision": "catalyst.named-parameters.v2",
             "rowCount": dict(result.get("rowCount") or {}),
             "resultBounds": {
                 "returnedRows": int((result.get("rowCount") or {}).get("returned", 0)),
@@ -639,7 +748,34 @@ class DashboardBuilder:
             )
             for item in widgets
         }
-        database_uuid = _uuid5(f"database:{dashboard.configuration['dataSourceId']}")
+        source_id = dashboard.configuration["dataSourceId"]
+        source = self.data_sources.get(source_id)
+        if source is None:
+            raise DashboardBuilderError(
+                "The Dashboard's data source is no longer configured."
+            )
+        publication_uri, engine, identity = _publication_connection(source)
+        aliases = {"postgres": "postgresql"}
+        for item in datasets.values():
+            saved_dialect = item.configuration["source"].get("dialect")
+            if saved_dialect and aliases.get(
+                saved_dialect, saved_dialect
+            ) != aliases.get(source.dialect, source.dialect):
+                raise DashboardBuilderError(
+                    "The Dataset's recorded SQL dialect no longer matches its source."
+                )
+        identities = {
+            item.configuration["source"].get("publicationConnectionIdentity")
+            for item in datasets.values()
+        }
+        if any(saved is not None and saved != identity for saved in identities):
+            raise DashboardBuilderError(
+                "The Dataset's publication connection changed. Restore its source configuration or run and save a new Dataset."
+            )
+        # Legacy drafts keep their original database UUID and compiled SQL.
+        # The importer refuses to redirect an existing UUID to another endpoint.
+        suffix = f":{identity}" if None not in identities else ""
+        database_uuid = _uuid5(f"database:{source_id}{suffix}")
         dashboard_uuid = _uuid5(f"dashboard:{dashboard.logical_id}")
         bundle_id = _uuid5(
             f"bundle:{dashboard.version_id}:{dashboard.configuration_digest}"
@@ -647,14 +783,9 @@ class DashboardBuilder:
         bundle_root = f"catalyst_dashboard_{bundle_id}"
         slug = f"catalyst-{dashboard.logical_id}"
         database: dict[str, Any] = {
-            "database_name": f"Catalyst {dashboard.configuration['dataSourceId']} analytics",
-            "sqlalchemy_uri": os.environ.get(
-                "CATALYST_SUPERSET_ANALYTICS_URI",
-                # Superset renders against the same Spark source Catalyst
-                # queried, so a displayed value can be inspected against the
-                # originating result without a second database.
-                "hive://catalyst@spark-thriftserver:10000/openelis",
-            ),
+            "database_name": f"Catalyst {source_id} analytics"
+            + (f" {identity[:12]}" if suffix else ""),
+            "sqlalchemy_uri": publication_uri,
             "password": None,
             # Superset's native importer rejects an empty encrypted-extra map;
             # omit it when the local demo connection has no encrypted extras.
@@ -703,7 +834,7 @@ class DashboardBuilder:
                 "description": dataset.configuration["title"],
                 "schema": None,
                 "sql": dataset.configuration["compiledSql"],
-                "source_db_engine": "hive",
+                "source_db_engine": engine,
                 "params": {},
                 "template_params": None,
                 "filter_select_enabled": False,
@@ -854,7 +985,9 @@ class DashboardBuilder:
                     "typedParametersDigest": canonical_sha256(
                         item.configuration["parameters"]
                     ),
-                    "parameterCompilerRevision": "catalyst.named-parameters.v1",
+                    "parameterCompilerRevision": item.configuration.get(
+                        "parameterCompilerRevision", "catalyst.named-parameters.v1"
+                    ),
                     "resultSchema": item.configuration["columns"],
                     "resultBounds": item.configuration["resultBounds"],
                     "author": {"actorKind": "human"},
@@ -874,7 +1007,14 @@ class DashboardBuilder:
             "manifestContainsCredentials": False,
             "generator": {
                 "revision": "catalyst-dashboard-builder-mvp.v1",
-                "parameterCompilerRevisions": ["catalyst.named-parameters.v1"],
+                "parameterCompilerRevisions": sorted(
+                    {
+                        item.configuration.get(
+                            "parameterCompilerRevision", "catalyst.named-parameters.v1"
+                        )
+                        for item in datasets.values()
+                    }
+                ),
                 "vizMappingRevisions": ["catalyst.superset.viz.schema.v1"],
             },
             "assetMembers": assets,

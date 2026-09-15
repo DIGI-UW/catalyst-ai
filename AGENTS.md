@@ -50,8 +50,8 @@ The approved four OpenELIS–Catalyst reporting pathways are governed by the
 harness `specs/openelis-reporting-catalyst-integration.md`. That roadmap owns
 cross-project order/acceptance; native reporting stays in OpenELIS. Extend the
 existing integration design and Dataset contracts, not a new spec family per
-lane. PostgreSQL connection support is implemented; CSV imports and source-aware
-publication remain approved additions awaiting implementation. The selected
+lane. PostgreSQL connection and source-aware query publication are implemented;
+CSV imports remain an approved addition awaiting implementation. The selected
 Spark pathway remains; connection tests do not establish lane acceptance. This does not add a competing model-ranking
 path. Existing AI-assisted Widget/Dashboard refinement remains Follow-on A after
 the four-pathway demonstration goal, supporting both Dataset origins.

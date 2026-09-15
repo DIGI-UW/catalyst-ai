@@ -275,3 +275,26 @@ async def test_real_postgres_escape_strings_and_nested_comments_keep_bindings(
     assert result.rows == [
         [{"type": "string", "value": "it's :value"}, {"type": "integer", "value": 9}]
     ]
+
+
+@pytest.mark.asyncio
+async def test_published_postgres_literals_match_bound_query_values(postgres_source):
+    from src.catalyst.dashboard_builder import compile_parameterized_sql
+
+    adapter, _ = postgres_source
+    query = "SELECT :label AS label, :at AS at, 9 = ANY(:ids) AS included, :empty::bigint[] AS empty_ids, ':ignored' AS untouched, 10 % 3 AS remainder"
+    parameters = [
+        {"name": "label", "type": "string", "value": "O'Brien\\new % :ids"},
+        {"name": "at", "type": "date-time", "value": "2026-05-06T12:30:00+05:30"},
+        {"name": "ids", "type": "integer-list", "value": [7, 9]},
+        {"name": "empty", "type": "integer-list", "value": []},
+    ]
+    bound = await adapter.execute_manual(
+        sql=query, parameters=parameters, max_rows=1, statement_timeout_ms=500
+    )
+    compiled = compile_parameterized_sql(query, parameters, "postgresql")
+    rendered = await adapter.execute_manual(
+        sql=compiled, parameters=[], max_rows=1, statement_timeout_ms=500
+    )
+    assert rendered.rows == bound.rows
+    assert rendered.rows[0][0] == {"type": "string", "value": parameters[0]["value"]}
