@@ -1160,14 +1160,19 @@ class DashboardBuilder:
         row_width = 12
         row_id = ""
         for index, widget in enumerate(widgets):
-            chart_uuid = _uuid5(f"chart:{widget.version_id}")
-            chart_uuids[widget.version_id] = chart_uuid
             dataset_uuid = dataset_uuids[widget.configuration["datasetVersionId"]]
             viz_type, params = _native_chart(
                 title=widget.configuration["title"],
                 presentation_kind=widget.configuration["presentationKind"],
                 bindings=widget.configuration["bindings"],
             )
+            # Superset dashboard imports retain existing charts by UUID. Include
+            # the rendered mapping so a mapping repair creates a corrected child
+            # without mutating charts used by earlier dashboard publications.
+            chart_uuid = _uuid5(
+                f"chart:{widget.version_id}:{canonical_sha256({'viz_type': viz_type, 'params': params})}"
+            )
+            chart_uuids[widget.version_id] = chart_uuid
             chart = {
                 "slice_name": widget.configuration["title"],
                 "description": "Created by Catalyst local dashboard MVP.",

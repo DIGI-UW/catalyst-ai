@@ -155,8 +155,10 @@ The accepted Ask invariants are testable requirements:
    file for download. Stack bootstrap imports the selected bundle; an explicit
    CLI helper imports or updates it in an already-running instance.
    The logical Dashboard UUID remains stable; Dataset and Widget/chart UUIDs
-   derive from immutable versions so Superset 6.1.0 can create changed children
-   while overwriting the Dashboard that points to them.
+   derive from immutable versions; chart identity also includes the generated
+   visualization mapping. Superset 6.1.0 can therefore create corrected children
+   after a mapping repair while overwriting the Dashboard that points to them.
+   Repeating an unchanged publication retains the same identities.
 5. The MVP does not call the Superset REST API. Catalyst shows `Bundle ready`
    until the importer records CLI success, then `Imported`; it never infers
    `Synced` merely because a file exists.

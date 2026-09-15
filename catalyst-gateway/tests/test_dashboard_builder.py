@@ -171,6 +171,57 @@ def test_empty_numeric_dataset_does_not_suggest_an_invalid_big_number() -> None:
     assert suggest_presentation(columns, 1) == "big_number"
 
 
+def test_mapping_repair_replaces_native_chart_without_changing_saved_work(
+    tmp_path, monkeypatch
+):
+    import src.catalyst.dashboard_builder as module
+
+    workbench = _Workbench()
+    builder = DashboardBuilder(
+        tmp_path / "state.sqlite3", workbench=workbench, outbox=tmp_path / "outbox"
+    )
+    dataset = builder.save_dataset(
+        session_id=workbench.session_id,
+        execution_id=workbench.execution_id,
+        title="Reporting results",
+    )
+    widget = builder.save_widget(
+        dataset_version_id=dataset["versionId"], title="Results"
+    )
+    dashboard = builder.save_dashboard(
+        title="Reporting", widget_version_ids=[widget["versionId"]]
+    )
+    before = builder.publish(dashboard["versionId"])
+    original_mapping = module._native_chart
+
+    def corrected_mapping(**kwargs):
+        kind, params = original_mapping(**kwargs)
+        return kind, {**params, "row_limit": 500}
+
+    monkeypatch.setattr(module, "_native_chart", corrected_mapping)
+    after = builder.publish(dashboard["versionId"])
+    old_assets = before["manifest"]["assetUuids"]
+    new_assets = after["manifest"]["assetUuids"]
+    # Superset retains existing child UUIDs even when the dashboard is replaced.
+    assert new_assets["chartsByVersion"] != old_assets["chartsByVersion"]
+    assert new_assets["dashboard"] == old_assets["dashboard"]
+    assert new_assets["datasetsByVersion"] == old_assets["datasetsByVersion"]
+    assert after["dashboard"] == before["dashboard"]
+    with zipfile.ZipFile(
+        builder.outbox / after["pointer"]["bundle"]["fileName"]
+    ) as bundle:
+        chart = json.loads(
+            bundle.read(next(n for n in bundle.namelist() if "/charts/" in n))
+        )
+        assert chart["uuid"] == new_assets["chartsByVersion"][widget["versionId"]]
+        assert chart["params"]["row_limit"] == 500
+    assert (
+        builder.publish(dashboard["versionId"])["pointer"]["bundle"]
+        == after["pointer"]["bundle"]
+    )
+    assert (builder.outbox / before["pointer"]["bundle"]["fileName"]).is_file()
+
+
 def test_saved_lineage_publishes_a_contract_valid_native_bundle(tmp_path: Path) -> None:
     workbench = _Workbench()
     builder = DashboardBuilder(
