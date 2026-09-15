@@ -17,6 +17,7 @@ dependencies = [
     # HiveServer2 Thrift client. Catalyst is a SQL client of the Spark
     # thriftserver, not an embedded Spark reading Parquet itself.
     "impyla>=0.21.0",
+    "psycopg[binary]>=3.3.4,<4.0.0",
     "thrift_sasl>=0.4.3",
     "fastapi>=0.115.14",
 ]

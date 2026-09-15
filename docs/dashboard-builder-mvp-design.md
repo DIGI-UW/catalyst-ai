@@ -21,7 +21,8 @@ The decisions below govern the detailed design that follows.
 
 The [reporting-pathway extension](specs/openelis-reporting-integration/spec.md)
 adds CSV-origin Datasets and ordinary PostgreSQL within this design. Its mock
-additions await owner review; the existing shell/styling remain approved. The
+additions were approved on 14 September 2026; the existing shell/styling remain
+approved. Implementation and real-source acceptance are separate. The
 [integration roadmap](https://github.com/pmanko/clinical-ai-validation-harness/blob/main/specs/openelis-reporting-catalyst-integration.md)
 owns delivery sequence. Query/Run prerequisites below apply to query-backed
 Datasets; file imports use explicit review/confirmation and no SQL step.

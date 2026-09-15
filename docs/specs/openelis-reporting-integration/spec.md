@@ -1,9 +1,9 @@
 # Catalyst reporting pathways — integration design draft
 
-**Status:** Four-pathway additions for owner review, 14 September 2026. The
-approved shell is retained; CSV import and PostgreSQL extensions are interactive
-design artifacts only. Application implementation, real-source verification,
-deployment and owner acceptance remain separate.
+**Status:** Four-pathway design additions approved by the owner on 14 September
+2026, including the CSV entry point and quick-test journey merged in Catalyst
+#128. This mock remains fictional and browser-only. Application implementation,
+real-source verification, deployment and final owner acceptance remain separate.
 
 [Open the Catalyst draft](index.html?view=integration&app=catalyst) ·
 [OpenELIS reporting mock](https://digi-uw.github.io/openelis-work/#/reports/custom-data-export) ·
@@ -181,7 +181,7 @@ published mock; it does not copy those screens into this repository.
 
 Construction, technical validation, publication, owner design acceptance,
 application implementation, real-source parity and deployment are separate
-milestones in the integration roadmap. Owner design acceptance is pending.
+milestones in the integration roadmap. Owner design acceptance was recorded on 14 September 2026.
 
 For this addition, review file selection, suggested/type-corrected columns,
 failure/cancel/retry, unchanged question drafts, both source choices and saved

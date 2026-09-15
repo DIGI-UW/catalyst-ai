@@ -79,7 +79,7 @@ def test_a_source_can_be_served_by_an_adapter_this_build_does_not_ship():
 
 def test_an_unknown_adapter_fails_loudly_with_what_this_build_has():
     with pytest.raises(UnknownDialectAdapter) as caught:
-        resolve_dialect_adapter("postgresql")
+        resolve_dialect_adapter("uninstalled-engine")
     assert "spark" in str(caught.value)
 
 

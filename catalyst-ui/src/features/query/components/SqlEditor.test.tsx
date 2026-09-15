@@ -70,7 +70,7 @@ describe("SqlEditor", () => {
     expect(onWrapLinesChange).toHaveBeenLastCalledWith(false);
   });
 
-  it("formats PostgreSQL deterministically and preserves named placeholders", async () => {
+  it("formats Spark SQL deterministically and preserves named placeholders", async () => {
     const once = formatSql(SQL, "spark");
     const twice = formatSql(once, "spark");
 
@@ -83,6 +83,18 @@ describe("SqlEditor", () => {
     render(<SqlEditor label="Generated SQL" value={SQL} onChange={onChange} dialect="spark" />);
     await user.click(screen.getByRole("button", { name: "Format SQL" }));
     expect(onChange).toHaveBeenLastCalledWith(once);
+  });
+
+  it.each(["postgres", "postgresql"])("formats %s syntax without losing casts or parameters", async (dialect) => {
+    const submitted = "select :minimum_value::numeric, payload->>'status' from results";
+    const formatted = formatSql(submitted, dialect);
+    expect(formatSql(formatted, dialect)).toBe(formatted);
+    expect(formatted).toContain(":minimum_value::numeric");
+    expect(formatted).toContain("payload ->> 'status'");
+    const onChange = vi.fn();
+    render(<SqlEditor label="PostgreSQL query" value={submitted} onChange={onChange} dialect={dialect} />);
+    await userEvent.setup().click(screen.getByRole("button", { name: "Format SQL" }));
+    expect(onChange).toHaveBeenLastCalledWith(formatted);
   });
 
   it("converts catalog relations into stable schema namespaces for completion", () => {

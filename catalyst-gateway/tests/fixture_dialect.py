@@ -1,9 +1,9 @@
 """A second dialect adapter that exists only for tests.
 
-The production build ships exactly one adapter, for Spark. This fixture points
+The production build ships Spark and PostgreSQL adapters. This fixture points
 a source at a *different* grammar so the same connection and execution code is
 exercised through a second adapter -- which is how the seam is proven without
-building or maintaining a second production engine.
+coupling the test seam to either production engine.
 
 If any engine-specific behavior leaks back into the Gateway, a source using
 this adapter is what fails.

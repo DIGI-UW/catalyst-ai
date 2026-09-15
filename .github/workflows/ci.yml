@@ -22,6 +22,16 @@ jobs:
             display: Agents
           - project: catalyst-mcp
             display: MCP
+    services:
+      postgres:
+        image: ${{ matrix.project == 'catalyst-gateway' && 'postgres:16.9-alpine3.22@sha256:7c688148e5e156d0e86df7ba8ae5a05a2386aaec1e2ad8e6d11bdf10504b1fb7' || '' }}
+        env:
+          POSTGRES_PASSWORD: catalyst-test-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -62,6 +72,7 @@ jobs:
         working-directory: ${{ matrix.project }}
         env:
           PYTHONPATH: ${{ github.workspace }}/${{ matrix.project }}
+          CATALYST_TEST_POSTGRES_URI: ${{ matrix.project == 'catalyst-gateway' && 'postgresql://postgres:catalyst-test-only@127.0.0.1:5432/postgres' || '' }}
         run: |
           uv run pytest tests/ -v
 

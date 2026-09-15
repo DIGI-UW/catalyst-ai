@@ -6,7 +6,7 @@ import math
 import re
 import threading
 from contextlib import contextmanager
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 from dataclasses import dataclass
 from datetime import date, datetime, time, timezone
 from decimal import Decimal
@@ -163,27 +163,28 @@ _PASSWORD_PATTERN = re.compile(r"(?i)\b(password\s*=\s*)(?:'[^']*'|\"[^\"]*\"|[^
 
 
 def _dbapi_connect(connection_uri: str, *, connect_timeout: int = 5) -> Any:
-    """Open a DB-API connection described entirely by the connection URI.
+    """Select the wire driver from the URI; execution stays shared."""
+    parts = urlsplit(connection_uri)
+    if parts.scheme in {"postgres", "postgresql"}:
+        import psycopg
 
-    Transport is a client library, not a per-engine class: the URI carries the
-    host, port, credentials and database, and nothing here decides behavior
-    from which scheme it happens to name.
-    """
+        return psycopg.connect(connection_uri, connect_timeout=connect_timeout)
+    if parts.scheme not in {"hive", "hive2", "spark"}:
+        raise AnalyticsError(f"Unsupported SQL connection scheme: {parts.scheme!r}")
     from impala.dbapi import connect as _hs2_connect
 
-    parts = urlsplit(connection_uri)
     if not parts.hostname:
-        raise AnalyticsError(f"Connection URI {connection_uri!r} names no host.")
-    database = parts.path.lstrip("/") or "default"
+        raise AnalyticsError("SQL connection URI names no host.")
+    database = unquote(parts.path.lstrip("/")) or "default"
     return _hs2_connect(
         host=parts.hostname,
         port=parts.port or 10000,
         database=database,
-        user=parts.username or "catalyst",
+        user=unquote(parts.username or "catalyst"),
         # HiveServer2's SASL PLAIN exchange rejects an empty secret in the
         # client before the server ever sees it, so a URI without one still
         # sends a placeholder. The endpoint's own auth policy decides.
-        password=parts.password or "catalyst",
+        password=unquote(parts.password or "catalyst"),
         auth_mechanism="PLAIN",
         timeout=connect_timeout,
     )
@@ -233,11 +234,8 @@ def _time_limit(cursor: Any, statement_timeout_ms: int, dialect: DialectAdapter)
 class SqlAnalyticsAdapter:
     """One connection/execution implementation for every configured source.
 
-    Everything engine-specific about *transport* is in the connection URI, and
-    everything engine-specific about *grammar* is in the dialect adapter this
-    is constructed with. Nothing here asks which engine answered, which is why
-    a second engine is configuration plus one adapter module rather than a
-    second class beside this one.
+    The URI selects a wire driver. The dialect supplies catalog discovery,
+    native type metadata and execution settings without a second query path.
     """
 
     def __init__(
@@ -274,7 +272,9 @@ class SqlAnalyticsAdapter:
         except AnalyticsError:
             raise
         except Exception as error:
-            raise AnalyticsError(f"Query execution failed: {error}") from error
+            raise AnalyticsError(
+                f"Query execution failed: {self._sanitize_diagnostic_text(str(error), self.connection_uri)}"
+            ) from error
 
     async def execute_manual(
         self,
@@ -309,7 +309,9 @@ class SqlAnalyticsAdapter:
                 "ready": False,
                 "dataSource": self.data_source_id,
                 "dialect": self.dialect.sql_dialect,
-                "message": str(error),
+                "message": self._sanitize_diagnostic_text(
+                    str(error), self.connection_uri
+                ),
             }
         return {
             "ready": True,
@@ -352,6 +354,8 @@ class SqlAnalyticsAdapter:
             connect_timeout=self.connect_timeout_seconds,
         ) as connection:
             with connection.cursor() as cursor:
+                if self.dialect.prepare_cursor:
+                    self.dialect.prepare_cursor(cursor, statement_timeout_ms)
                 with _time_limit(cursor, statement_timeout_ms, self.dialect):
                     # ``bindings`` is passed even when empty: _driver_sql doubled
                     # the literal per-cent signs, and a pyformat driver only
@@ -400,6 +404,8 @@ class SqlAnalyticsAdapter:
             connect_timeout=self.connect_timeout_seconds,
         ) as connection:
             with connection.cursor() as cursor:
+                if self.dialect.prepare_cursor:
+                    self.dialect.prepare_cursor(cursor, statement_timeout_ms)
                 with _time_limit(cursor, statement_timeout_ms, self.dialect):
                     cursor.execute(driver_sql, bindings)
                     # A statement with no result set -- DDL, or anything the
@@ -412,7 +418,7 @@ class SqlAnalyticsAdapter:
                     raw_rows = (
                         list(cursor.fetchmany(max_rows + 1)) if description else []
                     )
-                columns = self._manual_columns(description, raw_rows)
+                columns = self._manual_columns(description, raw_rows, cursor)
 
         truncated = len(raw_rows) > max_rows
         truncation_reason = "configured_limit" if truncated else None
@@ -494,6 +500,7 @@ class SqlAnalyticsAdapter:
         self,
         description: Sequence[Any],
         rows: Sequence[Sequence[Any]],
+        cursor: Any = None,
     ) -> list[AnalyticsColumn]:
         """Typed columns from the driver's own description of the result.
 
@@ -501,12 +508,19 @@ class SqlAnalyticsAdapter:
         column name and whose second is its type; reading it positionally is
         what keeps this generic across drivers.
         """
+        resolved = (
+            self.dialect.describe_columns(description, cursor)
+            if self.dialect.describe_columns
+            else None
+        )
         columns: list[AnalyticsColumn] = []
         for ordinal, description_column in enumerate(description):
             database_type = str(description_column[1] or "").strip()
             logical_type = (
                 self.dialect.logical_type(database_type) if database_type else "unknown"
             )
+            if resolved is not None:
+                database_type, logical_type = resolved[ordinal]
             if logical_type == "unknown":
                 sample = next(
                     (
@@ -560,7 +574,7 @@ class SqlAnalyticsAdapter:
     ) -> list[dict[str, Any]]:
         if len(row) != len(columns):
             raise AnalyticsError(
-                f"PostgreSQL row {row_index} has {len(row)} cells; "
+                f"Database row {row_index} has {len(row)} cells; "
                 f"expected {len(columns)}."
             )
         return [
@@ -678,7 +692,7 @@ class SqlAnalyticsAdapter:
         if not primary:
             primary = next(
                 (line.strip() for line in str(error).splitlines() if line.strip()),
-                "PostgreSQL execution failed.",
+                "Database execution failed.",
             )
         detail = (
             getattr(diagnostic, "message_detail", None)
@@ -766,7 +780,8 @@ class SqlAnalyticsAdapter:
         quote: str | None = None
         dollar_quote: str | None = None
         line_comment = False
-        block_comment = False
+        block_depth = 0
+        escape_string = False
         while index < len(sql):
             char = sql[index]
             following = sql[index + 1] if index + 1 < len(sql) else ""
@@ -777,18 +792,25 @@ class SqlAnalyticsAdapter:
                 if char == "\n":
                     line_comment = False
                 continue
-            if block_comment:
+            if block_depth:
                 emit(char)
                 index += 1
-                if char == "*" and following == "/":
+                if char == "/" and following == "*":
                     emit(following)
                     index += 1
-                    block_comment = False
+                    block_depth += 1
+                elif char == "*" and following == "/":
+                    emit(following)
+                    index += 1
+                    block_depth -= 1
                 continue
             if quote:
                 emit(char)
                 index += 1
-                if char == quote:
+                if escape_string and char == "\\" and following:
+                    emit(following)
+                    index += 1
+                elif char == quote:
                     if following == quote:
                         emit(following)
                         index += 1
@@ -812,10 +834,21 @@ class SqlAnalyticsAdapter:
             if char == "/" and following == "*":
                 emit(char + following)
                 index += 2
-                block_comment = True
+                block_depth = 1
                 continue
             if char in {"'", '"'}:
                 quote = char
+                # PostgreSQL E'...' allows backslash-escaped quotes. Ordinary
+                # literals retain SQL's doubled-quote behavior.
+                escape_string = (
+                    char == "'"
+                    and index > 0
+                    and sql[index - 1] in {"e", "E"}
+                    and (
+                        index < 2
+                        or not (sql[index - 2].isalnum() or sql[index - 2] == "_")
+                    )
+                )
                 emit(char)
                 index += 1
                 continue
@@ -833,6 +866,7 @@ class SqlAnalyticsAdapter:
                         continue
             if (
                 char == ":"
+                and (index == 0 or sql[index - 1] != ":")
                 and following != ":"
                 and (following.isalpha() or following == "_")
             ):
