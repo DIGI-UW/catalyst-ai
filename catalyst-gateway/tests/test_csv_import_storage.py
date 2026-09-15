@@ -250,7 +250,7 @@ def test_import_publication_has_file_provenance_and_native_raw_table(
     assert dataset["columns"][0]["verbose_name"] == "Accession Number"
     assert chart["params"]["all_columns"] == ["c0", "c1"]
     assert chart["params"]["query_mode"] == "raw"
-    assert chart["params"]["row_limit"] == row_count
+    assert chart["params"]["row_limit"] == row_count + 1
     assert chart["params"]["server_pagination"] is (row_count > 100)
     assert chart["params"]["server_page_length"] == 100
     # Superset builds its pagination count over a subquery bounded by row_limit.
