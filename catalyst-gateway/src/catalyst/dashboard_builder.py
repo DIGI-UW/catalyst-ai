@@ -447,15 +447,21 @@ def _native_chart(
     title: str,
     presentation_kind: str,
     bindings: dict[str, Any],
+    imported_row_count: int | None = None,
 ) -> tuple[str, dict[str, Any]]:
     if presentation_kind == "table":
+        if bindings.get("importedRows") and imported_row_count is None:
+            raise DashboardBuilderError(
+                "Imported Dataset is missing its complete row count."
+            )
         return "table", {
             "viz_type": "table",
             "all_columns": [
                 column.get("databaseName", column["name"])
                 for column in bindings["columns"]
             ],
-            "row_limit": 1000,
+            # Superset also applies this bound to its pagination count query.
+            "row_limit": imported_row_count if imported_row_count is not None else 1000,
             "order_by_cols": (
                 [json.dumps(["row_order", True])]
                 if bindings.get("importedRows")
@@ -464,7 +470,8 @@ def _native_chart(
             **(
                 {
                     "query_mode": "raw",
-                    "server_pagination": True,
+                    "server_pagination": imported_row_count is not None
+                    and imported_row_count > 100,
                     "server_page_length": 100,
                 }
                 if bindings.get("importedRows")
@@ -1165,6 +1172,9 @@ class DashboardBuilder:
                 title=widget.configuration["title"],
                 presentation_kind=widget.configuration["presentationKind"],
                 bindings=widget.configuration["bindings"],
+                imported_row_count=datasets[widget.configuration["datasetVersionId"]]
+                .configuration.get("origin", {})
+                .get("rowCount"),
             )
             # Superset dashboard imports retain existing charts by UUID. Include
             # the rendered mapping so a mapping repair creates a corrected child
