@@ -317,6 +317,9 @@ Superset metadata. Operating metadata remains in Catalyst's existing store.
 Publication resolves the version's actual backing connection without exposing
 storage configuration in the staff workflow. Imported Dataset review shows file
 provenance and complete counts; query actions and SQL history are absent.
+Published tables use the complete immutable file count for their row limit;
+files larger than 100 rows retain server-side pagination. Smaller files display
+their full table without unnecessary pagination controls.
 
 ### PostgreSQL source
 

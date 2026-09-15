@@ -203,13 +203,16 @@ def test_invalid_type_does_not_touch_postgres_before_corrected_retry(builder, li
     )
 
 
-def test_import_publication_has_file_provenance_and_native_raw_table(builder, live_pg):
+@pytest.mark.parametrize("row_count", [2, 100, 101, 1101])
+def test_import_publication_has_file_provenance_and_native_raw_table(
+    builder, live_pg, row_count
+):
     import json
     import zipfile
     from src.catalyst.contracts import ContractRegistry
 
     draft = builder.import_store().create(
-        "report.csv", b"Accession Number,Result Value\n001,450\n001,450\n"
+        "report.csv", b"Accession Number,Result Value\n" + b"001,450\n" * row_count
     )
     saved = builder.confirm_import(draft["importId"])
     widget = builder.save_widget(
@@ -223,7 +226,7 @@ def test_import_publication_has_file_provenance_and_native_raw_table(builder, li
     ContractRegistry.default().validate(
         "catalyst-superset-bundle-v1.schema.json", manifest
     )
-    assert manifest["datasets"][0]["origin"]["rowCount"] == 2
+    assert manifest["datasets"][0]["origin"]["rowCount"] == row_count
     assert manifest["generator"]["parameterCompilerRevisions"] == []
     assert "parameterizedSql" not in manifest["datasets"][0]
     assert "sessionId" not in manifest["datasets"][0]["source"]
@@ -247,6 +250,31 @@ def test_import_publication_has_file_provenance_and_native_raw_table(builder, li
     assert dataset["columns"][0]["verbose_name"] == "Accession Number"
     assert chart["params"]["all_columns"] == ["c0", "c1"]
     assert chart["params"]["query_mode"] == "raw"
+    assert chart["params"]["row_limit"] == row_count
+    assert chart["params"]["server_pagination"] is (row_count > 100)
+    assert chart["params"]["server_page_length"] == 100
+    # Superset builds its pagination count over a subquery bounded by row_limit.
+    # Exercise that query against the real imported file, including beyond 1,000.
+    import psycopg
+    from psycopg import sql
+
+    with psycopg.connect(live_pg) as connection:
+        table = sql.Identifier(dataset["schema"], dataset["table_name"])
+        total = connection.execute(
+            sql.SQL("SELECT COUNT(*) FROM (SELECT * FROM {} LIMIT %s) rows").format(
+                table
+            ),
+            (chart["params"]["row_limit"],),
+        ).fetchone()[0]
+        assert total == row_count
+        last_page = connection.execute(
+            sql.SQL(
+                "SELECT c0, c1 FROM {} ORDER BY row_order LIMIT 100 OFFSET %s"
+            ).format(table),
+            (((row_count - 1) // 100) * 100,),
+        ).fetchall()
+        assert len(last_page) == ((row_count - 1) % 100) + 1
+        assert all(row == ("001", 450) for row in last_page)
     assert chart["params"]["order_by_cols"] == ['["row_order", true]']
     assert (
         builder.publish(dashboard["versionId"])["pointer"]["bundle"]
