@@ -517,7 +517,9 @@ def _native_chart(
         if bindings.get("categoryColumn")
         else {
             "expressionType": "SQL",
-            "sqlExpression": "'All records'",
+            # Superset repeats this expression in GROUP BY, where PostgreSQL
+            # rejects a bare string constant. The cast keeps one text category.
+            "sqlExpression": "CAST('All records' AS TEXT)",
             "label": "All records",
         },
         "metrics": [metric],
@@ -1257,7 +1259,7 @@ class DashboardBuilder:
                         {"suggestedKind": item.configuration["suggestedKind"]}
                     ),
                     "vizMappingRevision": (
-                        "catalyst.superset.viz.import-summary.v1"
+                        "catalyst.superset.viz.import-summary.v2"
                         if item.configuration.get("aggregation")
                         else "catalyst.superset.viz.schema.v1"
                     ),
@@ -1290,7 +1292,7 @@ class DashboardBuilder:
                 ),
                 "vizMappingRevisions": sorted(
                     {
-                        "catalyst.superset.viz.import-summary.v1"
+                        "catalyst.superset.viz.import-summary.v2"
                         if item.configuration.get("aggregation")
                         else "catalyst.superset.viz.schema.v1"
                         for item in widgets
