@@ -12,6 +12,11 @@ import os
 SECRET_KEY = os.environ["SUPERSET_SECRET_KEY"]
 SQLALCHEMY_DATABASE_URI = os.environ["CATALYST_SUPERSET_METADATA_DSN"]
 
+# Superset's subdirectory bootstrap and frontend both prefix relative branding.
+# An absolute public icon avoids the duplicate prefix and leaves theme defaults intact.
+if public_url := os.getenv("CATALYST_SUPERSET_PUBLIC_URL"):
+    APP_ICON = public_url.rstrip("/") + "/static/assets/images/superset-logo-horiz.png"
+
 WTF_CSRF_ENABLED = True
 TALISMAN_ENABLED = False
 SESSION_COOKIE_HTTPONLY = True
