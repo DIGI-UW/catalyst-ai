@@ -51,6 +51,7 @@ services:
     environment: &superset-environment
       SUPERSET_CONFIG_PATH: /app/pythonpath/superset_config.py
       SUPERSET_APP_ROOT: "${SUPERSET_APP_ROOT:-}"
+      CATALYST_SUPERSET_PUBLIC_URL: "${CATALYST_SUPERSET_PUBLIC_URL:-http://localhost:${SUPERSET_PORT:-8088}${SUPERSET_APP_ROOT:-}}"
       SUPERSET_SECRET_KEY: "${SUPERSET_SECRET_KEY:-catalyst-local-demo-secret-key-change-before-shared-use}"
       CATALYST_SUPERSET_METADATA_DSN: "postgresql+psycopg2://${SUPERSET_METADATA_USER:-catalyst_superset}:${SUPERSET_METADATA_PASSWORD:-demo-superset-metadata-change-me}@superset-metadata-db:5432/${SUPERSET_METADATA_DB:-catalyst_superset_metadata}"
       SUPERSET_ADMIN_USERNAME: "${SUPERSET_ADMIN_USERNAME:-admin}"
@@ -114,7 +115,6 @@ services:
       CATALYST_IMPORT_SUPERSET_URI: "${CATALYST_IMPORT_SUPERSET_URI:-}"
       CATALYST_SUPERSET_OUTBOX: /opt/catalyst/outbox
       CATALYST_SUPERSET_RECEIPTS: /opt/catalyst/receipts
-      CATALYST_SUPERSET_PUBLIC_URL: "${CATALYST_SUPERSET_PUBLIC_URL:-http://localhost:${SUPERSET_PORT:-8088}${SUPERSET_APP_ROOT:-}}"
       CATALYST_CONTRACTS_DIR: /docs/contracts
       CATALYST_IMPORTER_REVISION: "${CATALYST_IMPORTER_REVISION:-}"
       CATALYST_SUPERSET_IMAGE_DIGEST: "sha256:5822dff49c41fd745ce33e38af502f9c64df30d133aeba148c5d89b35a1004ef"

@@ -1,8 +1,10 @@
 import json
 import os
 import re
+import runpy
 import subprocess
 import unittest
+from unittest.mock import patch
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from threading import Thread
@@ -431,6 +433,31 @@ class MvpComposeContractTests(unittest.TestCase):
         self.assertIn("CATALYST_SUPERSET_METADATA_DSN", config)
         self.assertIn("SQLALCHEMY_DATABASE_URI", config)
         self.assertNotIn("catalyst_readonly", config)
+
+    def test_superset_logo_uses_the_public_url_without_double_prefixing(self):
+        for public_url, expected in (
+            (
+                "http://localhost:18088",
+                "http://localhost:18088/static/assets/images/superset-logo-horiz.png",
+            ),
+            (
+                "https://example.org/catalyst-dashboards/",
+                "https://example.org/catalyst-dashboards/static/assets/images/superset-logo-horiz.png",
+            ),
+        ):
+            with (
+                self.subTest(public_url=public_url),
+                patch.dict(
+                    os.environ,
+                    {
+                        "CATALYST_SUPERSET_PUBLIC_URL": public_url,
+                        "SUPERSET_SECRET_KEY": "test-only",
+                        "CATALYST_SUPERSET_METADATA_DSN": "sqlite://",
+                    },
+                ),
+            ):
+                config = runpy.run_path(str(ROOT / "superset/superset_config.py"))
+                self.assertEqual(config["APP_ICON"], expected)
 
     def test_superset_lifecycle_retains_state_until_explicit_reset(self):
         down_script = (ROOT / "scripts/mvp-down.sh").read_text()
