@@ -18,8 +18,8 @@ presentation retains drafts and results. In the simple view, **Query settings**
 and **View or edit SQL** keep those controls available when needed.
 
 The [approved design](../docs/specs/staff-workbench-ux/index.html) is the visual
-reference. Current iteration and deployment status lives in the harness
-[Feature 008 task register](https://github.com/pmanko/clinical-ai-validation-harness/blob/main/specs/008-catalyst-query-workbench/tasks.md).
+reference. Cross-project deployment and acceptance live in the
+[OpenClinAI roadmap](https://github.com/pmanko/openclinai.org/blob/main/specs/roadmap.md#6-catalyst-delivery).
 
 **Available data** opens a companion browser alongside your question. Search
 all readable table/view names, field names, types and supplied descriptions;

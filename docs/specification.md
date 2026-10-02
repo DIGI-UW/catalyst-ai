@@ -1,13 +1,12 @@
 # Catalyst product specification
 
 **Status:** Current product contract. The query notebook, frozen staff Workbench
-design, and binding Dashboard Builder design are accepted. The harness Feature
-008 task register tracks implementation, deployment, and owner acceptance.
+design, and binding Dashboard Builder design are accepted. The [OpenClinAI roadmap](https://github.com/pmanko/openclinai.org/blob/main/specs/roadmap.md#6-catalyst-delivery) tracks cross-project deployment
+and owner acceptance. Product requirements remain in this repository.
 
 The [frozen staff Workbench design](specs/staff-workbench-ux/spec.md) is dated
 design evidence for this contract. Its accepted application behavior is
-incorporated below; delivery order and progress are owned by the validation
-harness Feature 008 plan and tasks.
+incorporated below; cross-project delivery order and acceptance are owned by OpenClinAI.
 
 ## Purpose
 
@@ -27,7 +26,7 @@ a clinical warehouse, or a preferred database engine. The approved reporting
 extension adds explicit CSV imports as a second Dataset origin; it does not
 make a file a queryable source or require SQL interaction for an import.
 
-The [four-pathway integration roadmap](https://github.com/pmanko/clinical-ai-validation-harness/blob/main/specs/openelis-reporting-catalyst-integration.md)
+The [four-pathway integration roadmap](https://github.com/pmanko/openclinai.org/blob/main/specs/roadmap.md#6-catalyst-delivery)
 owns this extension's sequence and cross-project acceptance. The
 [integration design](specs/openelis-reporting-integration/spec.md) additions
 were approved on 14 September 2026. PostgreSQL connection execution and
@@ -213,6 +212,9 @@ cancels its outstanding request. Preparation never executes SQL.
 A follow-up uses the current visible editor state, prior user instructions,
 relevant failure information, and eligible verified examples from the same
 source and session. Earlier material cannot replace the current instruction.
+The current target must not receive its own answer as an example. No fixed
+context-item count or ranking formula is required. If the complete request does
+not fit, report the capacity error instead of silently dropping context and retrying.
 
 Every turn keeps its full question, source, outcome, and relevant limitations
 visible. A successful run also shows its returned-row count, returned field names
@@ -298,6 +300,8 @@ SQL; Run continues through the existing query-version execution path.
 
 ### Imported Dataset
 
+**Requirement ID:** `FP-006`.
+
 Upload CSV → review columns/types → confirm import → save Dataset uses the same
 Dataset library/review and downstream Widget/Dashboard model, without SQL,
 session creation, or fabricated query/execution provenance. Existing query-save
@@ -324,6 +328,8 @@ their full table without unnecessary pagination controls.
 
 ### PostgreSQL source
 
+**Requirement ID:** `FP-004`.
+
 Ordinary PostgreSQL uses the existing source identity, complete readable-schema,
 dialect and shared execution contracts. Support its transport, parameters,
 types and execution bounds without translating SQL or restoring curated relation
@@ -344,6 +350,8 @@ The real OpenELIS workflow and deployed Superset rendering are still
 tracked in the integration roadmap.
 
 ### Widget
+
+**Requirement ID:** `FP-007`.
 
 - Compatibility and the initial visualization suggestion are deterministic from
   the Dataset's typed shape.
@@ -380,6 +388,8 @@ tracked in the integration roadmap.
 
 ### Publication and import
 
+**Requirement ID:** `FP-005`.
+
 - Publish writes a deterministic native Superset bundle to the outbox and offers
   the same bytes for download.
 - The published ZIP adopts the shared outbox directory's group and uses `0640`
@@ -412,7 +422,7 @@ model-generated chart specifications are later work.
 
 The [design extension proposal](specs/staff-workbench-ux/proposals/catalyst-output-integrations-hiv-draft.md)
 supplies follow-on design inputs for multi-artifact requests, shared controls,
-Metabase and Evidence. The harness Feature 008 plan schedules them after current
+Metabase and Evidence. The umbrella roadmap schedules them after current
 usability and Superset delivery. Their detailed contracts remain subject to that
 milestone's review; they are not current Dashboard completion requirements.
 
@@ -447,10 +457,10 @@ second harness or per-run comparison path.
 
 ## Delivery authority
 
-Program sequence, reference-environment integration, evidence, and owner gates
-are owned by the validation harness Feature 008 specification, plan, and tasks.
-Those documents apply this product contract without redefining application
-behavior.
+The [OpenClinAI roadmap](https://github.com/pmanko/openclinai.org/blob/main/specs/roadmap.md)
+owns cross-project priorities. Its [Catalyst delivery section](https://github.com/pmanko/openclinai.org/blob/main/specs/roadmap.md#6-catalyst-delivery)
+owns shared environments, delivery order and acceptance. The harness owns
+experiment scenarios, protocols and evidence. Neither redefines this product contract.
 
 ## Accessibility
 
@@ -460,6 +470,52 @@ motion, and usable desktop, short-viewport, 640-, 390-, and 320-CSS-pixel
 layouts. Overlays contain focus, Escape closes them, and focus returns to their
 invoker or a named replacement. Composer resizing and disclosure changes do not
 obscure focused content.
+
+## Implementation direction
+
+Current application behavior is specified above and in the binding Dashboard
+Builder design. Recorded implementation does not establish final browser or owner
+acceptance. Review the real source-to-query-to-Dashboard journey against those
+contracts, repair observed defects, and retain deployment acceptance separately in
+the umbrella roadmap. Old unchecked tasks are not proof of missing functionality.
+
+The next product milestone is responsiveness and session navigation:
+
+- Use actual query-engine and named-role progress, with readable, accessible stage
+  status. Show partial text only when separable from the structured response;
+  partial JSON or unvalidated SQL is never a ready query. Preserve draft/results
+  through interruption and stop downstream work when the request is abandoned.
+- Measure queueing, loading, context preparation, model generation and SQL execution
+  separately before optimizing. Preserve the complete readable schema and required
+  session context. Stable instructions/schema precede changing question content;
+  removing proven duplication must not omit evidence or make cache hits necessary
+  for correctness. Model/profile ownership remains with Hub.
+- Keep model choices understandable, with exact settings in Technical details and
+  explicit unavailability rather than fallback. The deployment's selected default
+  belongs to the operations guide; another default change requires measured SQL
+  behavior as well as timing.
+- Restore the exact session and bound source from the URL, reload and Back/Forward.
+  Normalize conflicting source parameters to that session. Tabs retain independent
+  drafts and results; concurrent requests run or visibly queue within capacity,
+  and conflicting work on one session is explicit.
+
+Then proceed through the existing [follow-on design](specs/staff-workbench-ux/proposals/catalyst-output-integrations-hiv-draft.md):
+A, multi-artifact proposals and shared controls; B, Metabase publication; C,
+Evidence publication. Each requires its bounded design/compatibility review when
+started. Use existing state and Hub-owned prompts, preserve imported/query-backed
+provenance, immutable versions, explicit SQL execution and actual native rendering.
+Validate source/connector compatibility before implementing a new destination;
+retain drafts on failure rather than copying preview rows into another warehouse.
+The umbrella owns scheduling and shared release acceptance.
+
+## Future conversation scope
+
+Broader conversation behavior and acceptance remain undecided until the owner
+reviews the Phase 1 comparison report. A later turn may answer, ask, explain or
+produce SQL using the existing session state, but those possibilities do not
+approve an implementation. Explicit session guidance remains research, not a
+required Pin/composer interface. The harness owns the comparison and guidance
+research protocols; this product owns any resulting application requirement.
 
 ## Out of scope
 

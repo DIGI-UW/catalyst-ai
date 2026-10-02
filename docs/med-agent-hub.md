@@ -1,10 +1,10 @@
 # med-agent-hub integration boundary
 
-**Status:** Current Hub route and profile contract. The harness Feature 008
-task register tracks implementation and live acceptance of this boundary.
+**Status:** Current Hub route and profile contract. The [OpenClinAI roadmap](https://github.com/pmanko/openclinai.org/blob/main/specs/roadmap.md#6-catalyst-delivery)
+tracks assembled-system acceptance; product requirements remain in this repository.
 
 The broader product requirements live in [the Catalyst specification](specification.md)
-and [product roadmap](roadmap.md). This document covers only the boundary
+and [binding Dashboard design](dashboard-builder-mvp-design.md). This document covers only the boundary
 between Catalyst and med-agent-hub.
 
 ## Purpose
@@ -167,7 +167,7 @@ is discarded: warmup opens no user stores, creates no sessions or previews, and
 adds no history, examples or guidance. It discovers the live schema through
 source metadata commands, but does not run generated or user-visible SQL or
 retrieve clinical rows. It does not invoke a reviewer or repair loop. Use the
-harness lifecycle wrapper for the combined reference deployment.
+OpenClinAI umbrella lifecycle wrapper for the combined reference deployment.
 
 Warmup uses Hub's internal `warm` role route rather than the caller-facing role
 deadline. It runs until the prefix completes or the lifecycle caller disconnects;

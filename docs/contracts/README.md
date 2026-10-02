@@ -13,6 +13,6 @@ origin-specific provenance. Product requirements are stated in the documents bel
 Current intended behavior is stated in:
 
 - [the Catalyst specification](../specification.md);
-- [the Catalyst roadmap](../roadmap.md);
+- [Cross-project delivery](https://github.com/pmanko/openclinai.org/blob/main/specs/roadmap.md#6-catalyst-delivery);
 - [the Dashboard Builder contract](dashboard-builder-api.md); and
 - [the accepted Dashboard Builder design](../dashboard-builder-mvp-design.md).

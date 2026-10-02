@@ -1,6 +1,6 @@
 # Catalyst: one thread, reusable artifacts, multiple outputs
 
-**Consolidated proposal · 10 September 2026.** Current behavior is defined by the [product specification](../../../specification.md) and [binding design](../../../dashboard-builder-mvp-design.md). The [Feature 008 plan](https://github.com/pmanko/clinical-ai-validation-harness/blob/main/specs/008-catalyst-query-workbench/plan.md#design-extension-review) owns scheduling; the approved shell remains Explore / Saved work. Grouped saved work and saved-SQL reuse enter current delivery; multi-artifact design, shared controls and additional outputs are scheduled follow-ons whose detailed designs require review.
+**Consolidated proposal · 10 September 2026.** Current behavior is defined by the [product specification](../../../specification.md) and [binding design](../../../dashboard-builder-mvp-design.md). The [OpenClinAI roadmap](https://github.com/pmanko/openclinai.org/blob/main/specs/roadmap.md#6-catalyst-delivery) owns scheduling; the approved shell remains Explore / Saved work. Grouped saved work and saved-SQL reuse enter current delivery; multi-artifact design, shared controls and additional outputs are scheduled follow-ons whose detailed designs require review.
 
 ## Purpose
 
@@ -172,7 +172,7 @@ Review saved-SQL reuse in the approved mock for current delivery. Extend that sa
 
 ## References
 
-- [Current product scope](../../../specification.md) and [implementation sequence](https://github.com/pmanko/clinical-ai-validation-harness/blob/main/specs/008-catalyst-query-workbench/plan.md).
+- [Current product scope](../../../specification.md) and [implementation sequence](https://github.com/pmanko/openclinai.org/blob/main/specs/roadmap.md#6-catalyst-delivery).
 - [Current Dashboard Builder requirements](../../../dashboard-builder-mvp-design.md), especially the saved-object and one-way publication flow.
 - [Current OpenMRS Spark exports](https://github.com/pmanko/clinical-ai-validation-harness/tree/main/catalyst-sources/openmrs-hiv/config/views): encounter `period_start`, observation `obs_date`, patient `gender`, and medication `doNotPerform`. The medication export has no request date. Coding/name arrays can produce repeated resource IDs, so counts require reviewed deduplication. These definitions do not prove live values, CD4 concept selection or join correctness; verify the complete discovered Spark schema and a real result. Retired PostgreSQL view names are not acceptance inputs.
 - [Metabase Spark SQL](https://www.metabase.com/docs/latest/databases/connections/sparksql), [API behavior](https://www.metabase.com/learn/metabase-basics/administration/administration-and-operation/metabase-api), and [paid serialization](https://www.metabase.com/docs/latest/installation-and-operation/serialization).
