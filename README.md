@@ -17,8 +17,8 @@ Optional descriptions may enrich the readable schema but cannot hide relations.
 ## Status
 
 The query notebook, frozen staff Workbench design, and binding Dashboard Builder
-design are accepted. The validation harness [Feature 008 task register](https://github.com/pmanko/clinical-ai-validation-harness/blob/main/specs/008-catalyst-query-workbench/tasks.md)
-tracks implementation, merged revisions, deployment, and owner acceptance.
+design are accepted. The [OpenClinAI roadmap](https://github.com/pmanko/openclinai.org/blob/main/specs/roadmap.md#6-catalyst-delivery)
+tracks cross-project deployment and owner acceptance. Product contracts remain here.
 
 ## Product flow
 
@@ -92,7 +92,7 @@ For a shared host, set `SUPERSET_APP_ROOT` to a path such as
 in the deployment's `.env`. Preserve that prefix at the reverse proxy. The
 renderer, health checks and imported Dashboard links use these settings; leave
 both empty for the ordinary local URLs. Continue to run lifecycle and import
-operations through the harness wrapper from the checkout owning the deployment.
+operations through the OpenClinAI umbrella wrapper from the checkout owning the deployment.
 Import requires healthy Spark and Superset services with the same configuration
 as the running stack. It does not start, restart or reconfigure them. If settings
 differ, retry with the existing settings or deliberately update the stack with
@@ -101,7 +101,7 @@ the lifecycle wrapper before importing.
 ## Documentation
 
 - [Product specification](docs/specification.md)
-- [Historical product roadmap](docs/roadmap.md)
+- [Cross-project delivery](https://github.com/pmanko/openclinai.org/blob/main/specs/roadmap.md#6-catalyst-delivery)
 - [Dashboard Builder design](docs/dashboard-builder-mvp-design.md)
 - [med-agent-hub client contract](docs/med-agent-hub.md)
 - [Development instructions](AGENTS.md)
@@ -136,7 +136,7 @@ cd catalyst-gateway && uv sync --frozen --extra dev && cd ..
 cd catalyst-ui && npm ci && cd ..
 ```
 
-Run focused tests for the component being changed. Use the validation harness's
+Run focused tests for the component being changed. Use the OpenClinAI umbrella's
 `scripts/catalyst-mvp.sh` wrapper for the combined reference deployment; do not
 invoke the Catalyst Compose file alone for cross-repository acceptance.
 

@@ -1,4 +1,6 @@
-# Catalyst reporting pathways — integration design draft
+# Catalyst reporting pathways — approved integration design
+
+**Requirement ID:** `FP-002`.
 
 **Status:** Four-pathway design additions approved by the owner on 14 September
 2026, including the CSV entry point and quick-test journey merged in Catalyst
@@ -7,7 +9,7 @@ real-source verification, deployment and final owner acceptance remain separate.
 
 [Open the Catalyst draft](index.html?view=integration&app=catalyst) ·
 [OpenELIS reporting mock](https://digi-uw.github.io/openelis-work/#/reports/custom-data-export) ·
-[Integration roadmap](https://github.com/pmanko/clinical-ai-validation-harness/blob/main/specs/openelis-reporting-catalyst-integration.md)
+[Integration roadmap](https://github.com/pmanko/openclinai.org/blob/main/specs/roadmap.md#6-catalyst-delivery)
 
 ## Ownership and boundary
 
@@ -15,7 +17,7 @@ real-source verification, deployment and final owner acceptance remain separate.
 | --- | --- |
 | `openelis-work` | OpenELIS reporting mock, OpenELIS styling, configurable-export and queue requirements |
 | Catalyst, this directory | Query-source and CSV-origin Dataset experiences; fictional comparison examples for review |
-| Harness integration roadmap and review hub | Cross-project decisions, acceptance milestones and publication links |
+| OpenClinAI umbrella | Cross-project decisions, acceptance milestones and publication links |
 
 The owner clarified this separation during review. The duplicate OpenELIS
 screen previously placed in this directory is removed. Use the existing
@@ -212,7 +214,7 @@ private/ignored storage.
 
 Run `node --test docs/specs/openelis-reporting-integration/model.test.mjs`.
 Serve the parent design directory and open this directory's index for local review.
-The harness publishes exact source files beside the approved reference and
+The OpenClinAI umbrella publishes exact source files beside the approved reference and
 records their source commit and hashes. Its reviewer link opens OpenELIS's own
 published mock; it does not copy those screens into this repository.
 

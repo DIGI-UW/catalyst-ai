@@ -10,7 +10,7 @@ Catalyst baseline: `main` at `4c6a46fa121ea7ce6dff7784547e2eb6aa236fa6`:
 - [Product specification](../../specification.md).
 - [Binding design](../../dashboard-builder-mvp-design.md): ASK-01–04, DATASET-01–04, THREAD-01, A11Y-01, composer, libraries and review panel.
 - [Prototype and priority rules](../../prototypes/dashboard-builder-mvp/README.md).
-- [Roadmap](../../roadmap.md) and [model integration boundary](../../med-agent-hub.md).
+- [Roadmap](https://github.com/DIGI-UW/catalyst-ai/blob/6ba00082519f9fb2d864895b292352d8987ce51c/docs/roadmap.md) and [model integration boundary](../../med-agent-hub.md).
 
 Harness baseline: `main` at `bac17a7e5d6e6425401dc735455cab8497392eca`:
 
@@ -86,7 +86,7 @@ completion. Full Dashboard Builder acceptance still follows the existing
 program checkpoints and requires the owner's live browser review.
 
 If adopted, amend the named sections in the binding design and cross-reference
-this spec from the existing Feature 008 tasks. Do not start a second roadmap,
+this dated design from the product implementation register. Do not start a second roadmap,
 duplicate harness acceptance, or silently change phase order. Merging a design
 reference is not acceptance of implemented product behavior.
 
@@ -103,7 +103,7 @@ The [HIV workflow, saved-SQL reuse and output proposal](proposals/catalyst-outpu
 consolidated design inputs. The owner confirmed Explore / Saved work and the
 richer saved-work structure on 10 September 2026. Saved-SQL reuse is added to
 the product specification and binding design for current delivery. The harness
-[Feature 008 plan](https://github.com/pmanko/clinical-ai-validation-harness/blob/main/specs/008-catalyst-query-workbench/plan.md#design-extension-review)
+[OpenClinAI roadmap](https://github.com/pmanko/openclinai.org/blob/main/specs/roadmap.md#6-catalyst-delivery)
 owns disposition and scheduling.
 
 Saved-SQL persistence exists, but its first-class reuse action does not.

@@ -46,23 +46,18 @@ A session binds one source. Changing source starts a new session.
 
 ## Program order
 
-The approved four OpenELIS–Catalyst reporting pathways are governed by the
-harness `specs/openelis-reporting-catalyst-integration.md`. That roadmap owns
-cross-project order/acceptance; native reporting stays in OpenELIS. Extend the
-existing integration design and Dataset contracts, not a new spec family per
-lane. PostgreSQL connection and source-aware query publication are implemented;
-the CSV import/table foundation uses dedicated configured storage. Raw-row
-grouping and aggregation use explicit reviewed Widget controls; local/server
-rendering and four-pathway acceptance remain separately tracked. The selected
-Spark pathway remains; connection tests do not establish lane acceptance. This does not add a competing model-ranking
-path. Existing AI-assisted Widget/Dashboard refinement remains Follow-on A after
-the four-pathway demonstration goal, supporting both Dataset origins.
+The [OpenClinAI roadmap](https://github.com/pmanko/openclinai.org/blob/main/specs/roadmap.md)
+sets cross-project priorities. Its [Catalyst delivery section](https://github.com/pmanko/openclinai.org/blob/main/specs/roadmap.md#6-catalyst-delivery) owns
+four-pathway order, environment verification and owner acceptance. Native reporting
+stays in OpenELIS; Catalyst product behavior stays in the authorities above.
+Extend the existing integration design and Dataset contracts instead of creating
+one specification family per pathway.
 
-The validation harness Feature 008 plan owns delivery order: approved usability
-iterations first, then Dashboard functionality after feedback on the complete
-local usability gate. Model comparison and broader conversation are separately
-scheduled. The Dataset-to-Superset regression smoke does not close or reduce
-Dashboard Builder acceptance.
+Current usability and Dashboard Builder acceptance precedes responsiveness and
+session navigation, then the existing follow-ons A/B/C. The umbrella schedules
+that work; product contracts define it. Model comparison is a separate harness
+experiment. The Dataset-to-Superset regression smoke does not close Dashboard
+Builder acceptance.
 
 For final Dashboard acceptance, compare the live Workbench, Dataset
 review/library, Widget review/library, Dashboard library/arrangement, and
@@ -89,13 +84,13 @@ cd catalyst-gateway && uv sync --frozen --extra dev && cd ..
 cd catalyst-ui && npm ci && cd ..
 ```
 
-The Clinical AI Validation Harness supplies the pinned med-agent-hub sibling and
-owns the combined local reference stack. Use its `scripts/catalyst-mvp.sh`
-wrapper for cross-repository work. Do not invoke Catalyst Compose alone for
-acceptance because the wrapper supplies the isolated ports, Hub context, and
-reference-source configuration. Seeding and reset remain explicit operations.
+The OpenClinAI umbrella selects compatible components and owns the combined
+reference stack. Run its `scripts/catalyst-mvp.sh` from the umbrella checkout for
+cross-repository work; do not invoke Catalyst Compose alone as assembled-system
+acceptance. The wrapper supplies isolated ports, Hub context and source
+configuration. Seeding and reset remain explicit.
 
-Use the harness task register for current deployment and acceptance evidence;
+Use the umbrella roadmap for deployment and acceptance evidence;
 Compose files alone do not establish Spark acceptance.
 
 ## Model boundary

@@ -263,7 +263,7 @@ state, not the mock's fixture transitions.
 ## Acceptance and sequencing
 
 The [overlap review](overlap.md) assigns existing requirements to their current
-owners. Keep the work in the existing Catalyst UI effort and Feature 008 plan;
+owners. Keep application work in the existing Catalyst UI effort and product implementation register;
 do not create another roadmap or change the program phases.
 
 For the eventual implementation:

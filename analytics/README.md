@@ -31,5 +31,5 @@ The current runtime uses the PostgreSQL sink, SQL, catalog, and health files in
 this directory. The selected Spark deployment contains none of those components.
 
 Implementation order and acceptance are in the
-[Catalyst roadmap](../docs/roadmap.md). There is no supported source-local Spark
+[Cross-project delivery](https://github.com/pmanko/openclinai.org/blob/main/specs/roadmap.md#6-catalyst-delivery). There is no supported source-local Spark
 command until that work lands. Seeding and reset remain explicit operations.
