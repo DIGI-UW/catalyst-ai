@@ -1967,7 +1967,8 @@ describe("Catalyst query workflow", () => {
     const provenance = screen.getByRole("region", { name: "Provenance" });
     expect(within(provenance).getByText("cat-trace-123")).toBeVisible();
     expect(within(provenance).getByText("hub-trace-456")).toBeVisible();
-    expect(within(provenance).getByText("pipeline-run-77")).toBeVisible();
+    expect(within(provenance).getByText("postgres")).toBeVisible();
+    expect(within(provenance).getByText("12")).toBeVisible();
     expect(within(provenance).getByText("catalyst-query-gemma-e4b")).toBeVisible();
     expect(screen.getByLabelText("Your question")).toBeEnabled();
     expect(await inspectModelProfile()).toBeEnabled();

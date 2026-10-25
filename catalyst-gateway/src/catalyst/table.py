@@ -49,8 +49,6 @@ def build_table(
             warnings.append(
                 f"Result was truncated to the configured limit of {max_rows} rows."
             )
-    if freshness.get("completionState") == "partial":
-        warnings.append("Analytics source freshness is partial.")
 
     table = {
         "contractVersion": "catalyst.table.v1",

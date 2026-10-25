@@ -1,4 +1,4 @@
-import { Accordion, AccordionItem, Tag } from "@carbon/react";
+import { Accordion, AccordionItem } from "@carbon/react";
 import type { CatalystTable } from "../types";
 
 interface ProvenancePanelProps {
@@ -31,31 +31,12 @@ export const ProvenancePanel = ({ result }: ProvenancePanelProps) => (
             <dd>{result.source.views.join(", ")}</dd>
           </div>
           <div>
-            <dt>Source watermark</dt>
-            <dd>{result.source.freshness.sourceWatermark}</dd>
+            <dt>SQL dialect</dt>
+            <dd>{result.source.freshness.dialect}</dd>
           </div>
           <div>
-            <dt>Pipeline run</dt>
-            <dd>{result.source.freshness.pipelineRunId}</dd>
-          </div>
-          <div>
-            <dt>Pipeline state</dt>
-            <dd>
-              <Tag
-                size="sm"
-                type={
-                  result.source.freshness.completionState === "complete"
-                    ? "green"
-                    : "purple"
-                }
-              >
-                {result.source.freshness.completionState}
-              </Tag>
-            </dd>
-          </div>
-          <div>
-            <dt>Observed lag</dt>
-            <dd>{result.source.freshness.observedLagSeconds} seconds</dd>
+            <dt>Readable relations</dt>
+            <dd>{result.source.freshness.relationCount}</dd>
           </div>
         </dl>
       </AccordionItem>

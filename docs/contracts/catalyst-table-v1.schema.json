@@ -506,30 +506,26 @@
           }
         },
         "freshness": {
+          "description": "What the connection reports about itself when the result is built. Catalyst does not own ingestion, so a result carries no pipeline watermark.",
           "type": "object",
           "additionalProperties": false,
           "required": [
-            "sourceWatermark",
-            "pipelineRunId",
-            "completionState",
-            "observedLagSeconds"
+            "dataSource",
+            "dialect",
+            "relationCount"
           ],
           "properties": {
-            "sourceWatermark": {
-              "type": "string",
-              "format": "date-time"
+            "dataSource": {
+              "type": [
+                "string",
+                "null"
+              ]
             },
-            "pipelineRunId": {
+            "dialect": {
               "type": "string",
               "minLength": 1
             },
-            "completionState": {
-              "enum": [
-                "complete",
-                "partial"
-              ]
-            },
-            "observedLagSeconds": {
+            "relationCount": {
               "type": "integer",
               "minimum": 0
             }
