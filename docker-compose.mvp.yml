@@ -318,7 +318,9 @@ services:
     ports:
       - "127.0.0.1:${GATEWAY_PORT:-8000}:8000"
     environment:
-      MED_AGENT_HUB_BASE_URL: "http://med-agent-hub:8080"
+      # A Hub that is already running elsewhere replaces this stack's own; see
+      # MVP_HUB=external in scripts/mvp-up.sh.
+      MED_AGENT_HUB_BASE_URL: "${MVP_GATEWAY_HUB_URL:-http://med-agent-hub:8080}"
       CATALYST_QUERY_PROFILE_ID: "${MVP_RESOLVED_PROFILE_ID:-catalyst-query-e4b-qwen14b}"
       CATALYST_CONNECTION_URI: "hive2://catalyst@spark-thriftserver:10000/openelis"
       CATALYST_DIALECT: "spark"

@@ -80,14 +80,16 @@ compose=(
   --env-file "${ENV_FILE}"
   -f "${ROOT_DIR}/docker-compose.mvp.yml"
 )
-compose_override_file="${MVP_COMPOSE_OVERRIDE_FILE:-}"
-if [ -n "${compose_override_file}" ]; then
+# One override file, or several separated by ":" and applied in order.
+IFS=: read -r -a compose_override_files <<< "${MVP_COMPOSE_OVERRIDE_FILE:-}"
+for compose_override_file in ${compose_override_files[@]+"${compose_override_files[@]}"}; do
+  [ -n "${compose_override_file}" ] || continue
   if [ ! -f "${compose_override_file}" ]; then
     echo "ERROR: compose override file does not exist: ${compose_override_file}" >&2
     exit 1
   fi
   compose+=(-f "${compose_override_file}")
-fi
+done
 mvp_resolve_model_config
 model_backend="${MVP_RESOLVED_MODEL_BACKEND}"
 router_mode="${model_backend}"
@@ -214,9 +216,15 @@ check_warehouse() {
 }
 
 check_hub_router_config() {
-  "${compose[@]}" exec -T \
+  local hub_exec=("${compose[@]}" exec -T)
+  local hub_target=med-agent-hub
+  if [ "${MVP_HUB:-own}" = "external" ]; then
+    hub_exec=(docker exec -i)
+    hub_target="${MVP_HUB_CONTAINER}"
+  fi
+  "${hub_exec[@]}" \
     -e "EXPECTED_ROUTER_URL=${router_url}" \
-    med-agent-hub python - <<'PY'
+    "${hub_target}" python - <<'PY'
 import os
 
 configured = os.environ.get("LLM_BASE_URL", "").rstrip("/")
@@ -363,6 +371,16 @@ hub_commit="$(git -C "${hub_context}" rev-parse HEAD)"
 hub_source="standalone-fallback"
 if [ -n "${MED_AGENT_HUB_CONTEXT:-}" ]; then
   hub_source="harness-sibling"
+fi
+if [ "${MVP_HUB:-own}" = "external" ]; then
+  # A Hub this stack did not build must still be the recorded source.
+  running_revision="$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' \
+    "$(docker inspect --format '{{.Image}}' "${MVP_HUB_CONTAINER}")")"
+  if [ "${running_revision}" != "${hub_commit}" ]; then
+    echo "ERROR: Hub container ${MVP_HUB_CONTAINER} runs ${running_revision:-an unlabelled image}, not ${hub_commit}." >&2
+    exit 1
+  fi
+  hub_source="external:${MVP_HUB_CONTAINER}"
 fi
 hub_dirty=false
 if [ -n "$(git -C "${hub_context}" status --porcelain)" ]; then

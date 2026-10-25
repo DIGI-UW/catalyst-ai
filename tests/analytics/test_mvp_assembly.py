@@ -64,6 +64,20 @@ class MvpComposeContractTests(unittest.TestCase):
         ):
             self.assertIn(f"@sha256:{digest}", self.compose)
 
+    def test_a_running_hub_can_replace_the_stacks_own(self):
+        self.assertIn(
+            'MED_AGENT_HUB_BASE_URL: "${MVP_GATEWAY_HUB_URL:-http://med-agent-hub:8080}"',
+            self.compose,
+        )
+        self.assertIn('hub_mode="${MVP_HUB:-own}"', self.up_script)
+        self.assertIn("own) hub_services=(med-agent-hub) ;;", self.up_script)
+        self.assertIn('${hub_services[@]+"${hub_services[@]}"} \\', self.up_script)
+        for required in ("MVP_GATEWAY_HUB_URL", "MED_AGENT_HUB_PORT", "MVP_HUB_CONTAINER"):
+            self.assertIn(required, self.up_script)
+        self.assertIn('if [ "${MVP_HUB:-own}" = "external" ]; then', self.health_script)
+        self.assertIn("org.opencontainers.image.revision", self.health_script)
+        self.assertIn('hub_source="external:${MVP_HUB_CONTAINER}"', self.health_script)
+
     def test_hub_source_is_injectable_and_standalone_fallback_is_unmodified(self):
         expected_context = 'context: "${MED_AGENT_HUB_CONTEXT:-./.med-agent-hub}"'
         self.assertIn(expected_context, self.compose)
@@ -103,7 +117,7 @@ class MvpComposeContractTests(unittest.TestCase):
             (ROOT / "patches/med-agent-hub/catalyst-query-profile.patch").exists()
         )
 
-    def test_lifecycle_scripts_accept_one_optional_compose_override(self):
+    def test_lifecycle_scripts_accept_optional_compose_overrides_in_order(self):
         for script_name in (
             "mvp-up.sh",
             "mvp-seed.sh",
@@ -115,9 +129,10 @@ class MvpComposeContractTests(unittest.TestCase):
                 script = (ROOT / "scripts" / script_name).read_text()
                 self.assertIn("MVP_COMPOSE_OVERRIDE_FILE", script)
                 self.assertIn(
-                    'if [ -n "${compose_override_file}" ]; then',
+                    'IFS=: read -r -a compose_override_files <<< "${MVP_COMPOSE_OVERRIDE_FILE:-}"',
                     script,
                 )
+                self.assertIn('[ -n "${compose_override_file}" ] || continue', script)
                 self.assertIn(
                     'compose+=(-f "${compose_override_file}")',
                     script,
