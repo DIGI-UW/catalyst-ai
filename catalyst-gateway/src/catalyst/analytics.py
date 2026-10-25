@@ -63,6 +63,9 @@ class AnalyticsResult:
     rows: list[Sequence[Any]]
     truncated: bool
     truncation_reason: str | None = None
+    # What the database says each column is, in the result's own order; the
+    # table records these rather than the types the query declared.
+    columns: list[AnalyticsColumn] | None = None
 
 
 @dataclass(frozen=True)
@@ -370,6 +373,7 @@ class SqlAnalyticsAdapter:
                     description = cursor.description or ()
                     rows = list(cursor.fetchmany(max_rows + 1)) if description else []
                 column_names = [str(column[0]) for column in description]
+                columns = self._manual_columns(description, rows, cursor)
         truncated = len(rows) > max_rows
         truncation_reason = "configured_limit" if truncated else None
         sql_limit = self._literal_sql_limit(sql)
@@ -381,6 +385,7 @@ class SqlAnalyticsAdapter:
             rows=rows[:max_rows],
             truncated=truncated,
             truncation_reason=truncation_reason,
+            columns=columns,
         )
 
     def _execute_manual_sync(
