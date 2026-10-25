@@ -186,10 +186,9 @@ export interface CatalystTable {
     catalogVersion: string;
     views: string[];
     freshness: {
-      sourceWatermark: string;
-      pipelineRunId: string;
-      completionState: "complete" | "partial";
-      observedLagSeconds: number;
+      dataSource: string | null;
+      dialect: string;
+      relationCount: number;
     };
   };
   execution: {

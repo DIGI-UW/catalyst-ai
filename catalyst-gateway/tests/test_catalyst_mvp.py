@@ -57,10 +57,9 @@ def catalog() -> Catalog:
             }
         ],
         freshness={
-            "sourceWatermark": "2026-07-15T12:00:00Z",
-            "pipelineRunId": "pipeline-42",
-            "completionState": "complete",
-            "observedLagSeconds": 30,
+            "dataSource": "openelis",
+            "dialect": "spark",
+            "relationCount": 1,
         },
     )
 

@@ -100,10 +100,9 @@ export const table: CatalystTable = {
     catalogVersion: "2026.07",
     views: ["analytics.vw_viral_load_results"],
     freshness: {
-      sourceWatermark: "2026-07-15T23:55:00Z",
-      pipelineRunId: "pipeline-run-77",
-      completionState: "complete",
-      observedLagSeconds: 300,
+      dataSource: "openelis-analytics",
+      dialect: "postgres",
+      relationCount: 12,
     },
   },
   execution: {

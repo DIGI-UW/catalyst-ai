@@ -480,3 +480,30 @@ def test_discovered_relationships_reach_writer_without_losing_annotations():
         "Optional source explanation",
     ]
     assert relation["relationships"] == [declared]
+
+
+def test_the_connections_freshness_is_what_a_result_table_may_record():
+    """The table contract takes freshness from the adapter that executes the
+    query; a fake that reports another shape let execution fail on every real
+    connection while the route tests passed."""
+    from jsonschema import Draft202012Validator
+
+    from src.catalyst.contracts import ContractRegistry
+
+    adapter = SqlAnalyticsAdapter(
+        "fixture://analytics",
+        dialect=FIXTURE,
+        data_source_id="openelis",
+        connect=lambda *args, **kwargs: None,
+    )
+    adapter._discover_relations_sync = lambda: [{"name": "patient_flat"}]
+    freshness = asyncio.run(adapter.freshness())
+
+    schema = ContractRegistry.default().schemas["catalyst-table-v1.schema.json"]
+    freshness_schema = schema["$defs"]["source"]["properties"]["freshness"]
+    Draft202012Validator(freshness_schema).validate(freshness)
+    assert freshness == {
+        "dataSource": "openelis",
+        "dialect": FIXTURE.sql_dialect,
+        "relationCount": 1,
+    }
