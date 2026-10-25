@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="${ROOT_DIR}/.env"
 DATA_PIPES_IMAGE_DIGEST="sha256:000074117c2de36935d52ec6aee165262f9b5724eb7d26c5d3ccff86fa6ea4d8"
-PINNED_OPENELIS_DOCKER_COMMIT="f118d0ae778a30028c16be2af549843ec166f655"
+PINNED_OPENELIS_DOCKER_COMMIT="cf6017cf41866941e5889b5f1c7090a98442b406"
 CURL_CONNECT_TIMEOUT_SECONDS="${MVP_CURL_CONNECT_TIMEOUT_SECONDS:-5}"
 CURL_MAX_TIME_SECONDS="${MVP_CURL_MAX_TIME_SECONDS:-15}"
 # shellcheck disable=SC1091
@@ -411,9 +411,9 @@ payload = {
         "commit": os.environ["OPENELIS_DOCKER_COMMIT"],
         "images": {
             "certs": "itechuw/certgen@sha256:e27a8194300ba73309e835a4070e9ce531687eb3ee604895de781f3061791635",
-            "database": "itechuw/openelis-global-2-database@sha256:e801c93a8bedc41c2e502722e38585979fbbaf0e92ee4c248cdde72d9c33ec1e",
-            "application": "itechuw/openelis-global-2@sha256:2217d76104051589d99eb808cef22ae692f6ad2d12a0fadc70ecc549162df36f",
-            "fhir": "itechuw/openelis-global-2-fhir@sha256:667680632b8fe491bb1955f3935751562e60933d3aea91d79256ccd4eac857c3",
+            "database": "itechuw/openelis-global-2-database@sha256:4a85cb299cfaa769657b91b7a629f49e9987f65f7ffd702582e28bdcfbdc906e",
+            "application": "itechuw/openelis-global-2@sha256:b69b2cb7f75642f6be97896ad368767ac5c6383d718a3189be0580eeb2b5171e",
+            "fhir": "itechuw/openelis-global-2-fhir@sha256:d224b8dec7f3bfa5d176b1409e9d4d24025356a82069eaa5adbd3cf966411b95",
         },
     },
     "fhirDataPipes": {

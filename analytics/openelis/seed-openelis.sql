@@ -6,10 +6,10 @@
   \quit 2
 \endif
 
-SELECT :'openelis_version' ~ '^3\.2\.1\.[0-9]+$' AS openelis_version_supported \gset
+SELECT :'openelis_version' ~ '^3\.(2\.1\.[0-9]+|3\.[0-9]+(\.[0-9]+)?)$' AS openelis_version_supported \gset
 \if :openelis_version_supported
 \else
-  \echo 'ERROR: this demo seed supports OpenELIS 3.2.1.x only'
+  \echo 'ERROR: this demo seed supports OpenELIS 3.3.x and 3.2.1.x only'
   \quit 3
 \endif
 
@@ -39,7 +39,7 @@ BEGIN
        OR to_regclass('clinlims.sample_item') IS NULL
        OR to_regclass('clinlims.analysis') IS NULL
        OR to_regclass('clinlims.result') IS NULL THEN
-        RAISE EXCEPTION 'OpenELIS schema guard failed: required 3.2.1.x tables are missing';
+        RAISE EXCEPTION 'OpenELIS schema guard failed: required OpenELIS tables are missing';
     END IF;
 
     IF NOT EXISTS (

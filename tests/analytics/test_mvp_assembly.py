@@ -53,14 +53,14 @@ class MvpComposeContractTests(unittest.TestCase):
 
     def test_openelis_checkout_and_runtime_images_are_immutable(self):
         self.assertIn(
-            "OPENELIS_DOCKER_REF=f118d0ae778a30028c16be2af549843ec166f655",
+            "OPENELIS_DOCKER_REF=cf6017cf41866941e5889b5f1c7090a98442b406",
             self.env,
         )
         for digest in (
             "e27a8194300ba73309e835a4070e9ce531687eb3ee604895de781f3061791635",
-            "e801c93a8bedc41c2e502722e38585979fbbaf0e92ee4c248cdde72d9c33ec1e",
-            "2217d76104051589d99eb808cef22ae692f6ad2d12a0fadc70ecc549162df36f",
-            "667680632b8fe491bb1955f3935751562e60933d3aea91d79256ccd4eac857c3",
+            "4a85cb299cfaa769657b91b7a629f49e9987f65f7ffd702582e28bdcfbdc906e",
+            "b69b2cb7f75642f6be97896ad368767ac5c6383d718a3189be0580eeb2b5171e",
+            "d224b8dec7f3bfa5d176b1409e9d4d24025356a82069eaa5adbd3cf966411b95",
         ):
             self.assertIn(f"@sha256:{digest}", self.compose)
 

@@ -12,7 +12,7 @@ PINNED_DATA_PIPES_IMAGE = (
     "itechuw/ohs-fhir-data-pipes-controller:sha-3d3656e"
     "@sha256:2f9caef7c3c940f8a0e1241551213954c1ea205371166eb8f1d40bd0311fda1a"
 )
-PINNED_OPENELIS_DOCKER_COMMIT = "f118d0ae778a30028c16be2af549843ec166f655"
+PINNED_OPENELIS_DOCKER_COMMIT = "cf6017cf41866941e5889b5f1c7090a98442b406"
 
 
 def load_simple_yaml_section(text, section):
@@ -198,7 +198,7 @@ class SeedContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.seed = (
-            ANALYTICS / "openelis/seed-openelis-3.2.1.sql"
+            ANALYTICS / "openelis/seed-openelis.sql"
         ).read_text()
         cls.cohort_seed = (
             ANALYTICS / "openelis/seed-catalyst-cohort-v1.sql"
@@ -207,7 +207,7 @@ class SeedContractTests(unittest.TestCase):
         cls.runner = (ROOT / "scripts/mvp-seed.sh").read_text()
 
     def test_seed_is_version_guarded_idempotent_and_fixed(self):
-        self.assertIn(r"^3\.2\.1\.[0-9]+$", self.runner)
+        self.assertIn(r"^3\.(2\.1\.[0-9]+|3\.[0-9]+(\.[0-9]+)?)$", self.runner)
         self.assertIn("openelis_version", self.seed)
         self.assertIn("databasechangelog", self.seed.lower())
         self.assertIn("CATALYST-DEMO-PATIENT-001", self.seed)

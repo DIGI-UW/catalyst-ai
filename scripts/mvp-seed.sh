@@ -79,8 +79,8 @@ if [ "${MVP_RESOLVE_MODEL_CONFIG_ONLY:-false}" = "true" ]; then
 fi
 
 OPENELIS_VERSION="${OPENELIS_VERSION:-}"
-if [[ ! "${OPENELIS_VERSION}" =~ ^3\.2\.1\.[0-9]+$ ]]; then
-  echo "ERROR: set OPENELIS_VERSION to the deployed 3.2.1.x release (for example 3.2.1.11)" >&2
+if [[ ! "${OPENELIS_VERSION}" =~ ^3\.(2\.1\.[0-9]+|3\.[0-9]+(\.[0-9]+)?)$ ]]; then
+  echo "ERROR: set OPENELIS_VERSION to the deployed 3.3.x or 3.2.1.x release (for example 3.3.0)" >&2
   exit 2
 fi
 
@@ -162,7 +162,7 @@ done
   psql --username clinlims --dbname clinlims \
     --set=ON_ERROR_STOP=1 \
     --set="openelis_version=${OPENELIS_VERSION}" \
-  < "${ROOT_DIR}/analytics/openelis/seed-openelis-3.2.1.sql"
+  < "${ROOT_DIR}/analytics/openelis/seed-openelis.sql"
 
 "${compose[@]}" exec -T \
   -e "PGPASSWORD=${OE_DB_PASSWORD}" \
