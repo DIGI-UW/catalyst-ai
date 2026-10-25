@@ -93,14 +93,16 @@ router_url="${MVP_RESOLVED_ROUTER_URL}"
 profile_id="${MVP_RESOLVED_PROFILE_ID}"
 
 compose=(docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}")
-compose_override_file="${MVP_COMPOSE_OVERRIDE_FILE:-}"
-if [ -n "${compose_override_file}" ]; then
+# One override file, or several separated by ":" and applied in order.
+IFS=: read -r -a compose_override_files <<< "${MVP_COMPOSE_OVERRIDE_FILE:-}"
+for compose_override_file in ${compose_override_files[@]+"${compose_override_files[@]}"}; do
+  [ -n "${compose_override_file}" ] || continue
   if [ ! -f "${compose_override_file}" ]; then
     echo "ERROR: compose override file does not exist: ${compose_override_file}" >&2
     exit 1
   fi
   compose+=(-f "${compose_override_file}")
-fi
+done
 
 adopt_running_database_bind_mount() {
   local data_dir existing_container existing_source existing_real current_real backup_dir
@@ -147,6 +149,32 @@ if [[ ! "${hub_build_revision}" =~ ^[0-9a-f]{40}$ ]]; then
 fi
 export HUB_BUILD_REVISION="${hub_build_revision}"
 
+# MVP_HUB=external uses a Hub that is already running, for example one shared
+# with another product stack: the gateway reaches it at MVP_GATEWAY_HUB_URL,
+# this host at MED_AGENT_HUB_PORT, and the health gate inspects MVP_HUB_CONTAINER.
+# The compose override that attaches the gateway to that Hub's network and drops
+# its dependency on this stack's Hub belongs to the caller.
+hub_mode="${MVP_HUB:-own}"
+case "${hub_mode}" in
+  own) hub_services=(med-agent-hub) ;;
+  external)
+    for required in MVP_GATEWAY_HUB_URL MED_AGENT_HUB_PORT MVP_HUB_CONTAINER; do
+      if [ -z "${!required:-}" ]; then
+        echo "ERROR: MVP_HUB=external needs ${required}" >&2
+        exit 1
+      fi
+    done
+    hub_services=()
+    # One Hub: stop the one an earlier standalone run of this stack left.
+    "${compose[@]}" rm --stop --force med-agent-hub >/dev/null 2>&1 || true
+    echo "Using the running Hub ${MVP_HUB_CONTAINER} at ${MVP_GATEWAY_HUB_URL}"
+    ;;
+  *)
+    echo "ERROR: MVP_HUB must be own or external (got: ${hub_mode})" >&2
+    exit 1
+    ;;
+esac
+
 echo "Using external Hub router at ${router_url} with query profile ${profile_id}"
 
 export MVP_SELECTED_ROUTER_URL="${router_url}"
@@ -165,7 +193,7 @@ mkdir -p \
   superset-init \
   superset \
   fhir-data-pipes \
-  med-agent-hub \
+  ${hub_services[@]+"${hub_services[@]}"} \
   catalyst-gateway \
   catalyst-ui
 

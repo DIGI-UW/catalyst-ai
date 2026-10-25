@@ -93,14 +93,16 @@ fi
 OE_DB_PASSWORD="${OE_DB_PASSWORD:-clinlims}"
 
 compose=(docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}")
-compose_override_file="${MVP_COMPOSE_OVERRIDE_FILE:-}"
-if [ -n "${compose_override_file}" ]; then
+# One override file, or several separated by ":" and applied in order.
+IFS=: read -r -a compose_override_files <<< "${MVP_COMPOSE_OVERRIDE_FILE:-}"
+for compose_override_file in ${compose_override_files[@]+"${compose_override_files[@]}"}; do
+  [ -n "${compose_override_file}" ] || continue
   if [ ! -f "${compose_override_file}" ]; then
     echo "ERROR: compose override file does not exist: ${compose_override_file}" >&2
     exit 1
   fi
   compose+=(-f "${compose_override_file}")
-fi
+done
 
 wait_for_url() {
   local name="$1"
