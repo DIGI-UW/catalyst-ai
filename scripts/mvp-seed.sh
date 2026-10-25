@@ -206,14 +206,16 @@ HAPI_TLS_INSECURE=true \
     --expected 1152 \
     --insecure
 
-wait_for_url "FHIR Data Pipes controller" \
-  "http://localhost:${DATA_PIPES_PORT:-8090}/actuator/health"
-
 # Keep the OpenELIS warehouse isolated from other FHIR Data Pipes sources that may share this
-# thriftserver. The controller connects directly to this database, so create it before the run.
+# thriftserver. The controller opens this database when it starts and exits if it is missing,
+# which it is on a fresh warehouse, so create it first and start the controller again.
 "${compose[@]}" exec -T spark-thriftserver \
   beeline -u 'jdbc:hive2://localhost:10000' \
   --silent=true -e 'CREATE DATABASE IF NOT EXISTS openelis;' >/dev/null
+"${compose[@]}" up -d --no-build fhir-data-pipes
+
+wait_for_url "FHIR Data Pipes controller" \
+  "http://localhost:${DATA_PIPES_PORT:-8090}/actuator/health"
 
 run_id="full-$(date -u +%Y%m%dT%H%M%SZ)"
 started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
