@@ -216,6 +216,14 @@ The current target must not receive its own answer as an example. No fixed
 context-item count or ranking formula is required. If the complete request does
 not fit, report the capacity error instead of silently dropping context and retrying.
 
+Each request carries the date and named time zone it was made in, the same for the
+writer and the reviewer, recorded with the turn's model provenance; the time zone's
+configuration and fallback are explicit. One reference date holds through a turn's
+generation and repair calls. A new relative period ("this year", "last month")
+resolves against that date, and a follow-up keeps a period an earlier turn resolved
+unless the person changes it. The request date is not the data's coverage or
+freshness: an answer does not imply that an older source holds current observations.
+
 Every turn keeps its full question, source, outcome, and relevant limitations
 visible. A successful run also shows its returned-row count, returned field names
 (up to four, then a remaining-field count), and a direct result-review action.
