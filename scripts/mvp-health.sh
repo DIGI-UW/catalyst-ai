@@ -374,8 +374,11 @@ if [ -n "${MED_AGENT_HUB_CONTEXT:-}" ]; then
 fi
 if [ "${MVP_HUB:-own}" = "external" ]; then
   # A Hub this stack did not build must still be the recorded source.
+  # The container carries the labels of the image it was created from. Docker's
+  # containerd image store cannot inspect that image once a rebuild has moved
+  # its tag, so read them from the container.
   running_revision="$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' \
-    "$(docker inspect --format '{{.Image}}' "${MVP_HUB_CONTAINER}")")"
+    "${MVP_HUB_CONTAINER}")"
   if [ "${running_revision}" != "${hub_commit}" ]; then
     echo "ERROR: Hub container ${MVP_HUB_CONTAINER} runs ${running_revision:-an unlabelled image}, not ${hub_commit}." >&2
     exit 1
