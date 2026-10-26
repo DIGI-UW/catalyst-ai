@@ -24,21 +24,21 @@ def build_table(
     max_rows: int,
     catalyst_trace_id: str,
 ) -> dict[str, Any]:
-    columns = query["expectedColumns"]
-    expected_names = [column["name"] for column in columns]
+    expected_names = [column["name"] for column in query["expectedColumns"]]
     if len(expected_names) != len(set(expected_names)):
         raise TableError("Expected column names must be unique.")
     if result.column_names != expected_names:
         raise TableError(
             "Analytics result columns do not exactly match expected query columns."
         )
+    columns, type_notes = _result_columns(query["expectedColumns"], result)
 
     tagged_rows = [
         _tag_row(row, columns, row_index) for row_index, row in enumerate(result.rows)
     ]
     returned = len(tagged_rows)
     total = None if result.truncated else returned
-    warnings: list[str] = []
+    warnings: list[str] = list(type_notes)
     if result.truncated:
         if result.truncation_reason == "query_limit_reached":
             warnings.append(
@@ -95,6 +95,48 @@ def build_table(
     if "reasoningTrace" in preview:
         table["reasoningTrace"] = deepcopy(preview["reasoningTrace"])
     return table
+
+
+_TABLE_TYPES = {"string", "integer", "decimal", "boolean", "date", "date-time"}
+
+
+def _result_columns(
+    declared: list[dict[str, Any]],
+    result: AnalyticsResult,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """The query's columns, typed by what the database returned.
+
+    The model declares each column's type and nullability with the SQL. The
+    database's own description of the result is the authority for both, so a
+    wrong declaration about a query that ran is reported, not fatal. A database
+    type the table contract cannot carry leaves the declaration in place.
+    """
+    columns: list[dict[str, Any]] = []
+    notes: list[str] = []
+    for index, column in enumerate(declared):
+        recorded = deepcopy(column)
+        database_type = (
+            result.columns[index].logical_type
+            if result.columns is not None and index < len(result.columns)
+            else None
+        )
+        if database_type in _TABLE_TYPES and database_type != column["logicalType"]:
+            notes.append(
+                f"Column {column['name']} was declared {column['logicalType']}; "
+                f"the database returned {database_type}."
+            )
+            recorded["logicalType"] = database_type
+        if not column["nullable"] and any(
+            isinstance(row, (list, tuple)) and index < len(row) and row[index] is None
+            for row in result.rows
+        ):
+            notes.append(
+                f"Column {column['name']} was declared not null; "
+                "the database returned nulls."
+            )
+            recorded["nullable"] = True
+        columns.append(recorded)
+    return columns, notes
 
 
 def _tag_row(
