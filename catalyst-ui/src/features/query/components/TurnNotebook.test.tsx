@@ -795,6 +795,27 @@ describe("TurnNotebook", () => {
     }
   });
 
+  it("marks a writer revision made from review feedback as reviewed and names it", () => {
+    const revisedVersion = {
+      ...modelVersion,
+      provenance: {
+        collaborationRole: "writer",
+        model: "gemma-4-12b",
+        revisedFromReview: {
+          model: "qwen2.5-14b",
+          decision: "revise",
+          checks: [{ name: "grain", status: "failed" }],
+          feedback: [{ issue: "Counts multiply.", suggestion: "Count distinct patients." }],
+        },
+      },
+    };
+    const turn = { ...initialTurn, outputVersions: [{ selected: true, role: "writer" as const, contractValid: true, version: revisedVersion }] };
+    render(<TurnNotebook {...defaultProps} turns={[turn]} advancedMode />);
+    expect(screen.queryByText("unreviewed")).not.toBeInTheDocument();
+    expect(screen.getByText("AI reviewed")).toBeVisible();
+    expect(screen.getAllByText(/writer revision from review/i).length).toBeGreaterThan(0);
+  });
+
   it("retains a valid unselected writer on a failed turn without replacing the base", async () => {
     const user = userEvent.setup();
     const onOpenDetails = vi.fn();

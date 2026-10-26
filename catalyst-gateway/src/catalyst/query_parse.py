@@ -42,29 +42,23 @@ def _parse_exact_object(
     return value
 
 
-def _parse_review_object(
-    content: str,
-    *,
-    label: str,
-    flat_repair: bool,
-    question: str,
-    extension: Mapping[str, Any],
-) -> Dict[str, Any]:
+def _parse_review_object(content: str, *, label: str) -> Dict[str, Any]:
+    """The reviewer's verdict: approve, or revise with feedback for the writer.
+
+    The reviewer never returns SQL. A revise that names no issue gives the
+    writer nothing to act on, so its failed or warned checks become the
+    feedback; with none of those either, it is read as an approval whose checks
+    stay visible as advice.
+    """
     value = _decode_exact_object(content, label=label)
     # Structured-output backends commonly emit every declared property,
-    # using null for ones the model considers unset. Treat null the same
-    # as absent so decision-conditional hydration below sees them as missing.
-    if value.get("candidate") is None:
-        value.pop("candidate", None)
-    if value.get("message") is None:
-        value.pop("message", None)
+    # using null for ones the model considers unset.
+    for key in ("feedback", "message"):
+        if value.get(key) is None:
+            value.pop(key, None)
     decision = value.get("decision")
     default_status = (
-        {
-            "approve": "passed",
-            "repair": "warned",
-            "reject": "failed",
-        }.get(decision)
+        {"approve": "passed", "revise": "warned"}.get(decision)
         if isinstance(decision, str)
         else None
     )
@@ -76,7 +70,7 @@ def _parse_review_object(
                 "status": default_status,
                 "message": (
                     "The reviewer returned a decision without labelled checks; "
-                    "the Hub retained that decision and hydrated this evidence marker."
+                    "Catalyst retained that decision and hydrated this marker."
                 ),
             }
         ]
@@ -96,53 +90,21 @@ def _parse_review_object(
                 hydrated["status"] = default_status
             hydrated_checks.append(hydrated)
         value["checks"] = hydrated_checks
-    if decision == "reject":
-        message = value.get("message")
-        if not isinstance(message, str) or not message.strip():
-            value["message"] = (
-                "The reviewer rejected the candidate without a labelled "
-                "message; the Hub hydrated this evidence marker."
-            )
-    elif (
-        decision == "repair"
-        and not flat_repair
-        and not isinstance(value.get("candidate"), Mapping)
-    ):
-        # A repair decision with no usable candidate cannot be applied; fail
-        # closed by downgrading to a rejection instead of raising, so this
-        # still reaches the reviewer's normal reject handling deterministically.
-        value["decision"] = "reject"
-        value.pop("candidate", None)
-        value["message"] = (
-            "The reviewer returned a repair decision without a usable "
-            "candidate; the Hub downgraded this to a rejection."
-        )
-    if flat_repair and "candidate" not in value:
-        candidate_fields = (
-            "status",
-            "sql",
-            "parameters",
-            "expectedColumns",
-        )
-        if any(field in value for field in candidate_fields):
-            flat_candidate = {field: value.get(field) for field in candidate_fields}
-            flat_candidate, _ = _normalize_exact_duplicate_parameter_bindings(
-                flat_candidate
-            )
-            flat_candidate, _ = _normalize_ordered_parameter_bindings(flat_candidate)
-            flat_candidate = _normalize_grounded_parameter_names(
-                flat_candidate, question, extension
-            )
-            value = {
-                "decision": value.get("decision"),
-                "checks": value.get("checks"),
-                "candidate": flat_candidate,
+    if decision == "revise" and not value.get("feedback"):
+        derived = [
+            {
+                "issue": str(check.get("message") or check["name"]),
+                "suggestion": "Correct the query so this check passes.",
             }
-    candidate = value.get("candidate")
-    if isinstance(candidate, Mapping) and candidate.get("status") == "ready":
-        normalized_candidate = deepcopy(dict(candidate))
-        normalized_candidate["target"] = _canonical_target(extension)
-        value["candidate"] = normalized_candidate
+            for check in value.get("checks") or []
+            if isinstance(check, Mapping)
+            and check.get("status") in {"failed", "warned"}
+            and isinstance(check.get("name"), str)
+        ]
+        if derived:
+            value["feedback"] = derived
+        else:
+            value["decision"] = "approve"
     error = _validation_error(_REVIEW_VALIDATOR, value, label)
     if str(error):
         raise error

@@ -112,28 +112,37 @@ CHECK_SCHEMA = {
         "message": {"type": "string"},
     },
 }
+FEEDBACK_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["issue", "suggestion"],
+    "properties": {
+        "issue": {"type": "string", "minLength": 1},
+        "suggestion": {"type": "string", "minLength": 1},
+    },
+}
+# The reviewer checks the writer's query and never writes SQL itself. It
+# approves, or asks for a revision with feedback the writer acts on once.
 REVIEW_SCHEMA: Dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
     "required": ["decision", "checks"],
     "properties": {
-        "decision": {"enum": ["approve", "repair", "reject"]},
+        "decision": {"enum": ["approve", "revise"]},
         "checks": {
             "type": "array",
             "minItems": 1,
             "items": CHECK_SCHEMA,
         },
-        "candidate": {"$ref": "#/$defs/candidate"},
+        "feedback": {"type": "array", "minItems": 1, "items": FEEDBACK_SCHEMA},
         "message": {"type": "string", "minLength": 1},
     },
-    "$defs": {
-        **deepcopy(CANDIDATE_SCHEMA["$defs"]),
-        "candidate": {
-            key: deepcopy(value)
-            for key, value in CANDIDATE_SCHEMA.items()
-            if key != "$defs"
-        },
-    },
+    "allOf": [
+        {
+            "if": {"properties": {"decision": {"const": "revise"}}},
+            "then": {"required": ["feedback"]},
+        }
+    ],
 }
 Draft202012Validator.check_schema(REVIEW_SCHEMA)
 REVIEW_VALIDATOR = Draft202012Validator(REVIEW_SCHEMA, format_checker=FORMAT_CHECKER)
@@ -288,44 +297,13 @@ BACKEND_GENERATION_SCHEMA: Dict[str, Any] = {
 }
 
 
-def _closed_candidate_branch(status: str, fields: Tuple[str, ...]) -> Dict[str, Any]:
-    """One candidate status as a closed object with nothing left to forbid.
-
-    REVIEW_SCHEMA expresses the same rule as a ``oneOf`` of branches that carry
-    ``not: {anyOf: [{required: [...]}]}`` to exclude the fields belonging to the
-    other statuses. That is correct JSON Schema and Python validates it, but
-    llama.cpp's schema-to-grammar conversion does not implement ``not`` or
-    branch-local ``required``: it silently emits a grammar that accepts any
-    object with the declared properties. A reviewer could therefore return
-    ``candidate: {"status": "ready"}`` -- no SQL -- while the request declared
-    ``strict: True``, and it did, repeatedly, which killed every follow-up turn.
-
-    Stating each status as its own closed object needs no ``not`` at all: the
-    other statuses' fields are simply absent from ``properties``, and
-    ``additionalProperties: false`` rejects them. That shape the grammar does
-    compile faithfully.
-    """
-    properties: Dict[str, Any] = {"status": {"const": status}}
-    for field in fields:
-        properties[field] = deepcopy(CANDIDATE_SCHEMA["properties"][field])
-    return {
-        "type": "object",
-        "additionalProperties": False,
-        "required": ["status", *fields],
-        "properties": properties,
-    }
-
-
 _BACKEND_CHECKS: Dict[str, Any] = {
     "type": "array",
     "minItems": 1,
     "items": deepcopy(CHECK_SCHEMA),
 }
-# The wire contract for review, as three closed alternatives. Narrower than
-# REVIEW_SCHEMA on purpose: a decision the reviewer cannot act on is not worth
-# generating. "repair" must carry a complete ready candidate, because applying a
-# repair means taking its SQL. REVIEW_SCHEMA stays as the validator, so an
-# output that arrives in some other legal shape is still judged, not crashed on.
+# The wire contract for review, as two closed alternatives the grammar compiles
+# faithfully. A revision carries feedback in words; there is no SQL to return.
 BACKEND_REVIEW_SCHEMA: Dict[str, Any] = {
     "oneOf": [
         {
@@ -341,59 +319,27 @@ BACKEND_REVIEW_SCHEMA: Dict[str, Any] = {
         {
             "type": "object",
             "additionalProperties": False,
-            "required": ["decision", "checks", "message"],
+            "required": ["decision", "checks", "feedback"],
             "properties": {
-                "decision": {"const": "reject"},
+                "decision": {"const": "revise"},
                 "checks": deepcopy(_BACKEND_CHECKS),
-                "message": {"type": "string", "minLength": 1},
-            },
-        },
-        {
-            "type": "object",
-            "additionalProperties": False,
-            "required": ["decision", "checks", "candidate"],
-            "properties": {
-                "decision": {"const": "repair"},
-                "checks": deepcopy(_BACKEND_CHECKS),
+                "feedback": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": deepcopy(FEEDBACK_SCHEMA),
+                },
                 "message": {"type": "string"},
-                "candidate": _closed_candidate_branch("ready", MODEL_READY_FIELDS),
             },
         },
     ],
-    "$defs": _grammar_safe_defs(CANDIDATE_SCHEMA["$defs"]),
-}
-BACKEND_REPAIR_SCHEMA: Dict[str, Any] = {
-    "type": "object",
-    "additionalProperties": False,
-    "required": [
-        "decision",
-        "checks",
-        "status",
-        *MODEL_READY_FIELDS,
-    ],
-    "properties": {
-        "decision": {"const": "repair"},
-        "checks": {
-            "type": "array",
-            "minItems": 1,
-            "items": deepcopy(CHECK_SCHEMA),
-        },
-        "status": {"const": "ready"},
-        "sql": deepcopy(CANDIDATE_SCHEMA["properties"]["sql"]),
-        "parameters": deepcopy(CANDIDATE_SCHEMA["properties"]["parameters"]),
-        "expectedColumns": deepcopy(CANDIDATE_SCHEMA["properties"]["expectedColumns"]),
-    },
-    "$defs": _grammar_safe_defs(CANDIDATE_SCHEMA["$defs"]),
 }
 Draft202012Validator.check_schema(BACKEND_GENERATION_SCHEMA)
 Draft202012Validator.check_schema(BACKEND_REVIEW_SCHEMA)
-Draft202012Validator.check_schema(BACKEND_REPAIR_SCHEMA)
 
 GENERATION_FORMAT = structured_format(
     "catalyst_query_candidate", BACKEND_GENERATION_SCHEMA
 )
 REVIEW_FORMAT = structured_format("catalyst_query_review", BACKEND_REVIEW_SCHEMA)
-REPAIR_FORMAT = structured_format("catalyst_query_repair", BACKEND_REPAIR_SCHEMA)
 
 PATCH_OPERATION_SCHEMA: Dict[str, Any] = {
     "oneOf": [

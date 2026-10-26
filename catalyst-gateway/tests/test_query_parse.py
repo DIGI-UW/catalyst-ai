@@ -120,30 +120,47 @@ def test_parse_candidate_adds_the_full_catalog_target_without_model_echo(
     assert len(candidate["target"]["approvedViews"]) == relation_count
 
 
-def test_parse_flat_repair_adds_the_canonical_target_without_model_echo():
-    extension = _extension()
+def test_a_revise_without_feedback_takes_its_feedback_from_the_failed_checks():
     content = json.dumps(
         {
-            "decision": "repair",
-            "checks": [{"name": "column_grounding", "status": "warned"}],
-            "status": "ready",
-            "sql": "SELECT patient_id FROM analytics.lab_result_fact_v1",
-            "parameters": [],
-            "expectedColumns": [
-                {"name": "patient_id", "logicalType": "string", "nullable": True}
+            "decision": "revise",
+            "checks": [
+                {"name": "grain", "status": "failed", "message": "Counts multiply."},
+                {"name": "grounding", "status": "passed"},
             ],
         }
     )
 
-    review = _parse_review_object(
-        content,
-        label="repair",
-        flat_repair=True,
-        question="List patients",
-        extension=extension,
+    review = _parse_review_object(content, label="review")
+
+    assert review["decision"] == "revise"
+    assert review["feedback"] == [
+        {
+            "issue": "Counts multiply.",
+            "suggestion": "Correct the query so this check passes.",
+        }
+    ]
+
+
+def test_a_revise_with_nothing_to_act_on_is_read_as_an_approval():
+    content = json.dumps(
+        {"decision": "revise", "checks": [{"name": "grounding", "status": "passed"}]}
     )
 
-    assert review["candidate"]["target"] == _canonical_target(extension)
+    assert _parse_review_object(content, label="review")["decision"] == "approve"
+
+
+def test_a_reviewer_written_query_is_refused():
+    content = json.dumps(
+        {
+            "decision": "approve",
+            "checks": [{"name": "grounding", "status": "passed"}],
+            "candidate": {"status": "ready", "sql": "SELECT 1"},
+        }
+    )
+
+    with pytest.raises(QueryContractError):
+        _parse_review_object(content, label="review")
 
 
 def test_semantic_binding_failures_empty_without_named_analytes():

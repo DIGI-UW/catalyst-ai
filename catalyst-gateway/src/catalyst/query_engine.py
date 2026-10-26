@@ -40,7 +40,6 @@ from .query_schemas import (
     CANDIDATE_VALIDATOR as _CANDIDATE_VALIDATOR,
     FINAL_VALIDATOR as _FINAL_VALIDATOR,
     GENERATION_FORMAT as _GENERATION_FORMAT,
-    REPAIR_FORMAT as _REPAIR_FORMAT,
     REVIEW_FORMAT as _REVIEW_FORMAT,
     STATUS_FIELDS as _STATUS_FIELDS,
     QueryContractError,
@@ -123,7 +122,7 @@ def _request_payload(
     *,
     candidate: Optional[Mapping[str, Any]] = None,
     review_attempt: Optional[int] = None,
-    deterministic_findings: Optional[list[dict[str, Any]]] = None,
+    review_feedback: Optional[Mapping[str, Any]] = None,
 ) -> Dict[str, Any]:
     instruction = str(request.messages[0]["content"])
     # Prefix caching can only reuse context before the first changed token.
@@ -143,8 +142,8 @@ def _request_payload(
         payload["candidate"] = candidate
     if review_attempt is not None:
         payload["reviewAttempt"] = review_attempt
-    if deterministic_findings:
-        payload["deterministicFindings"] = deterministic_findings
+    if review_feedback is not None:
+        payload["reviewFeedback"] = deepcopy(dict(review_feedback))
     return payload
 
 
@@ -900,15 +899,6 @@ async def _generate(
                 "findings": findings,
             }
         )
-        collaborative_initial = (
-            profile.policies.get("collaborative_review") is True
-            and extension.get("contractVersion") != "catalyst.query.request.v2"
-        )
-        if collaborative_initial and parsed is not None:
-            # Initial collaborative turns hand lint findings to the reviewer as
-            # repair context. Revision turns are writer-only, so they use the
-            # deterministic correction loop below like any solo profile.
-            return parsed, attempt, binding_normalized, history
         if not findings and parsed is not None:
             return parsed, attempt, binding_normalized, history
         if attempt == max_attempts:
@@ -994,7 +984,6 @@ async def _review(
     *,
     attempt: int,
     invocations: list[dict[str, Any]],
-    deterministic_findings: Optional[list[dict[str, Any]]] = None,
 ) -> tuple[Dict[str, Any], int]:
     profile = request.profile
     messages = [
@@ -1006,13 +995,12 @@ async def _review(
                     extension,
                     candidate=candidate,
                     review_attempt=attempt,
-                    deterministic_findings=deterministic_findings,
                 ),
                 separators=(",", ":"),
             ),
         },
     ]
-    response_format = _REPAIR_FORMAT if deterministic_findings else _REVIEW_FORMAT
+    response_format = _REVIEW_FORMAT
     content = await _invoke_backend(
         client,
         profile.id,
@@ -1031,39 +1019,18 @@ async def _review(
     )
     try:
         return (
-            _parse_review_object(
-                content,
-                label="query review",
-                flat_repair=bool(deterministic_findings),
-                question=request.messages[0]["content"],
-                extension=extension,
-            ),
+            _parse_review_object(content, label="query review"),
             1,
         )
     except QueryContractError as error:
         _finish_invocation(
             invocations[-1], outcome="contract_failed", failure=str(error)
         )
-        # No early exit here. The corrective re-ask below, and the instruction
-        # written for this very case, were unreachable while a review with no
-        # deterministic findings raised immediately -- so a reviewer that
-        # diagnosed the query correctly and then bungled the shape of its repair
-        # took the turn down without ever being asked to fix the shape.
-        if deterministic_findings:
-            correction_instruction = (
-                "Your repair JSON failed the strict output contract: "
-                f"{error}. Return one corrected JSON object only. The "
-                "top-level repair fields must be complete, including "
-                "status, full SQL, all parameters, and "
-                "expected columns."
-            )
-        else:
-            correction_instruction = (
-                "Your review JSON failed the strict output contract: "
-                f"{error}. Return one corrected JSON object only with "
-                "decision and checks, plus one complete candidate only when "
-                "decision is repair."
-            )
+        correction_instruction = (
+            "Your review JSON failed the strict output contract: "
+            f"{error}. Return one corrected JSON object only with decision and "
+            "checks, plus feedback when decision is revise. Do not return SQL."
+        )
         corrected = await _invoke_backend(
             client,
             profile.id,
@@ -1088,13 +1055,7 @@ async def _review(
             attempt=attempt + 1,
         )
         try:
-            parsed = _parse_review_object(
-                corrected,
-                label="query review correction",
-                flat_repair=bool(deterministic_findings),
-                question=request.messages[0]["content"],
-                extension=extension,
-            )
+            parsed = _parse_review_object(corrected, label="query review correction")
         except QueryContractError as correction_error:
             _finish_invocation(
                 invocations[-1],
@@ -1111,6 +1072,114 @@ async def _review(
                 raw_output=corrected,
             ) from correction_error
         return parsed, 2
+
+
+async def _revise(
+    client: httpx.AsyncClient,
+    request: Any,
+    extension: Mapping[str, Any],
+    candidate: Mapping[str, Any],
+    review: Mapping[str, Any],
+    *,
+    invocations: list[dict[str, Any]],
+) -> tuple[Optional[Dict[str, Any]], list[dict[str, Any]]]:
+    """Give the writer its own query and the reviewer's feedback, once.
+
+    Returns the writer's corrected answer, or none when it could not be parsed,
+    with the deterministic findings that decide whether it can be used.
+    The writer may also answer with a clarification or an unsupported
+    explanation; that is its decision to make.
+    """
+    profile = request.profile
+    question = request.messages[0]["content"]
+    messages, response_format = initial_writer_request(request, extension)
+    feedback = {
+        "instruction": (
+            "An independent reviewer read your query. Address each item of its "
+            "feedback and return one complete corrected candidate matching the "
+            "supplied schema, without changing the question, target, catalog or "
+            "policy. Keep everything the feedback does not ask you to change. "
+            "If the feedback shows the question cannot be answered from the "
+            "catalog, answer that instead. Return JSON only."
+        ),
+        "candidate": deepcopy(dict(candidate)),
+        "feedback": deepcopy(list(review["feedback"])),
+        "checks": [
+            deepcopy(check)
+            for check in review["checks"]
+            if check.get("status") in {"failed", "warned"}
+        ],
+    }
+    content = await _invoke_backend(
+        client,
+        profile.id,
+        "query_generate",
+        profile.models["query_generate"],
+        [
+            *messages,
+            {
+                "role": "assistant",
+                "content": json.dumps(candidate, separators=(",", ":")),
+            },
+            {
+                "role": "user",
+                "content": json.dumps(
+                    {"reviewFeedback": feedback}, separators=(",", ":")
+                ),
+            },
+        ],
+        provider_id=_role_provider_id(request, "writer"),
+        response_format=response_format,
+        temperature=float(profile.knobs["query_generate"]["temperature"]),
+        dry_multiplier=float(profile.knobs["query_generate"]["dry"]),
+        max_tokens=_role_max_tokens(request, "query_generate"),
+        invocations=invocations,
+        role="writer",
+        stage="review_revision",
+        attempt=1,
+    )
+    try:
+        revised, _ = _parse_candidate(
+            content, question, extension, label="query revision"
+        )
+    except QueryContractError as error:
+        findings = [_contract_lint_finding(error)]
+        _mark_model_validation(invocations[-1], findings)
+        return None, findings
+    if revised.get("status") in TERMINAL_WRITER_ANSWERS:
+        _mark_model_validation(invocations[-1], [])
+        return revised, []
+    revised = _bind_question_date_literals(revised, question)
+    if not _candidate_matches_catalog(revised, _canonical_target(extension)):
+        findings = [
+            _contract_lint_finding(
+                QueryContractError("the revision changed the request catalog target")
+            )
+        ]
+        _mark_model_validation(invocations[-1], findings)
+        return None, findings
+    findings = [
+        *lint_candidate(revised, extension, instruction=question),
+        *_semantic_lint_findings(revised, question, extension),
+    ]
+    _mark_model_validation(invocations[-1], findings)
+    return revised, findings
+
+
+def _review_advice(review: Mapping[str, Any], reason: str) -> list[dict[str, Any]]:
+    """The reviewer's unresolved feedback, shown with the query as advice."""
+    advice = [
+        {
+            "name": f"query_review_feedback_{index}",
+            "status": "warned",
+            "message": f"{item['issue']} Suggested: {item['suggestion']}",
+        }
+        for index, item in enumerate(review.get("feedback") or [], start=1)
+    ]
+    advice.append(
+        {"name": "query_review_revision", "status": "warned", "message": reason}
+    )
+    return advice
 
 
 def _validation_for(
@@ -1321,7 +1390,7 @@ def _attach_model_evidence(
 async def execute_query_profile(
     request: Any,
 ) -> AsyncIterator[Tuple[str, str]]:
-    """Execute generation, independent review, one repair, and final validation."""
+    """Execute generation, independent review, one writer revision, and final validation."""
     extension = request.catalyst_query
     question = request.messages[0].get("content", "") if request.messages else ""
     if not isinstance(extension, Mapping):
@@ -1534,10 +1603,12 @@ async def execute_query_profile(
                 )
                 steps.append({"role": "query_review", "status": "skipped"})
             else:
+                collaborative_review = (
+                    request.profile.policies.get("collaborative_review") is True
+                )
+                writer_model = request.profile.models["query_generate"]
+                reviewer_model = request.profile.models["query_review"]
                 try:
-                    collaborative_review = (
-                        request.profile.policies.get("collaborative_review") is True
-                    )
                     if collaborative_review:
                         model_classes = request.profile.policies.get("model_classes")
                         if not isinstance(model_classes, Mapping) or model_classes.get(
@@ -1547,18 +1618,7 @@ async def execute_query_profile(
                                 "collaborative query roles require different model "
                                 "classes"
                             )
-                    model_collaboration: Optional[Dict[str, Any]] = None
-                    writer_findings = (
-                        deepcopy(lint_history[-1]["findings"])
-                        if collaborative_review and lint_history
-                        else []
-                    )
-                    semantic_failures = (
-                        []
-                        if collaborative_review
-                        else _semantic_binding_failures(candidate, question, extension)
-                    )
-                    if not collaborative_review and semantic_failures:
+                    if _semantic_binding_failures(candidate, question, extension):
                         raise QueryContractError(
                             "candidate reached review with deterministic semantic "
                             "failures"
@@ -1570,7 +1630,6 @@ async def execute_query_profile(
                         candidate,
                         attempt=1,
                         invocations=invocations,
-                        deterministic_findings=writer_findings or None,
                     )
                     steps.append(
                         {
@@ -1578,221 +1637,127 @@ async def execute_query_profile(
                             "attempt": 1,
                             "model_attempts": review_model_attempts,
                             "decision": review["decision"],
-                            "deterministic_findings": len(writer_findings),
                         }
                     )
-                    if writer_findings and review["decision"] == "approve":
-                        raise QueryContractError(
-                            "review approved a candidate with deterministic findings"
-                        )
-                    if review["decision"] == "reject":
-                        model_collaboration = (
-                            {
-                                "writer": {
-                                    "model": request.profile.models["query_generate"],
-                                    "candidate": deepcopy(candidate),
-                                    "lintFindings": writer_findings,
-                                    **(
-                                        {"disposition": "retained_unselected"}
-                                        if is_revision
-                                        else {}
-                                    ),
-                                },
-                                "reviewer": {
-                                    "model": request.profile.models["query_review"],
-                                    "decision": "reject",
-                                    "checks": deepcopy(review["checks"]),
-                                    **(
-                                        {"disposition": "diagnostic_only"}
-                                        if is_revision
-                                        else {}
-                                    ),
-                                },
-                                "finalLintFindings": writer_findings,
-                            }
-                            if collaborative_review
-                            else None
-                        )
-                        result = _rejected(
-                            question,
-                            extension,
-                            message=review["message"],
-                            check_name="query_review",
-                            checks=list(review["checks"]),
-                            diagnostic_candidate={
-                                "executable": False,
-                                "candidate": candidate,
-                            },
-                            profile_id=request.profile.id,
-                            model_collaboration=model_collaboration,
-                        )
-                    elif review["decision"] == "repair":
-                        repaired = _bind_question_date_literals(
-                            review["candidate"], question
-                        )
-                        candidate_error = _validation_error(
-                            _CANDIDATE_VALIDATOR,
-                            repaired,
-                            "query repair",
-                        )
-                        if str(candidate_error):
-                            raise candidate_error
-                        if not _candidate_matches_catalog(repaired, canonical_target):
-                            raise QueryContractError(
-                                "query repair changed the request catalog target"
-                            )
-                        repaired_findings = [
-                            *lint_candidate(repaired, extension, instruction=question),
-                            *_semantic_lint_findings(repaired, question, extension),
+                    reviewer_record: Dict[str, Any] = {
+                        "model": reviewer_model,
+                        "decision": review["decision"],
+                        "checks": deepcopy(review["checks"]),
+                    }
+                    if review["decision"] == "revise":
+                        reviewer_record["feedback"] = deepcopy(review["feedback"])
+                    writer_record: Dict[str, Any] = {
+                        "model": writer_model,
+                        "candidate": deepcopy(candidate),
+                        "lintFindings": [],
+                    }
+                    revision_record: Optional[Dict[str, Any]] = None
+                    final = candidate
+                    if review["decision"] == "approve":
+                        # An approval stays an approval; a check it marked failed
+                        # is advice about the query, not a reason to withhold it.
+                        final_checks = [
+                            {**check, "status": "warned"}
+                            if check["status"] == "failed"
+                            else check
+                            for check in deepcopy(review["checks"])
                         ]
-                        model_collaboration = (
-                            {
-                                "writer": {
-                                    "model": request.profile.models["query_generate"],
-                                    "candidate": deepcopy(candidate),
-                                    "lintFindings": writer_findings,
-                                    **(
-                                        {"disposition": "superseded"}
-                                        if is_revision
-                                        else {}
-                                    ),
-                                },
-                                "reviewer": {
-                                    "model": request.profile.models["query_review"],
-                                    "decision": "repair",
-                                    "candidate": deepcopy(repaired),
-                                    "checks": deepcopy(review["checks"]),
-                                    **(
-                                        {"disposition": "selected"}
-                                        if is_revision
-                                        else {}
-                                    ),
-                                },
-                                "finalLintFindings": deepcopy(repaired_findings),
-                            }
-                            if collaborative_review
-                            else None
-                        )
-                        steps.append(
-                            {
-                                "role": "query_lint",
-                                "attempt": "review_repair",
-                                "status": ("failed" if repaired_findings else "passed"),
-                                "finding_codes": [
-                                    finding["code"] for finding in repaired_findings
-                                ],
-                                "findings": repaired_findings,
-                            }
-                        )
-                        if repaired_findings:
-                            _finish_invocation(
-                                invocations[-1],
-                                outcome="validation_failed",
-                                failure={
-                                    "findingCodes": [
-                                        finding["code"] for finding in repaired_findings
-                                    ]
-                                },
-                            )
-                            logger.warning(
-                                "Catalyst repaired candidate retained deterministic "
-                                "lint failures: %s",
-                                "; ".join(
-                                    finding["message"] for finding in repaired_findings
-                                ),
-                            )
-                            raise QueryContractError(
-                                "review repair failed deterministic lint"
-                            )
-                        if collaborative_review:
-                            final_checks = [
-                                {
-                                    "name": "reviewer_correction_lint",
-                                    "status": "passed",
-                                    "message": (
-                                        "The reviewer's complete corrected query "
-                                        "passed the deterministic contract and SQL "
-                                        "lint."
-                                    ),
-                                }
-                            ]
-                        else:
-                            second_review, second_review_model_attempts = await _review(
-                                client,
-                                request,
-                                extension,
-                                repaired,
-                                attempt=2,
-                                invocations=invocations,
-                            )
-                            steps.append(
-                                {
-                                    "role": "query_review",
-                                    "attempt": 2,
-                                    "model_attempts": second_review_model_attempts,
-                                    "decision": second_review["decision"],
-                                    "deterministic_findings": 0,
-                                }
-                            )
-                            if second_review["decision"] != "approve":
-                                raise QueryContractError(
-                                    "repaired query did not pass independent re-review"
-                                )
-                            final_checks = list(second_review["checks"])
-                        result = _finalize(
-                            question,
-                            extension,
-                            repaired,
-                            _semantic_checks(
-                                _lint_validation_checks(lint_history, final_checks),
-                                question,
-                                extension,
-                            ),
-                            profile_id=request.profile.id,
-                            model_collaboration=model_collaboration,
-                        )
                     else:
-                        model_collaboration = (
-                            {
-                                "writer": {
-                                    "model": request.profile.models["query_generate"],
-                                    "candidate": deepcopy(candidate),
-                                    "lintFindings": writer_findings,
-                                    **(
-                                        {"disposition": "selected"}
-                                        if is_revision
-                                        else {}
-                                    ),
-                                },
-                                "reviewer": {
-                                    "model": request.profile.models["query_review"],
-                                    "decision": "approve",
-                                    "checks": deepcopy(review["checks"]),
-                                    **(
-                                        {"disposition": "selected"}
-                                        if is_revision
-                                        else {}
-                                    ),
-                                },
-                                "finalLintFindings": [],
-                            }
-                            if collaborative_review
-                            else None
-                        )
-                        result = _finalize(
-                            question,
+                        revised, revision_findings = await _revise(
+                            client,
+                            request,
                             extension,
                             candidate,
-                            _semantic_checks(
-                                _lint_validation_checks(
-                                    lint_history, list(review["checks"])
-                                ),
-                                question,
-                                extension,
-                            ),
-                            profile_id=request.profile.id,
-                            model_collaboration=model_collaboration,
+                            review,
+                            invocations=invocations,
                         )
+                        usable = revised is not None and not revision_findings
+                        steps.append(
+                            {
+                                "role": "query_revise",
+                                "status": "passed" if usable else "failed",
+                                "finding_codes": [
+                                    finding["code"] for finding in revision_findings
+                                ],
+                                "findings": revision_findings,
+                            }
+                        )
+                        if revised is not None:
+                            revision_record = {
+                                "model": writer_model,
+                                "candidate": deepcopy(revised),
+                                "lintFindings": deepcopy(revision_findings),
+                            }
+                        if usable:
+                            assert revised is not None
+                            final = revised
+                            final_checks = (
+                                []
+                                if revised.get("status") in TERMINAL_WRITER_ANSWERS
+                                else [
+                                    {
+                                        "name": "query_review_revision",
+                                        "status": "passed",
+                                        "message": (
+                                            "The writer revised its query from the "
+                                            "reviewer's feedback; the revision passed "
+                                            "the deterministic contract and SQL lint. "
+                                            "It was not reviewed again."
+                                        ),
+                                    }
+                                ]
+                            )
+                        else:
+                            codes = (
+                                ", ".join(
+                                    finding["code"] for finding in revision_findings
+                                )
+                                or "no usable answer"
+                            )
+                            final_checks = _review_advice(
+                                review,
+                                "The writer's revision could not be used "
+                                f"({codes}); this is its original query, with the "
+                                "reviewer's feedback as advice.",
+                            )
+                    selected_revision = final is not candidate
+                    if is_revision:
+                        writer_record["disposition"] = (
+                            "superseded" if selected_revision else "selected"
+                        )
+                        reviewer_record["disposition"] = "diagnostic_only"
+                        if revision_record is not None:
+                            revision_record["disposition"] = (
+                                "selected"
+                                if selected_revision
+                                else "retained_unselected"
+                            )
+                    model_collaboration = (
+                        {
+                            "writer": writer_record,
+                            "reviewer": reviewer_record,
+                            **(
+                                {"revision": revision_record}
+                                if revision_record is not None
+                                else {}
+                            ),
+                            "finalLintFindings": [],
+                        }
+                        if collaborative_review
+                        else None
+                    )
+                    result = _finalize(
+                        question,
+                        extension,
+                        final,
+                        _semantic_checks(
+                            _lint_validation_checks(lint_history, final_checks),
+                            question,
+                            extension,
+                        ),
+                        profile_id=request.profile.id,
+                        model_collaboration=model_collaboration,
+                    )
                 except asyncio.CancelledError as exc:
                     result = _rejected(
                         question,
@@ -1817,77 +1782,32 @@ async def execute_query_profile(
                     raise GenerationCancelled(exc, result) from exc
                 except Exception as exc:
                     logger.warning("Catalyst query review failed: %s", exc)
-                    if is_revision and collaborative_review:
-                        if model_collaboration is not None:
-                            model_collaboration = deepcopy(model_collaboration)
-                            model_collaboration["writer"]["disposition"] = (
-                                "retained_unselected"
-                            )
-                            model_collaboration["reviewer"]["disposition"] = (
-                                "diagnostic_only"
-                            )
-                            if not model_collaboration[
-                                "finalLintFindings"
-                            ] and isinstance(exc, QueryContractError):
-                                model_collaboration["finalLintFindings"] = [
-                                    _contract_lint_finding(exc)
-                                ]
-                        else:
-                            repaired_candidate = locals().get("repaired")
-                            review_result = locals().get("review")
-                            if (
-                                isinstance(repaired_candidate, Mapping)
-                                and isinstance(review_result, Mapping)
-                                and review_result.get("decision") == "repair"
-                            ):
-                                repair_findings = locals().get("repaired_findings")
-                                if not isinstance(repair_findings, list):
-                                    repair_findings = (
-                                        [_contract_lint_finding(exc)]
-                                        if isinstance(exc, QueryContractError)
-                                        else []
-                                    )
-                                model_collaboration = {
-                                    "writer": {
-                                        "model": request.profile.models[
-                                            "query_generate"
-                                        ],
-                                        "candidate": deepcopy(candidate),
-                                        "lintFindings": deepcopy(writer_findings),
-                                        "disposition": "retained_unselected",
-                                    },
-                                    "reviewer": {
-                                        "model": request.profile.models["query_review"],
-                                        "decision": "repair",
-                                        "candidate": deepcopy(repaired_candidate),
-                                        "checks": deepcopy(
-                                            review_result.get("checks", [])
-                                        ),
-                                        "disposition": "diagnostic_only",
-                                    },
-                                    "finalLintFindings": deepcopy(repair_findings),
-                                }
-                            else:
-                                model_collaboration = {
-                                    "writer": {
-                                        "model": request.profile.models[
-                                            "query_generate"
-                                        ],
-                                        "candidate": deepcopy(candidate),
-                                        "lintFindings": deepcopy(writer_findings),
-                                        "disposition": "retained_unselected",
-                                    },
-                                    "reviewer": {
-                                        "model": request.profile.models["query_review"],
-                                        "decision": "failed",
-                                        "checks": [],
-                                        "disposition": "diagnostic_only",
-                                    },
-                                    "finalLintFindings": deepcopy(writer_findings),
-                                }
+                    failure_collaboration = (
+                        {
+                            "writer": {
+                                "model": writer_model,
+                                "candidate": deepcopy(candidate),
+                                "lintFindings": [],
+                                "disposition": "retained_unselected",
+                            },
+                            "reviewer": {
+                                "model": reviewer_model,
+                                "decision": "failed",
+                                "checks": [],
+                                "disposition": "diagnostic_only",
+                            },
+                            "finalLintFindings": (
+                                [_contract_lint_finding(exc)]
+                                if isinstance(exc, QueryContractError)
+                                else []
+                            ),
+                        }
+                        if is_revision and collaborative_review
+                        else None
+                    )
                     diagnostic_candidate = {
                         "executable": False,
-                        "candidate": locals().get("repaired", candidate),
+                        "candidate": candidate,
                     }
                     if isinstance(exc, QueryReviewError):
                         diagnostic_candidate["rawOutput"] = exc.raw_output
@@ -1898,7 +1818,7 @@ async def execute_query_profile(
                         check_name="query_review",
                         diagnostic_candidate=diagnostic_candidate,
                         profile_id=request.profile.id,
-                        model_collaboration=model_collaboration,
+                        model_collaboration=failure_collaboration,
                     )
                     steps.append({"role": "query_review", "status": "failed"})
 
