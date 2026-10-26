@@ -736,7 +736,20 @@
           "required": ["model", "decision", "checks"],
           "properties": {
             "model": {"type": "string", "minLength": 1},
-            "decision": {"enum": ["approve", "repair", "reject", "failed"]},
+            "decision": {"enum": ["approve", "revise", "failed", "repair", "reject"]},
+            "feedback": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["issue", "suggestion"],
+                "properties": {
+                  "issue": {"type": "string", "minLength": 1},
+                  "suggestion": {"type": "string", "minLength": 1}
+                }
+              }
+            },
             "candidate": {"$ref": "#/$defs/generatedCandidate"},
             "checks": {
               "type": "array",
@@ -750,6 +763,21 @@
               "type": "array",
               "items": {"$ref": "#/$defs/reviewCheck"}
             }
+          }
+        },
+        "revision": {
+          "description": "The writer's one revision of its query from the reviewer's feedback.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["model", "candidate", "lintFindings"],
+          "properties": {
+            "model": {"type": "string", "minLength": 1},
+            "candidate": {"$ref": "#/$defs/generatedCandidate"},
+            "lintFindings": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/diagnosticFinding"}
+            },
+            "disposition": {"enum": ["selected", "retained_unselected"]}
           }
         },
         "finalLintFindings": {
@@ -921,7 +949,7 @@
       "properties": {
         "invocationId": {"type": "string", "format": "uuid"},
         "role": {"enum": ["writer", "reviewer"]},
-        "stage": {"enum": ["initial_generation", "followup_generation", "review"]},
+        "stage": {"enum": ["initial_generation", "followup_generation", "review", "review_revision"]},
         "attempt": {"type": "integer", "minimum": 1, "maximum": 32},
         "providerId": {"type": "string", "minLength": 1},
         "modelId": {"type": "string", "minLength": 1},

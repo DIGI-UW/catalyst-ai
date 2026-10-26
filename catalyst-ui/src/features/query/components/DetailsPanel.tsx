@@ -58,6 +58,7 @@ const versionAuthor = (version: WorkbenchQueryVersion) => {
   if (version.authorType === "model_repair" || collaborationRole === "reviewer") {
     return "reviewer correction";
   }
+  if (version.provenance.revisedFromReview) return "writer revision from review";
   if (version.authorType === "model") return "model writer";
   return version.authorType.replaceAll("_", " ");
 };

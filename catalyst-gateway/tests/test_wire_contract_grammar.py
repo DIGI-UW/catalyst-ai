@@ -17,7 +17,6 @@ from typing import Any, Mapping
 
 from src.catalyst.query_schemas import (
     GENERATION_FORMAT,
-    REPAIR_FORMAT,
     REVIEW_FORMAT,
     REVIEW_VALIDATOR,
 )
@@ -25,7 +24,6 @@ from src.catalyst.query_schemas import (
 WIRE_FORMATS = {
     "generation": GENERATION_FORMAT,
     "review": REVIEW_FORMAT,
-    "repair": REPAIR_FORMAT,
 }
 
 # Keywords llama.cpp's converter does not honour. `oneOf` is allowed, but only
@@ -82,46 +80,32 @@ def test_every_oneof_branch_is_a_closed_self_describing_object():
                 assert not missing, f"{where} requires undeclared {missing}"
 
 
-def test_review_wire_forces_a_repair_to_carry_its_query():
-    """The exact shape that broke production must be unrepresentable."""
-    repair = next(
-        branch
-        for branch in REVIEW_FORMAT["json_schema"]["schema"]["oneOf"]
-        if branch["properties"]["decision"]["const"] == "repair"
-    )
-    candidate = repair["properties"]["candidate"]
-
-    assert "candidate" in repair["required"]
-    for field in ("status", "sql", "parameters", "expectedColumns"):
-        assert field in candidate["required"], f"repair candidate may omit {field}"
-    assert "target" not in candidate["properties"]
-
-    # And the validator still rejects the stub, so defence in depth holds.
-    stub = {
-        "decision": "repair",
-        "checks": [{"name": "field-grounding", "status": "failed"}],
-        "candidate": {"status": "ready"},
-    }
-    assert list(REVIEW_VALIDATOR.iter_errors(stub)), "validator accepts the stub"
-
-
-def test_flat_repair_wire_leaves_target_metadata_to_catalyst():
-    schema = REPAIR_FORMAT["json_schema"]["schema"]
-
-    assert "target" not in schema["required"]
-    assert "target" not in schema["properties"]
-
-
-def test_review_wire_keeps_approve_and_reject_usable():
+def test_the_reviewer_can_only_approve_or_ask_for_a_revision():
     branches = {
         branch["properties"]["decision"]["const"]: branch
         for branch in REVIEW_FORMAT["json_schema"]["schema"]["oneOf"]
     }
-    assert set(branches) == {"approve", "reject", "repair"}
-    # A rejection is only useful if it says why.
-    assert "message" in branches["reject"]["required"]
-    # An approval carries no candidate to apply.
-    assert "candidate" not in branches["approve"]["properties"]
+    assert set(branches) == {"approve", "revise"}
+    # A revision is only useful if it says what to change.
+    assert "feedback" in branches["revise"]["required"]
+
+
+def test_the_reviewer_has_no_way_to_return_sql():
+    for branch in REVIEW_FORMAT["json_schema"]["schema"]["oneOf"]:
+        assert "candidate" not in branch["properties"]
+        assert "sql" not in branch["properties"]
+    # And the validator refuses a reviewer-written query, so defence in depth holds.
+    rewrite = {
+        "decision": "approve",
+        "checks": [{"name": "field-grounding", "status": "passed"}],
+        "candidate": {"status": "ready", "sql": "SELECT 1"},
+    }
+    assert list(REVIEW_VALIDATOR.iter_errors(rewrite)), "validator accepts a rewrite"
+
+
+def test_a_revision_without_feedback_is_not_a_valid_review():
+    stub = {"decision": "revise", "checks": [{"name": "grain", "status": "failed"}]}
+    assert list(REVIEW_VALIDATOR.iter_errors(stub)), "validator accepts the stub"
 
 
 # --- the writer's three terminal outcomes ----------------------------------

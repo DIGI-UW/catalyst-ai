@@ -164,9 +164,10 @@ Formatting and validation never execute SQL. Findings never disable Run or
 rewrite SQL.
 
 Presentation-only SQL formatting retains the model-authored version and its
-review evidence. A recorded reviewer approval or selected reviewer correction
-is shown as “AI reviewed”; a configured reviewer alone does not establish that
-a review happened. Later human edits do not inherit that review.
+review evidence. A recorded reviewer approval, or the writer's revision made
+from the reviewer's feedback, is shown as “AI reviewed”; a configured reviewer
+alone does not establish that a review happened. Later human edits do not
+inherit that review.
 
 Run saves the exact visible draft as an immutable version and submits its exact
 SQL and typed parameters through the configured connection. Catalyst applies a

@@ -132,7 +132,7 @@ class LineageHub:
         mismatched_reviewer_model: bool = False,
         writer_outcome: str = "succeeded",
         reviewer_outcome: str = "succeeded",
-        repair_linted_writer: bool = False,
+        revise_from_review: bool = False,
     ) -> None:
         self.requests: list[dict] = []
         self.mismatched_response_profile = mismatched_response_profile
@@ -140,7 +140,7 @@ class LineageHub:
         self.mismatched_reviewer_model = mismatched_reviewer_model
         self.writer_outcome = writer_outcome
         self.reviewer_outcome = reviewer_outcome
-        self.repair_linted_writer = repair_linted_writer
+        self.revise_from_review = revise_from_review
 
     async def list_query_profiles(self) -> list[dict]:
         evidence = _profile_evidence()
@@ -184,11 +184,8 @@ class LineageHub:
                 "contextSourceIds": [context["catalog"]["contextSourceId"]],
             },
         }
-        if self.repair_linted_writer:
-            query["sql"] = query["sql"].replace(
-                " LIMIT 2", " ORDER BY test_name LIMIT 2"
-            )
-            final_candidate = {
+        if self.revise_from_review:
+            writer_candidate = {
                 key: deepcopy(query[key])
                 for key in (
                     "status",
@@ -198,42 +195,47 @@ class LineageHub:
                     "expectedColumns",
                 )
             }
-            writer_candidate = deepcopy(final_candidate)
-            writer_candidate["sql"] = (
-                "SELECT invented_writer_column FROM analytics.lab_results LIMIT 2"
+            query["sql"] = query["sql"].replace(
+                " LIMIT 2", " ORDER BY test_name LIMIT 2"
             )
-            writer_candidate["expectedColumns"] = [
-                {
-                    "name": "invented_writer_column",
-                    "logicalType": "string",
-                    "nullable": False,
-                }
-            ]
+            revised_candidate = deepcopy(writer_candidate)
+            revised_candidate["sql"] = query["sql"]
             query["modelCollaboration"] = {
                 "writer": {
                     "model": "gemma-4-12b",
                     "candidate": writer_candidate,
-                    "lintFindings": [
-                        {
-                            "code": "catalog.unknown_column",
-                            "stage": "catalog_identifiers",
-                            "severity": "error",
-                            "path": "sql",
-                            "message": "SQL references a field absent from the catalog.",
-                        }
-                    ],
+                    "lintFindings": [],
                 },
                 "reviewer": {
                     "model": "qwen-2.5-14b",
-                    "decision": "repair",
-                    "candidate": final_candidate,
-                    "checks": [{"name": "field-grounding", "status": "passed"}],
+                    "decision": "revise",
+                    "checks": [
+                        {
+                            "name": "ordering",
+                            "status": "failed",
+                            "message": "The question asks for results sorted by test name.",
+                        }
+                    ],
+                    "feedback": [
+                        {
+                            "issue": "The rows are not sorted.",
+                            "suggestion": "Add ORDER BY test_name before the LIMIT.",
+                        }
+                    ],
+                },
+                "revision": {
+                    "model": "gemma-4-12b",
+                    "candidate": revised_candidate,
+                    "lintFindings": [],
                 },
                 "finalLintFindings": [],
             }
             if context["contractVersion"] == "catalyst.query.request.v2":
                 query["modelCollaboration"]["writer"]["disposition"] = "superseded"
-                query["modelCollaboration"]["reviewer"]["disposition"] = "selected"
+                query["modelCollaboration"]["reviewer"]["disposition"] = (
+                    "diagnostic_only"
+                )
+                query["modelCollaboration"]["revision"]["disposition"] = "selected"
         response_profile = _profile_evidence()
         if self.mismatched_response_profile:
             response_profile["profileId"] = "catalyst-query-other"
@@ -261,23 +263,11 @@ class LineageHub:
                 "requestDigest": canonical_sha256(request),
                 "responseDigest": canonical_sha256(query),
                 "failureDigest": (
-                    canonical_sha256(
-                        {
-                            "outcome": (
-                                "validation_failed"
-                                if self.repair_linted_writer
-                                else self.writer_outcome
-                            )
-                        }
-                    )
-                    if self.repair_linted_writer or self.writer_outcome != "succeeded"
+                    canonical_sha256({"outcome": self.writer_outcome})
+                    if self.writer_outcome != "succeeded"
                     else None
                 ),
-                "outcome": (
-                    "validation_failed"
-                    if self.repair_linted_writer
-                    else self.writer_outcome
-                ),
+                "outcome": self.writer_outcome,
             }
         ]
         if not self.omit_reviewer_invocation:
@@ -314,6 +304,34 @@ class LineageHub:
                         else None
                     ),
                     "outcome": self.reviewer_outcome,
+                }
+            )
+        if self.revise_from_review:
+            invocations.append(
+                {
+                    "invocationId": "00000000-0000-4000-8000-000000000103",
+                    "role": "writer",
+                    "stage": "review_revision",
+                    "attempt": 1,
+                    "providerId": "llama.cpp",
+                    "modelId": "gemma-4-12b",
+                    "configuration": {
+                        "temperature": 0,
+                        "dryMultiplier": 0,
+                        "maxTokens": None,
+                        "responseFormat": "catalyst_query_candidate_v1",
+                    },
+                    "startedAt": "2026-07-20T12:00:02Z",
+                    "endedAt": "2026-07-20T12:00:03Z",
+                    "durationMs": 1000,
+                    "requestDigest": canonical_sha256(
+                        {"request": request, "role": "writer", "stage": "revision"}
+                    ),
+                    "responseDigest": canonical_sha256(
+                        {"query": query, "role": "writer", "stage": "revision"}
+                    ),
+                    "failureDigest": None,
+                    "outcome": "succeeded",
                 }
             )
         query["_hubEvidence"] = {
@@ -632,7 +650,7 @@ async def test_ready_query_requires_profile_bound_writer_and_reviewer_evidence(
 
 
 @pytest.mark.asyncio
-async def test_ready_query_accepts_reviewer_repair_of_linted_writer(
+async def test_a_writer_revision_from_review_feedback_becomes_the_selected_version(
     tmp_path: Path,
 ) -> None:
     hub = LineageHub()
@@ -640,7 +658,7 @@ async def test_ready_query_accepts_reviewer_repair_of_linted_writer(
 
     session = await _create_session(service)
     base = session["currentVersion"]
-    hub.repair_linted_writer = True
+    hub.revise_from_review = True
     response = await service.create_workbench_turn(
         session["sessionId"],
         {
@@ -665,17 +683,26 @@ async def test_ready_query_accepts_reviewer_repair_of_linted_writer(
     turn = response.body
     assert turn["status"] == "completed"
     assert len(turn["outputVersions"]) == 2
-    writer, reviewer = turn["outputVersions"]
-    assert reviewer["parentVersionId"] == writer["versionId"]
+    writer, revision = turn["outputVersions"]
+    assert revision["parentVersionId"] == writer["versionId"]
+    assert {writer["role"], revision["role"]} == {"writer"}
 
     restored = service.get_workbench_session(session["sessionId"]).body
-    assert restored["currentVersion"]["authorType"] == "model_repair"
-    assert "ORDER BY test_name" in restored["currentVersion"]["sql"]
+    current = restored["currentVersion"]
+    assert current["authorType"] == "model"
+    assert "ORDER BY test_name" in current["sql"]
+    assert current["provenance"]["revisedFromReview"]["feedback"] == [
+        {
+            "issue": "The rows are not sorted.",
+            "suggestion": "Add ORDER BY test_name before the LIMIT.",
+        }
+    ]
     evidence = service.get_workbench_generation_evidence(
         session["sessionId"], turn["turnId"]
     ).body
     assert [item["outcome"] for item in evidence["invocations"]] == [
-        "validation_failed",
+        "succeeded",
+        "succeeded",
         "succeeded",
     ]
     assert [item["configuration"] for item in evidence["invocations"]] == [
@@ -690,6 +717,12 @@ async def test_ready_query_accepts_reviewer_repair_of_linted_writer(
             "dryMultiplier": 0,
             "maxTokens": None,
             "responseFormat": "catalyst_query_review_v1",
+        },
+        {
+            "temperature": 0,
+            "dryMultiplier": 0,
+            "maxTokens": None,
+            "responseFormat": "catalyst_query_candidate_v1",
         },
     ]
     ContractRegistry.load(CONTRACTS).validate(

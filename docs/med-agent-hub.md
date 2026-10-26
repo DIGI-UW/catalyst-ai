@@ -166,7 +166,7 @@ The question is “What information is available in this data source?” Its out
 is discarded: warmup opens no user stores, creates no sessions or previews, and
 adds no history, examples or guidance. It discovers the live schema through
 source metadata commands, but does not run generated or user-visible SQL or
-retrieve clinical rows. It does not invoke a reviewer or repair loop. Use the
+retrieve clinical rows. It does not invoke a reviewer or revision. Use the
 OpenClinAI umbrella lifecycle wrapper for the combined reference deployment.
 
 Warmup uses Hub's internal `warm` role route rather than the caller-facing role
@@ -194,10 +194,18 @@ existing model-correction flow as parse findings. If correction fails, the raw
 candidate and findings remain available as generation evidence; Catalyst does
 not strip the offending text or execute the candidate.
 
-When the selected profile includes a reviewer, Catalyst supplies the candidate
-to that role and parses its response before presenting the final candidate.
-Profile review helps improve the candidate; it does not replace the person's
-review.
+Lint findings on a writer's candidate go back to the writer through the same
+correction flow, for every profile, before any review.
+
+When the selected profile includes a reviewer, Catalyst supplies the writer's
+lint-clean candidate to that role. The reviewer never writes SQL: it approves,
+or asks for a revision with feedback, each item an issue and a suggested fix in
+words. On a revision Catalyst gives the writer its own candidate and that
+feedback once; the writer returns a corrected candidate, or a clarification or
+unsupported answer, which is linted and not reviewed again. If the revision
+cannot be used, the person gets the writer's original candidate with the
+reviewer's feedback as advice. Profile review helps improve the candidate; it
+does not replace the person's review.
 
 Parser, reviewer, and SQL checks may produce visible findings. Those findings
 are advice. They do not disable Run, rewrite the editor, or prevent a

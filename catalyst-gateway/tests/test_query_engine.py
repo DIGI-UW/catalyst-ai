@@ -413,6 +413,170 @@ async def test_reviewed_path_runs_writer_then_reviewer():
     assert len(result["_hubEvidence"]["modelInvocations"]) == 2
 
 
+def _revise_review() -> dict:
+    return {
+        "decision": "revise",
+        "checks": [
+            {
+                "name": "column_naming",
+                "status": "failed",
+                "message": "The value column should say it is the viral load.",
+            }
+        ],
+        "feedback": [
+            {
+                "issue": "The value column is not named for what it holds.",
+                "suggestion": "Alias viral_load_value AS viral_load.",
+            }
+        ],
+    }
+
+
+def _revised_candidate() -> dict:
+    candidate = _ready_candidate()
+    candidate["sql"] = candidate["sql"].replace(
+        "SELECT viral_load_value,", "SELECT viral_load_value AS viral_load,"
+    )
+    candidate["expectedColumns"][0]["name"] = "viral_load"
+    return candidate
+
+
+async def _run_capturing(profile: EngineProfile, responses: list, captured: list):
+    request = EngineRequest(
+        catalyst_query=_extension(),
+        messages=[{"role": "user", "content": QUESTION}],
+        profile=profile,
+    )
+    with patch.object(
+        query_engine,
+        "_backend_chat",
+        side_effect=_queued_backend(responses, captured),
+    ):
+        results = [
+            payload
+            async for kind, payload in execute_query_profile(request)
+            if kind == "result"
+        ]
+    assert len(results) == 1
+    return json.loads(results[0])
+
+
+@pytest.mark.asyncio
+async def test_a_revise_sends_the_feedback_to_the_writer_and_selects_its_revision():
+    captured: list = []
+    result = await _run_capturing(
+        _collaborative_profile(),
+        [_ready_candidate(), _revise_review(), _revised_candidate()],
+        captured,
+    )
+
+    assert result["status"] == "ready"
+    assert result["sql"] == _revised_candidate()["sql"]
+    # Writer, reviewer, writer again: the reviewer wrote no SQL and was not
+    # asked a second time.
+    assert len(captured) == 3
+    revision_request = json.loads(captured[2][-1]["content"])["reviewFeedback"]
+    assert revision_request["feedback"] == _revise_review()["feedback"]
+    assert revision_request["candidate"]["sql"] == _ready_candidate()["sql"]
+    checks = {check["name"]: check for check in result["validation"]["checks"]}
+    assert checks["query_review_revision"]["status"] == "passed"
+    collaboration = result["modelCollaboration"]
+    assert collaboration["reviewer"]["decision"] == "revise"
+    assert collaboration["reviewer"]["feedback"] == _revise_review()["feedback"]
+    assert "candidate" not in collaboration["reviewer"]
+    assert collaboration["revision"]["candidate"]["sql"] == _revised_candidate()["sql"]
+    assert collaboration["writer"]["candidate"]["sql"] == _ready_candidate()["sql"]
+    stages = [item["stage"] for item in result["_hubEvidence"]["modelInvocations"]]
+    assert stages == ["initial_generation", "review", "review_revision"]
+
+
+@pytest.mark.asyncio
+async def test_a_revision_that_fails_lint_leaves_the_original_query_with_advice():
+    broken = _revised_candidate()
+    broken["sql"] = broken["sql"].replace("release_date >=", "invented_column >=")
+    result = await _run(
+        _collaborative_profile(), [_ready_candidate(), _revise_review(), broken]
+    )
+
+    assert result["status"] == "ready"
+    assert result["sql"] == _ready_candidate()["sql"]
+    assert result["validation"]["status"] == "warned"
+    checks = {check["name"]: check for check in result["validation"]["checks"]}
+    assert checks["query_review_feedback_1"]["status"] == "warned"
+    assert (
+        "Alias viral_load_value AS viral_load."
+        in checks["query_review_feedback_1"]["message"]
+    )
+    assert checks["query_review_revision"]["status"] == "warned"
+    assert "this is its original query" in checks["query_review_revision"]["message"]
+    assert result["modelCollaboration"]["revision"]["lintFindings"]
+
+
+@pytest.mark.asyncio
+async def test_the_writer_may_answer_the_feedback_by_asking_instead():
+    question = "Which result type did you mean by value?"
+    result = await _run(
+        _collaborative_profile(),
+        [
+            _ready_candidate(),
+            _revise_review(),
+            {"status": "needs_clarification", "clarification": question},
+        ],
+    )
+
+    assert result["status"] == "needs_clarification"
+    assert result["clarification"] == question
+
+
+@pytest.mark.asyncio
+async def test_an_approval_with_a_failed_check_keeps_the_query_and_shows_the_check():
+    review = _approve_review()
+    review["checks"].append(
+        {"name": "row_limit", "status": "failed", "message": "No LIMIT."}
+    )
+    result = await _run(_collaborative_profile(), [_ready_candidate(), review])
+
+    assert result["status"] == "ready"
+    checks = {check["name"]: check for check in result["validation"]["checks"]}
+    assert checks["row_limit"]["status"] == "warned"
+
+
+@pytest.mark.asyncio
+async def test_lint_findings_go_back_to_the_writer_on_a_collaborative_profile():
+    """The reviewer used to receive the writer's lint findings and rewrite the
+    query; the writer now corrects its own query before any review."""
+    from src.catalyst.query_lint import lint_candidate
+
+    captured: list = []
+    unnamed = _ready_candidate()
+    unnamed["sql"] = unnamed["sql"].replace("release_date >=", "invented_column >=")
+    finding = lint_candidate(unnamed, _extension(), instruction=QUESTION)[0]
+    correction = {
+        "patches": [
+            {
+                "findingCode": finding["code"],
+                "op": "replace_text",
+                "path": "/sql",
+                "oldValue": "invented_column",
+                "replacement": "release_date",
+            }
+        ]
+    }
+    result = await _run_capturing(
+        _collaborative_profile(),
+        [unnamed, correction, _approve_review()],
+        captured,
+    )
+
+    assert result["status"] == "ready"
+    assert len(captured) == 3
+    correction = json.loads(captured[1][-1]["content"])
+    assert "correctionRequest" in correction
+    review_request = json.loads(captured[2][-1]["content"])
+    assert "deterministicFindings" not in review_request
+    assert review_request["candidate"]["sql"] == _ready_candidate()["sql"]
+
+
 @pytest.mark.asyncio
 async def test_a_malformed_review_gets_one_corrective_attempt_and_recovers():
     """The case that cost a real turn.

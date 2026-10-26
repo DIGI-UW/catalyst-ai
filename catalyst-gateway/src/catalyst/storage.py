@@ -1700,7 +1700,14 @@ class WorkbenchStore:
                         "versionId": version_id,
                         "queryDigest": query_digest,
                         "parentVersionId": parent_version_id,
-                        "role": "writer" if index == 0 else "reviewer",
+                        # A later output is the reviewer's only when the reviewer
+                        # wrote it (records from before reviewers stopped writing
+                        # SQL); a revision from review feedback is the writer's.
+                        "role": (
+                            "reviewer"
+                            if output.get("authorType") == "model_repair"
+                            else "writer"
+                        ),
                         "authorType": str(output.get("authorType") or "model"),
                         "contractValid": True,
                         "validationId": validation_id,

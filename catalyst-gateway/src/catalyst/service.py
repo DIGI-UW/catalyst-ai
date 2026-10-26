@@ -1035,28 +1035,18 @@ class CatalystService:
                     }
                 )
                 validation_sources.append(list(writer["lintFindings"]))
-                reviewer_provenance = {
-                    **deepcopy(version_provenance),
-                    "collaborationRole": "reviewer",
-                    "model": reviewer["model"],
-                    "decision": reviewer["decision"],
-                    "checks": deepcopy(reviewer["checks"]),
-                    "finalDecision": reviewer.get("finalDecision"),
-                    "finalChecks": deepcopy(reviewer.get("finalChecks") or []),
-                    "finalLintFindings": deepcopy(collaboration["finalLintFindings"]),
-                }
+                revision = collaboration["revision"]
                 outputs.append(
                     {
                         **draft,
-                        "authorType": "model_repair",
-                        "provenance": reviewer_provenance,
+                        "authorType": "model",
+                        "provenance": self._revision_provenance(
+                            version_provenance, revision, reviewer
+                        ),
                     }
                 )
                 validation_sources.append(
-                    [
-                        *source_findings,
-                        *list(collaboration["finalLintFindings"]),
-                    ]
+                    [*source_findings, *list(revision["lintFindings"])]
                 )
             else:
                 outputs.append(
@@ -1565,23 +1555,18 @@ class CatalystService:
                     }
                 )
                 validation_sources.append(list(writer["lintFindings"]))
+                revision = collaboration["revision"]
                 outputs.append(
                     {
                         **draft,
-                        "authorType": "model_repair",
-                        "provenance": {
-                            **deepcopy(version_provenance),
-                            "collaborationRole": "reviewer",
-                            "model": reviewer["model"],
-                            "decision": reviewer["decision"],
-                            "checks": deepcopy(reviewer["checks"]),
-                            "finalDecision": reviewer.get("finalDecision"),
-                            "finalChecks": deepcopy(reviewer.get("finalChecks") or []),
-                        },
+                        "authorType": "model",
+                        "provenance": self._revision_provenance(
+                            version_provenance, revision, reviewer
+                        ),
                     }
                 )
                 validation_sources.append(
-                    [*source_findings, *list(collaboration["finalLintFindings"])]
+                    [*source_findings, *list(revision["lintFindings"])]
                 )
             else:
                 outputs.append(
@@ -3125,15 +3110,18 @@ class CatalystService:
         reviewer = collaboration.get("reviewer")
         if not isinstance(writer, dict) or not isinstance(reviewer, dict):
             return None
+        revision = collaboration.get("revision")
+        if not isinstance(revision, dict):
+            return None
         writer_candidate = writer.get("candidate")
-        reviewer_candidate = reviewer.get("candidate")
+        revised_candidate = revision.get("candidate")
         if not isinstance(writer_candidate, dict) or not isinstance(
-            reviewer_candidate, dict
+            revised_candidate, dict
         ):
             return None
         if writer.get("model") == reviewer.get("model"):
             return None
-        for candidate in (writer_candidate, reviewer_candidate):
+        for candidate in (writer_candidate, revised_candidate):
             if not isinstance(candidate.get("sql"), str):
                 return None
             if not isinstance(candidate.get("parameters"), list):
@@ -3141,11 +3129,31 @@ class CatalystService:
             if not isinstance(candidate.get("expectedColumns"), list):
                 return None
         if any(
-            reviewer_candidate.get(field) != final_draft.get(field)
+            revised_candidate.get(field) != final_draft.get(field)
             for field in ("sql", "parameters", "expectedColumns")
         ):
             return None
         return deepcopy(collaboration)
+
+    @staticmethod
+    def _revision_provenance(
+        version_provenance: dict[str, Any],
+        revision: dict[str, Any],
+        reviewer: dict[str, Any],
+    ) -> dict[str, Any]:
+        """The writer's revised version, with the review it answered."""
+        return {
+            **deepcopy(version_provenance),
+            "collaborationRole": "writer",
+            "model": revision["model"],
+            "lintFindings": deepcopy(revision["lintFindings"]),
+            "revisedFromReview": {
+                "model": reviewer["model"],
+                "decision": reviewer["decision"],
+                "checks": deepcopy(reviewer["checks"]),
+                "feedback": deepcopy(reviewer.get("feedback") or []),
+            },
+        }
 
     @staticmethod
     def _is_historical_generation_check(check: dict[str, Any]) -> bool:

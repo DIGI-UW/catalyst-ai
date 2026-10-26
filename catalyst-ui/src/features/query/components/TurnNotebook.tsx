@@ -134,6 +134,7 @@ const versionAuthor = (version: NotebookVersion | null) => {
   if (version.authorType === "model_repair" || collaborationRole === "reviewer") {
     return "reviewer correction";
   }
+  if (version.provenance.revisedFromReview) return "writer revision from review";
   if (version.authorType === "model") return "model writer";
   return version.authorType.replaceAll("_", " ");
 };
@@ -215,6 +216,7 @@ const isUnreviewed = (turn: NotebookTurn, version: NotebookVersion | null) => {
   }
   const provenance = (version?.provenance ?? {}) as Record<string, unknown>;
   if (provenance.collaborationRole === "reviewer") return false;
+  if (provenance.revisedFromReview) return false;
   const collaboration = provenance.modelCollaboration as
     | { reviewer?: { decision?: string } }
     | undefined;

@@ -122,32 +122,38 @@ def _collaborative_query() -> dict:
     writer_candidate["expectedColumns"] = [
         {"name": "count", "logicalType": "integer", "nullable": False}
     ]
-    reviewer_candidate = deepcopy(writer_candidate)
-    reviewer_candidate["sql"] = reviewer_candidate["sql"].replace(
+    revised_candidate = deepcopy(writer_candidate)
+    revised_candidate["sql"] = revised_candidate["sql"].replace(
         "SELECT COUNT(*)", "SELECT COUNT(*) AS count"
     )
-    query.update(reviewer_candidate)
+    query.update(revised_candidate)
     query["modelCollaboration"] = {
         "writer": {
             "model": "qwen2.5-coder-14b",
             "candidate": writer_candidate,
-            "lintFindings": [
-                {
-                    "code": "output.projection_mismatch",
-                    "stage": "output_agreement",
-                    "severity": "error",
-                    "path": "expectedColumns",
-                    "message": "Projected SQL columns and expectedColumns must agree.",
-                }
-            ],
+            "lintFindings": [],
         },
         "reviewer": {
             "model": "gemma-e4b",
-            "decision": "repair",
-            "candidate": reviewer_candidate,
-            "checks": [{"name": "projection", "status": "passed"}],
-            "finalDecision": "approve",
-            "finalChecks": [{"name": "projection", "status": "passed"}],
+            "decision": "revise",
+            "checks": [
+                {
+                    "name": "projection",
+                    "status": "failed",
+                    "message": "The count column has no name.",
+                }
+            ],
+            "feedback": [
+                {
+                    "issue": "The count column has no name.",
+                    "suggestion": "Alias COUNT(*) AS count.",
+                }
+            ],
+        },
+        "revision": {
+            "model": "qwen2.5-coder-14b",
+            "candidate": revised_candidate,
+            "lintFindings": [],
         },
         "finalLintFindings": [],
     }
@@ -1084,7 +1090,7 @@ def test_ready_generation_creates_restorable_version_and_validation(
     assert restored.json() == session
 
 
-def test_collaboration_persists_writer_and_reviewer_as_linked_versions(
+def test_a_revision_from_review_persists_as_the_writers_linked_second_version(
     tmp_path: Path,
 ) -> None:
     query = _collaborative_query()
@@ -1092,26 +1098,32 @@ def test_collaboration_persists_writer_and_reviewer_as_linked_versions(
 
     session = _create_session(client)
 
-    writer, reviewer = session["versions"]
+    writer, revision = session["versions"]
     collaboration = query["modelCollaboration"]
     assert writer["authorType"] == "model"
     assert writer["sql"] == collaboration["writer"]["candidate"]["sql"]
     assert writer["provenance"]["collaborationRole"] == "writer"
     assert writer["provenance"]["model"] == "qwen2.5-coder-14b"
-    assert reviewer["authorType"] == "model_repair"
-    assert reviewer["parentVersionId"] == writer["versionId"]
-    assert reviewer["sql"] == collaboration["reviewer"]["candidate"]["sql"]
-    assert reviewer["provenance"]["collaborationRole"] == "reviewer"
-    assert reviewer["provenance"]["model"] == "gemma-e4b"
-    assert session["currentVersionId"] == reviewer["versionId"]
-    assert session["currentVersion"] == reviewer
+    assert revision["authorType"] == "model"
+    assert revision["parentVersionId"] == writer["versionId"]
+    assert revision["sql"] == collaboration["revision"]["candidate"]["sql"]
+    assert revision["provenance"]["collaborationRole"] == "writer"
+    assert revision["provenance"]["model"] == "qwen2.5-coder-14b"
+    assert revision["provenance"]["revisedFromReview"] == {
+        "model": "gemma-e4b",
+        "decision": "revise",
+        "checks": collaboration["reviewer"]["checks"],
+        "feedback": collaboration["reviewer"]["feedback"],
+    }
+    assert session["currentVersionId"] == revision["versionId"]
+    assert session["currentVersion"] == revision
     assert session["provenance"]["generationOutcome"]["modelCollaboration"] == (
         collaboration
     )
 
     restored = client.get(f"/v1/catalyst/workbench/sessions/{session['sessionId']}")
     assert restored.status_code == 200
-    assert restored.json()["versions"] == [writer, reviewer]
+    assert restored.json()["versions"] == [writer, revision]
 
 
 def test_collaboration_models_must_match_requested_profile(tmp_path: Path) -> None:
